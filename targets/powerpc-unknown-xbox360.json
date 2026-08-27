@@ -1,0 +1,23 @@
+{
+  "arch": "powerpc",
+  "data-layout": "E-m:e-p:32:32-Fn32-i64:64-n32",
+  "llvm-target": "powerpc-unknown-none",
+  "target-endian": "big",
+  "target-pointer-width": 32,
+  "max-atomic-width": 32,
+  "os": "none",
+  "env": "",
+  "vendor": "unknown",
+  "cpu": "ppc",
+  "features": "+hard-float",
+  "linker": "rust-lld",
+  "linker-flavor": "gnu-lld",
+  "panic-strategy": "abort",
+  "relocation-model": "static",
+  "code-model": "small",
+  "eh-frame-header": false,
+  "no-default-libraries": true,
+  "dynamic-linking": false,
+  "executables": true,
+  "emit-debug-gdb-scripts": false
+}

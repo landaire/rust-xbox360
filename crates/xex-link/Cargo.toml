@@ -1,0 +1,13 @@
+[package]
+name = "xex-link"
+version = "0.1.0"
+edition = "2024"
+description = "Link a PPC ELF into an Xbox 360 PE image and wrap it as a XEX"
+
+[dependencies]
+object = { version = "0.36", default-features = false, features = ["read", "elf", "std"] }
+byteorder = "1.5"
+thiserror = "2.0"
+rootcause = "0.12"
+xex2 = { path = "../../../acceleration/crates/xex2" }
+xenon_types = { path = "../../../acceleration/crates/xenon_types" }
