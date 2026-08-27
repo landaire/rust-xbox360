@@ -5,15 +5,20 @@ Xenia." Each milestone ends with a run in Xenia as verification.
 
 ## M0: boot a XEX
 
-- [ ] Custom rustc target `powerpc-unknown-xbox360` (32-bit BE, static reloc,
+- [x] Custom rustc target `powerpc-unknown-xbox360` (32-bit BE, static reloc,
       hard-float, os none, redzone off, panic abort).
-- [ ] `-Z build-std=core` builds a `#![no_std] #![no_main]` crate.
-- [ ] Linker script, image base 0x82000000, single load segment.
-- [ ] `xex-link`: ELF32 PPC -> Xbox PPC PE -> XEX (via Xex2Builder).
-- [ ] Title entry calls DbgPrint (xboxkrnl 0x03) then returns an exit code.
-- [ ] Extend the XEX import table to reference xboxkrnl.exe DbgPrint.
-- [ ] Xenia build usable for headless runs.
-- [ ] Verify: Xenia runs it, DbgPrint output observed, clean exit.
+- [x] `-Z build-std=core` builds a `#![no_std] #![no_main]` crate.
+- [x] Linker script, image base 0x82000000, single load segment.
+- [x] `xex-link`: ELF32 PPC -> Xbox PPC PE -> XEX (via Xex2Builder).
+- [x] Title entry calls DbgPrint (xboxkrnl 0x03) then returns an exit code.
+- [x] Extend the XEX import table to reference xboxkrnl.exe DbgPrint
+      (`xbox-sys` thunks + `acceleration` Xex2Builder import support).
+- [x] XEX verified loadable: gdb confirms image, code, string, and the
+      DbgPrint import thunk patched to `sc 2` in Xenia guest memory.
+- [ ] Xenia build usable for headless runs. A GCC build's x64 JIT is
+      miscompiled (garbage function pointers; other XEXs fail the same way);
+      rebuilding with clang. Debug build in progress to isolate/fix.
+- [ ] Verify: Xenia runs it, DbgPrint output observed.
 
 ## M1: multithreading
 

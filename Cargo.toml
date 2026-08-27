@@ -1,4 +1,4 @@
 [workspace]
 resolver = "2"
 members = ["crates/xex-link"]
-exclude = ["examples/hello"]
+exclude = ["examples/hello", "crates/xbox-sys"]

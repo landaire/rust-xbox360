@@ -1,0 +1,8 @@
+[package]
+name = "xbox-sys"
+version = "0.1.0"
+edition = "2024"
+description = "Xbox 360 kernel/Xam import bindings for the powerpc-unknown-xbox360 target"
+
+[lib]
+path = "src/lib.rs"

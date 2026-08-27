@@ -7,6 +7,9 @@ edition = "2024"
 name = "hello"
 path = "src/main.rs"
 
+[dependencies]
+xbox-sys = { path = "../../crates/xbox-sys" }
+
 [profile.dev]
 panic = "abort"
 

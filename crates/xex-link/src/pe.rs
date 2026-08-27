@@ -112,6 +112,9 @@ impl PeImage {
         // The PE container is little-endian even though the payload is
         // big-endian PowerPC code.
         w16(&mut h, 0x5A4D); // 'MZ'
+        // e_cblp = 0x90 so the first DWORD reads 0x00905A4D, which Xenia's
+        // is_valid_executable() requires.
+        w16(&mut h, 0x0090);
         h.resize(0x3C, 0);
         w32(&mut h, DOS_HEADER_LEN); // e_lfanew -> PE signature at 0x40
 

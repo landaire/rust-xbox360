@@ -5,3 +5,10 @@ version = 4
 [[package]]
 name = "hello"
 version = "0.1.0"
+dependencies = [
+ "xbox-sys",
+]
+
+[[package]]
+name = "xbox-sys"
+version = "0.1.0"
