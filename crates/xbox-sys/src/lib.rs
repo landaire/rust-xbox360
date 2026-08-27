@@ -43,3 +43,51 @@ import_thunk!(
     lib = lib_index::XBOXKRNL,
     ordinal = 0x03
 );
+
+import_thunk!(
+    /// `ExCreateThread` -- xboxkrnl.exe ordinal 0x0D. Creates a guest thread.
+    /// With `xapi_thread_startup` = 0 the thread is raw: it enters
+    /// `start_address` with r3 = `start_context` and its return value is the
+    /// exit code. `creation_flags` = 0 starts it immediately (not suspended)
+    /// and returns a handle via `handle_out`.
+    ExCreateThread(
+        handle_out: *mut u32,
+        stack_size: u32,
+        thread_id_out: *mut u32,
+        xapi_thread_startup: u32,
+        start_address: u32,
+        start_context: u32,
+        creation_flags: u32,
+    ) -> u32,
+    lib = lib_index::XBOXKRNL,
+    ordinal = 0x0D
+);
+
+import_thunk!(
+    /// `ExTerminateThread` -- xboxkrnl.exe ordinal 0x19. Exits the current
+    /// thread with `exit_code`. Raw threads should call this rather than
+    /// returning to the loader's exit sentinel.
+    ExTerminateThread(exit_code: u32) -> u32,
+    lib = lib_index::XBOXKRNL,
+    ordinal = 0x19
+);
+
+import_thunk!(
+    /// `NtWaitForSingleObjectEx` -- xboxkrnl.exe ordinal 0xFD. Waits on a
+    /// handle. A null `timeout` waits forever.
+    NtWaitForSingleObjectEx(
+        handle: u32,
+        wait_mode: u32,
+        alertable: u32,
+        timeout: *const u8,
+    ) -> u32,
+    lib = lib_index::XBOXKRNL,
+    ordinal = 0xFD
+);
+
+import_thunk!(
+    /// `NtClose` -- xboxkrnl.exe ordinal 0xCF. Closes a handle.
+    NtClose(handle: u32) -> u32,
+    lib = lib_index::XBOXKRNL,
+    ordinal = 0xCF
+);
