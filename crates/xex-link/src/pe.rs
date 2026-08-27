@@ -69,6 +69,14 @@ impl PeImage {
                 }
                 .into_report());
             }
+            if s.data.len() as u32 > s.virtual_size {
+                return Err(XexLinkError::SectionDataOverflow {
+                    name: name_str(&s.name),
+                    data_len: s.data.len(),
+                    virtual_size: s.virtual_size,
+                }
+                .into_report());
+            }
         }
 
         let image_size = align_up(

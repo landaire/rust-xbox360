@@ -184,6 +184,14 @@ fn collect_sections(elf: &object::File) -> Result<Vec<pe::Section>> {
         if addr == 0 || size == 0 {
             continue;
         }
+        if addr < IMAGE_BASE {
+            return Err(XexLinkError::SectionBelowBase {
+                name: sec.name().unwrap_or("?").to_string(),
+                addr,
+                base: IMAGE_BASE,
+            }
+            .into_report());
+        }
 
         let (characteristics, data) = match sec.kind() {
             SectionKind::Text => (

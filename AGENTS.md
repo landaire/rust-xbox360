@@ -5,6 +5,7 @@ llvm: ~/src/llvm-project
 Rust: ~/src/rust
 Acceleration: ~/dev/acceleration
 binja-xex2: ~/dev/binja-xex2
+xeedee: ~/dev/xeedee
 
 Guidelines:
 
@@ -18,5 +19,7 @@ Xenia should be used to figure out APIs. In general on Xbox 360, Xam and kernel 
 The Xbox 360 runs XEX files, not EXE files. I am unsure if it makes sense to have LLVM / Rust output an exe that then gets wrapped by some other part of the toolchain as an xex, or if they should output an xex. Take inspiration from other odd targets that may similarly wrap ELF or whatever.
 
 Acceleration has a lot of Xbox 360-related code we can use for building XEX files. Bring it in-tree if needed, but do not commit any potentially copyrighted bits (encryption keys)
+
+xeedee can be used to communicate with the devkit on my network, deanxbox
 
 Do not use resources outside of this list.

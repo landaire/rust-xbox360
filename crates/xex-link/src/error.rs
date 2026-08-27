@@ -15,8 +15,16 @@ pub enum XexLinkError {
     NoSections,
     #[error("ELF entry {entry:#010x} is below image base {base:#010x}")]
     EntryBelowBase { entry: u32, base: u32 },
+    #[error("section {name:?} address {addr:#010x} is below image base {base:#010x}")]
+    SectionBelowBase { name: String, addr: u32, base: u32 },
     #[error("section {name:?} at rva {rva:#x} overlaps PE headers ({headers:#x})")]
     HeaderOverlap { name: String, rva: u32, headers: u32 },
+    #[error("section {name:?} file data {data_len:#x} exceeds virtual size {virtual_size:#x}")]
+    SectionDataOverflow {
+        name: String,
+        data_len: usize,
+        virtual_size: u32,
+    },
     #[error("thunk at {va:#010x} has non-function record {record:#010x}")]
     BadThunk { va: u32, record: u32 },
     #[error("thunk references unknown import library index {0}")]
