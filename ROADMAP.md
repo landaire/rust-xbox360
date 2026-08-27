@@ -33,11 +33,17 @@ kernel import.
 - [x] Verify: Xenia shows main (F8000028) and child (F800002C) both running
       with distinct thread ids, and a clean join.
 
-## M2: networking
+## M2: networking (done)
 
-- [ ] Bind NetDll_ WSAStartup/socket/bind/sendto/recvfrom (xam.xex).
-- [ ] UDP echo or send to host; observe traffic via Xenia's host sockets.
-- [ ] Verify: packet round-trips in Xenia. Goal met (multithread + network).
+- [x] Bind NetDll_ XNetStartup/WSAStartup/socket/sendto/closesocket (xam.xex).
+- [x] A worker thread sends a UDP datagram; the packet leaves through Xenia's
+      host socket layer.
+- [x] Verify: a host process on 127.0.0.1:9999 receives
+      "hello from xbox 360 rust over udp" from the worker thread. Goal met:
+      one executable with multithreading and networking runs in Xenia.
+
+Fixes this required: import string-table per-name 4-byte padding (acceleration),
+and Xenia's XSocket::SendTo network byte order (committed in the xenia checkout).
 
 ## M3: std port (end goal)
 

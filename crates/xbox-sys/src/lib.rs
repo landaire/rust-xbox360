@@ -91,3 +91,51 @@ import_thunk!(
     lib = lib_index::XBOXKRNL,
     ordinal = 0xCF
 );
+
+/// `caller` value passed to the `NetDll_*` functions (XNCALLER_TITLE).
+pub const XNCALLER_TITLE: u32 = 1;
+
+import_thunk!(
+    /// `NetDll_XNetStartup` -- xam.xex ordinal 0x33. Initializes the network
+    /// stack (a no-op success in Xenia). `params` may be null.
+    NetDll_XNetStartup(caller: u32, params: *const u8) -> u32,
+    lib = lib_index::XAM,
+    ordinal = 0x33
+);
+
+import_thunk!(
+    /// `NetDll_WSAStartup` -- xam.xex ordinal 0x01. `data` receives WSADATA.
+    NetDll_WSAStartup(caller: u32, version: u32, data: *mut u8) -> u32,
+    lib = lib_index::XAM,
+    ordinal = 0x01
+);
+
+import_thunk!(
+    /// `NetDll_socket` -- xam.xex ordinal 0x03. Returns a socket handle or -1.
+    NetDll_socket(caller: u32, af: u32, ty: u32, protocol: u32) -> u32,
+    lib = lib_index::XAM,
+    ordinal = 0x03
+);
+
+import_thunk!(
+    /// `NetDll_sendto` -- xam.xex ordinal 0x18. `to` points at an XSOCKADDR_IN
+    /// (16 bytes, big-endian family/port/addr). Returns bytes sent or -1.
+    NetDll_sendto(
+        caller: u32,
+        socket_handle: u32,
+        buf: *const u8,
+        len: u32,
+        flags: u32,
+        to: *const u8,
+        to_len: u32,
+    ) -> u32,
+    lib = lib_index::XAM,
+    ordinal = 0x18
+);
+
+import_thunk!(
+    /// `NetDll_closesocket` -- xam.xex ordinal 0x04.
+    NetDll_closesocket(caller: u32, socket_handle: u32) -> u32,
+    lib = lib_index::XAM,
+    ordinal = 0x04
+);
