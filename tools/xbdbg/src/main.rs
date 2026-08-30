@@ -89,8 +89,9 @@ async fn main() {
     let mut ctrl = Client::new(t).read_banner().await.expect("banner ctrl");
     // The working launch on this console is `title name=...` then plain reboot;
     // `reboot title=` is ignored here.
-    eprintln!("title: {:?}", ctrl.send_raw(&format!("title name=\"{title}\"")).await);
+    // `title name=` persists the default title; the plain reboot then boots it.
     let _ = directory;
+    eprintln!("title: {:?}", ctrl.send_raw(&format!("title name=\"{title}\"")).await);
     eprintln!("reboot: {:?}", ctrl.send_raw("reboot").await);
 
     let _ = tokio::time::timeout(Duration::from_secs(secs + 2), printer).await;
