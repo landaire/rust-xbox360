@@ -1,0 +1,92 @@
+--- a/library/std/src/sys/pal/mod.rs
++++ b/library/std/src/sys/pal/mod.rs
+@@ -60,6 +60,10 @@
+         mod zkvm;
+         pub use self::zkvm::*;
+     }
++    target_os = "xbox360" => {
++        mod xbox360;
++        pub use self::xbox360::*;
++    }
+     _ => {
+         mod unsupported;
+         pub use self::unsupported::*;
+--- a/library/std/src/sys/alloc/mod.rs
++++ b/library/std/src/sys/alloc/mod.rs
+@@ -107,4 +107,7 @@
+     target_os = "zkvm" => {
+         mod zkvm;
+     }
++    target_os = "xbox360" => {
++        mod xbox360;
++    }
+ }
+--- a/library/std/src/sys/io/error/mod.rs
++++ b/library/std/src/sys/io/error/mod.rs
+@@ -44,6 +44,7 @@
+         target_family = "wasm",
+         target_os = "zkvm",
+         target_os = "trusty",
++        target_os = "xbox360",
+     ) => {
+         mod generic;
+         pub use generic::*;
+--- a/library/std/src/sys/random/mod.rs
++++ b/library/std/src/sys/random/mod.rs
+@@ -107,6 +107,7 @@
+         all(target_family = "wasm", target_os = "unknown"),
+         target_os = "xous",
+         target_os = "vexos",
++        target_os = "xbox360",
+     ) => {
+         // FIXME: finally remove std support for wasm32-unknown-unknown
+         // FIXME: add random data generation to xous
+@@ -123,6 +124,7 @@
+     all(target_os = "wasi", not(target_env = "p1")),
+     target_os = "xous",
+     target_os = "vexos",
++    target_os = "xbox360",
+ )))]
+ pub fn hashmap_random_keys() -> (u64, u64) {
+     let mut buf = [0; 16];
+--- a/library/std/src/sys/stdio/mod.rs
++++ b/library/std/src/sys/stdio/mod.rs
+@@ -45,6 +45,10 @@
+         mod zkvm;
+         pub use zkvm::*;
+     }
++    target_os = "xbox360" => {
++        mod xbox360;
++        pub use xbox360::*;
++    }
+     _ => {
+         mod unsupported;
+         pub use unsupported::*;
+--- a/library/std/src/sys/thread_local/mod.rs
++++ b/library/std/src/sys/thread_local/mod.rs
+@@ -30,6 +30,7 @@
+         target_os = "zkvm",
+         target_os = "trusty",
+         target_os = "vexos",
++        target_os = "xbox360",
+     ) => {
+         mod no_threads;
+         pub use no_threads::{EagerStorage, LazyStorage, thread_local_inner};
+@@ -118,6 +119,7 @@
+         any(
+             target_os = "hermit",
+             target_os = "xous",
++            target_os = "xbox360",
+         ) => {
+             // `std` is the only runtime, so it just calls the destructor functions
+             // itself when the time comes.
+--- a/library/std/build.rs
++++ b/library/std/build.rs
+@@ -58,6 +58,7 @@
+         || target_os == "nuttx"
+         || target_os == "cygwin"
+         || target_os == "vexos"
++        || target_os == "xbox360"
+ 
+         // See src/bootstrap/src/core/build_steps/synthetic_targets.rs
+         || env::var("RUSTC_BOOTSTRAP_SYNTHETIC_TARGET").is_ok()

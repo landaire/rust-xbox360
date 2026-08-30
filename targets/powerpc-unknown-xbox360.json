@@ -5,7 +5,7 @@
   "target-endian": "big",
   "target-pointer-width": 32,
   "max-atomic-width": 32,
-  "os": "none",
+  "os": "xbox360",
   "env": "",
   "vendor": "unknown",
   "cpu": "ppc",

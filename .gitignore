@@ -4,3 +4,4 @@
 xenia.log
 stdout
 *.pe
+/.rustsrc-backup/
