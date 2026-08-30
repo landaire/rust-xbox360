@@ -37,9 +37,10 @@ async fn main() {
         "debugger connect: {:?}",
         c.run(Debugger { do_override: true, name: "xbdbg".into(), user: "xbdbg".into() }).await
     );
-    for s in ["stopon fce", "stopon titleinit", "stopon titleexit", "stopon debugstr"] {
-        eprintln!("{s}: {:?}", c.send_raw(s).await);
-    }
+    // Do NOT arm stop conditions: `stopon debugstr` etc. halt the title on every
+    // notification (and reading memory keeps it halted), which looks like a hang.
+    // The notify channel below streams debugstr while the title free-runs.
+    eprintln!("nostopon: {:?}", c.send_raw("nostopon").await);
     eprintln!(
         "notify reconnectport: {:?}",
         c.send_raw(&format!("notify reconnectport={listen_port}")).await
@@ -93,6 +94,27 @@ async fn main() {
     let _ = directory;
     eprintln!("title: {:?}", ctrl.send_raw(&format!("title name=\"{title}\"")).await);
     eprintln!("reboot: {:?}", ctrl.send_raw("reboot").await);
+
+    // A registered debugger makes the title break at its entry point; it stays
+    // halted until told to `go`. Reboot drops our connections, so reconnect a
+    // few times after the console comes back and clear any stop so the title
+    // free-runs (and its DbgPrint output flows over the notify channel).
+    let host_go = host.clone();
+    tokio::spawn(async move {
+        for _ in 0..12 {
+            tokio::time::sleep(Duration::from_secs(2)).await;
+            if let Ok(t) = connect(&host_go).await {
+                if let Ok(mut g) = Client::new(t).read_banner().await {
+                    let _ = g
+                        .run(Debugger { do_override: true, name: "xbdbg".into(), user: "xbdbg".into() })
+                        .await;
+                    let _ = g.send_raw("stop off").await;
+                    let _ = g.send_raw("nostopon").await;
+                    let _ = g.send_raw("go").await;
+                }
+            }
+        }
+    });
 
     let _ = tokio::time::timeout(Duration::from_secs(secs + 2), printer).await;
     eprintln!("done.");

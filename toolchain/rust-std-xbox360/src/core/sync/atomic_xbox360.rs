@@ -31,10 +31,13 @@ unsafe fn word_cas(ptr: *mut u32, old: u32, new: u32) -> u32 {
         crate::arch::asm!(
             "sync",
             "mfmsr {s}",
-            "ori   {t}, {s}, 0x8000",
-            "xori  {t}, {t}, 0x8000",     // EE cleared
             "2:",
-            "mtmsrd {t}, 1",              // disable EE (L=1: EE/RI only)
+            // Disable EE by loading r13 into MSR (L=1: only EE/RI change). r13 is
+            // the per-thread block pointer, always in 0x80000000+ with bit 0x8000
+            // clear, so this clears EE. The devkit scanner recognizes exactly this
+            // `mtmsrd r13, 1` form as a protected reservation and leaves the
+            // lwarx/stwcx alone; a computed register is flagged and trapped.
+            "mtmsrd 13, 1",
             "lwarx  {seen}, 0, {p}",
             "cmpw   {seen}, {old}",
             "bne-   3f",                  // mismatch: release and finish
@@ -51,7 +54,6 @@ unsafe fn word_cas(ptr: *mut u32, old: u32, new: u32) -> u32 {
             old = in(reg) old,
             new = in(reg) new,
             s = out(reg) _,
-            t = out(reg) _,
             seen = out(reg) seen,
             options(nostack),
         );
