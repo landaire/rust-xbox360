@@ -3,8 +3,15 @@
 An overlay that teaches Rust std (1.98 rust-src) about the `xbox360` target OS,
 so `-Zbuild-std=std,panic_abort` produces a working std for the Xbox 360 devkit.
 
-std built with this overlay compiles, links, loads, and **runs on real hardware**
-(heartbeat, allocation, DbgPrint stdout all verified).
+std built with this overlay compiles, links, loads, and **runs on real hardware**.
+Verified end-to-end: allocator, `println!` (DbgPrint), `Instant`/`SystemTime`,
+TCP/UDP over NetDll, real `std::thread` + `Arc<Mutex>` (protected atomics + a
+kernel-event futex), kernel-TLS `thread_local`, and `std::fs` over the NT file
+API. tokio (single- and multi-thread) runs and does an HTTP GET to a host server.
+
+Backend modules: `sys/{alloc,stdio,time,net,thread,fs}/xbox360.rs`,
+`sys/pal/xbox360/{abi,futex}.rs`, `sys/thread_local/key/xbox360.rs`, and
+`core/sync/atomic_xbox360.rs`.
 
 ## Protected atomics
 
