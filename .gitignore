@@ -5,3 +5,5 @@ xenia.log
 stdout
 *.pe
 /.rustsrc-backup/
+*.o
+examples/chello/chello
