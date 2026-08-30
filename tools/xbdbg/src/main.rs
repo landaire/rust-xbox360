@@ -59,11 +59,19 @@ async fn main() {
                             let ms = start.elapsed().as_millis();
                             println!("[{ms:>6}ms] {ln}");
                             // A first-chance exception halts a thread; on such a
-                            // stop, dump modules + threads for context.
+                            // stop, dump the faulting thread's register context so
+                            // we can see the faulting PC (Iar) and exception cause.
                             if ln.contains("exception") || ln.contains("stop") {
-                                if let Ok(t) = connect(&host3).await {
+                                let tid = ln
+                                    .split_whitespace()
+                                    .find_map(|w| w.strip_prefix("thread="))
+                                    .map(|s| s.to_string());
+                                if let (Some(tid), Ok(t)) = (tid, connect(&host3).await) {
                                     if let Ok(mut cc) = Client::new(t).read_banner().await {
-                                        eprintln!("  modules: {:?}", cc.send_raw("modules").await);
+                                        let ctx = cc
+                                            .send_raw(&format!("getcontext thread={tid} full"))
+                                            .await;
+                                        eprintln!("  getcontext {tid}: {ctx:?}");
                                     }
                                 }
                             }
