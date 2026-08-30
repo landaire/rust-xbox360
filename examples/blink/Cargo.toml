@@ -1,0 +1,18 @@
+[package]
+name = "blink"
+version = "0.1.0"
+edition = "2024"
+
+[[bin]]
+name = "blink"
+path = "src/main.rs"
+
+[dependencies]
+xbox-sys = { path = "../../crates/xbox-sys" }
+
+[profile.dev]
+panic = "abort"
+
+[profile.release]
+panic = "abort"
+opt-level = "s"

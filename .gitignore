@@ -3,3 +3,4 @@
 *.xex
 xenia.log
 stdout
+*.pe
