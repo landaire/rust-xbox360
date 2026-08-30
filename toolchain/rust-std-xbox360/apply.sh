@@ -14,6 +14,9 @@ cp "$here/src/sys/pal/xbox360/common.rs" "$std/src/sys/pal/xbox360/common.rs"
 cp "$here/src/sys/pal/xbox360/abi.rs"    "$std/src/sys/pal/xbox360/abi.rs"
 cp "$here/src/sys/alloc/xbox360.rs"      "$std/src/sys/alloc/xbox360.rs"
 cp "$here/src/sys/stdio/xbox360.rs"      "$std/src/sys/stdio/xbox360.rs"
+cp "$here/src/sys/time/xbox360.rs"       "$std/src/sys/time/xbox360.rs"
+mkdir -p "$std/src/sys/net/connection"
+cp "$here/src/sys/net/connection/xbox360.rs" "$std/src/sys/net/connection/xbox360.rs"
 
 # --- std dispatch/build.rs arms (additive) ---
 if ! grep -q 'target_os = "xbox360"' "$std/src/sys/alloc/mod.rs"; then

@@ -1,0 +1,15 @@
+[package]
+name = "tokweb"
+version = "0.1.0"
+edition = "2024"
+
+[[bin]]
+name = "tokweb"
+path = "src/main.rs"
+
+[dependencies]
+tokio = { version = "1", default-features = false, features = ["rt", "time", "macros"] }
+
+[profile.release]
+panic = "abort"
+opt-level = "s"

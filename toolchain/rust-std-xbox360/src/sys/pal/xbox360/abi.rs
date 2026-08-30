@@ -32,3 +32,30 @@ kimport!(ExFreePool(p: *mut u8), 0, 15);
 // Debug output. Variadic printf in C, but we call it with a single
 // pre-formatted (and %-escaped) string to avoid the variadic-call ABI.
 kimport!(DbgPrint(fmt: *const u8) -> u32, 0, 3);
+
+// Time sources. KeQueryPerformanceFrequency returns the timebase frequency by
+// value; KeQuerySystemTime writes 100ns ticks since 1601 through a pointer.
+kimport!(KeQueryPerformanceFrequency() -> u64, 0, 131);
+kimport!(KeQuerySystemTime(time: *mut u64), 0, 132);
+
+// NetDll_* winsock (library index 1 = xam.xex). Each takes a leading caller =
+// XNCALLER_TITLE (1). Sockets are BSD/winsock-shaped.
+kimport!(NetDll_XNetStartup(caller: u32, params: *const u8) -> i32, 1, 51);
+kimport!(NetDll_WSAStartup(caller: u32, ver: u16, data: *mut u8) -> i32, 1, 1);
+kimport!(NetDll_socket(caller: u32, af: i32, ty: i32, proto: i32) -> u32, 1, 3);
+kimport!(NetDll_closesocket(caller: u32, s: u32) -> i32, 1, 4);
+kimport!(NetDll_shutdown(caller: u32, s: u32, how: i32) -> i32, 1, 5);
+kimport!(NetDll_ioctlsocket(caller: u32, s: u32, cmd: u32, argp: *mut u32) -> i32, 1, 6);
+kimport!(NetDll_setsockopt(caller: u32, s: u32, level: i32, name: i32, val: *const u8, len: i32) -> i32, 1, 7);
+kimport!(NetDll_getsockopt(caller: u32, s: u32, level: i32, name: i32, val: *mut u8, len: *mut i32) -> i32, 1, 8);
+kimport!(NetDll_getsockname(caller: u32, s: u32, name: *mut u8, namelen: *mut i32) -> i32, 1, 9);
+kimport!(NetDll_getpeername(caller: u32, s: u32, name: *mut u8, namelen: *mut i32) -> i32, 1, 10);
+kimport!(NetDll_bind(caller: u32, s: u32, name: *const u8, namelen: i32) -> i32, 1, 11);
+kimport!(NetDll_connect(caller: u32, s: u32, name: *const u8, namelen: i32) -> i32, 1, 12);
+kimport!(NetDll_listen(caller: u32, s: u32, backlog: i32) -> i32, 1, 13);
+kimport!(NetDll_accept(caller: u32, s: u32, name: *mut u8, namelen: *mut i32) -> u32, 1, 14);
+kimport!(NetDll_recv(caller: u32, s: u32, buf: *mut u8, len: i32, flags: i32) -> i32, 1, 18);
+kimport!(NetDll_recvfrom(caller: u32, s: u32, buf: *mut u8, len: i32, flags: i32, from: *mut u8, fromlen: *mut i32) -> i32, 1, 20);
+kimport!(NetDll_send(caller: u32, s: u32, buf: *const u8, len: i32, flags: i32) -> i32, 1, 22);
+kimport!(NetDll_sendto(caller: u32, s: u32, buf: *const u8, len: i32, flags: i32, to: *const u8, tolen: i32) -> i32, 1, 24);
+kimport!(NetDll_WSAGetLastError(caller: u32) -> i32, 1, 27);

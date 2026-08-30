@@ -41,7 +41,12 @@ New backend files (copied verbatim into rust-src):
 - `src/sys/pal/xbox360/{mod,common,abi}.rs` - PAL core + kernel/NetDll import thunks
 - `src/sys/alloc/xbox360.rs` - global allocator over ExAllocatePoolWithTag/ExFreePool
 - `src/sys/stdio/xbox360.rs` - stdout/stderr over DbgPrint
+- `src/sys/time/xbox360.rs` - Instant via the PPC timebase, SystemTime via KeQuerySystemTime
+- `src/sys/net/connection/xbox360.rs` - TcpStream/TcpListener/UdpSocket over NetDll winsock
 - `src/core/sync/atomic_xbox360.rs` - protected lwarx/stwcx atomics
+
+With these, `tokio` (current-thread runtime + time + macros) compiles for the
+target; see `examples/tokweb` (async timer + HTTP GET to a host web server).
 
 `dispatch-edits.patch` - the additive `cfg(target_os = "xbox360")` arms in the
 std category dispatch files plus the `build.rs` restricted_std allowlist entry.

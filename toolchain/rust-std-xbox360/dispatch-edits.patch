@@ -80,6 +80,32 @@
          ) => {
              // `std` is the only runtime, so it just calls the destructor functions
              // itself when the time comes.
+--- a/library/std/src/sys/time/mod.rs
++++ b/library/std/src/sys/time/mod.rs
+@@ -44,6 +44,10 @@
+         mod xous;
+         use xous as imp;
+     }
++    target_os = "xbox360" => {
++        mod xbox360;
++        use xbox360 as imp;
++    }
+     _ => {
+         mod unsupported;
+         use unsupported as imp;
+--- a/library/std/src/sys/net/connection/mod.rs
++++ b/library/std/src/sys/net/connection/mod.rs
+@@ -29,6 +29,10 @@
+         mod uefi;
+         pub use uefi::*;
+     }
++    target_os = "xbox360" => {
++        mod xbox360;
++        pub use xbox360::*;
++    }
+     _ => {
+         mod unsupported;
+         pub use unsupported::*;
 --- a/library/std/build.rs
 +++ b/library/std/build.rs
 @@ -58,6 +58,7 @@
