@@ -176,6 +176,19 @@
          target_os = "hermit",
      ) => {
          mod futex;
+--- a/library/std/src/sys/fs/mod.rs
++++ b/library/std/src/sys/fs/mod.rs
+@@ -45,6 +45,10 @@
+         mod vexos;
+         use vexos as imp;
+     }
++    target_os = "xbox360" => {
++        mod xbox360;
++        use xbox360 as imp;
++    }
+     _ => {
+         mod unsupported;
+         use unsupported as imp;
 --- a/library/std/build.rs
 +++ b/library/std/build.rs
 @@ -58,6 +58,7 @@

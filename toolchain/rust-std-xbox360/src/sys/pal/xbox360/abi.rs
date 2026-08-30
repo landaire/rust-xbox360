@@ -52,6 +52,14 @@ kimport!(TlsFree(idx: u32) -> u32, 0, 339);
 kimport!(TlsGetValue(idx: u32) -> *mut u8, 0, 340);
 kimport!(TlsSetValue(idx: u32, val: *mut u8) -> u32, 0, 341);
 
+// File I/O (xboxkrnl NT file API). NtRead/WriteFile take the standard 9 args incl. Key.
+kimport!(NtCreateFile(handle: *mut u32, access: u32, oa: *const u8, iosb: *mut u8, alloc: *const i64, attr: u32, share: u32, disp: u32, opts: u32) -> u32, 0, 210);
+kimport!(NtReadFile(handle: u32, event: u32, apc: u32, apcctx: u32, iosb: *mut u8, buf: *mut u8, len: u32, off: *const i64, key: *const u32) -> u32, 0, 240);
+kimport!(NtWriteFile(handle: u32, event: u32, apc: u32, apcctx: u32, iosb: *mut u8, buf: *const u8, len: u32, off: *const i64, key: *const u32) -> u32, 0, 255);
+kimport!(NtQueryInformationFile(handle: u32, iosb: *mut u8, info: *mut u8, len: u32, class: u32) -> u32, 0, 232);
+kimport!(NtSetInformationFile(handle: u32, iosb: *mut u8, info: *const u8, len: u32, class: u32) -> u32, 0, 247);
+kimport!(NtFlushBuffersFile(handle: u32, iosb: *mut u8) -> u32, 0, 219);
+
 // NetDll_* winsock (library index 1 = xam.xex). Each takes a leading caller =
 // XNCALLER_TITLE (1). Sockets are BSD/winsock-shaped.
 kimport!(NetDll_XNetStartup(caller: u32, params: *const u8) -> i32, 1, 51);
