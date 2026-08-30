@@ -1,0 +1,13 @@
+[package]
+name = "xbdbg"
+version = "0.1.0"
+edition = "2024"
+
+[[bin]]
+name = "xbdbg"
+path = "src/main.rs"
+
+[dependencies]
+xeedee = { path = "/home/lander/dev/xeedee/crates/xeedee", features = ["tokio"] }
+tokio = { version = "1", features = ["full"] }
+futures-util = { version = "0.3", features = ["std", "io"] }
