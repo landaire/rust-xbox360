@@ -8,7 +8,7 @@ name = "tokweb"
 path = "src/main.rs"
 
 [dependencies]
-tokio = { version = "1", default-features = false, features = ["rt", "time", "macros"] }
+tokio = { version = "1", default-features = false, features = ["rt", "rt-multi-thread", "time", "macros"] }
 
 [profile.release]
 panic = "abort"

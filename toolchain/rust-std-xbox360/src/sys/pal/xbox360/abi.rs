@@ -38,6 +38,20 @@ kimport!(DbgPrint(fmt: *const u8) -> u32, 0, 3);
 kimport!(KeQueryPerformanceFrequency() -> u64, 0, 131);
 kimport!(KeQuerySystemTime(time: *mut u64), 0, 132);
 
+// Threads, waits, events, and TLS (xboxkrnl).
+kimport!(ExCreateThread(handle: *mut u32, stack: u32, tid: *mut u32, xattr: u32, start: usize, ctx: usize, flags: u32) -> u32, 0, 13);
+kimport!(ExTerminateThread(code: u32) -> u32, 0, 25);
+kimport!(NtClose(handle: u32) -> u32, 0, 207);
+kimport!(NtWaitForSingleObjectEx(handle: u32, mode: u32, alertable: u32, timeout: *const i64) -> u32, 0, 253);
+kimport!(NtYieldExecution() -> u32, 0, 257);
+kimport!(KeDelayExecutionThread(mode: u32, alertable: u32, interval: *const i64) -> u32, 0, 90);
+kimport!(NtCreateEvent(handle: *mut u32, attr: *const u8, evtype: u32, initial: u32) -> u32, 0, 209);
+kimport!(NtSetEvent(handle: u32, prev: *mut u32) -> u32, 0, 246);
+kimport!(TlsAlloc() -> u32, 0, 338);
+kimport!(TlsFree(idx: u32) -> u32, 0, 339);
+kimport!(TlsGetValue(idx: u32) -> *mut u8, 0, 340);
+kimport!(TlsSetValue(idx: u32, val: *mut u8) -> u32, 0, 341);
+
 // NetDll_* winsock (library index 1 = xam.xex). Each takes a leading caller =
 // XNCALLER_TITLE (1). Sockets are BSD/winsock-shaped.
 kimport!(NetDll_XNetStartup(caller: u32, params: *const u8) -> i32, 1, 51);

@@ -64,15 +64,7 @@
          pub use unsupported::*;
 --- a/library/std/src/sys/thread_local/mod.rs
 +++ b/library/std/src/sys/thread_local/mod.rs
-@@ -30,6 +30,7 @@
-         target_os = "zkvm",
-         target_os = "trusty",
-         target_os = "vexos",
-+        target_os = "xbox360",
-     ) => {
-         mod no_threads;
-         pub use no_threads::{EagerStorage, LazyStorage, thread_local_inner};
-@@ -118,6 +119,7 @@
+@@ -118,6 +118,7 @@
          any(
              target_os = "hermit",
              target_os = "xous",
@@ -80,6 +72,21 @@
          ) => {
              // `std` is the only runtime, so it just calls the destructor functions
              // itself when the time comes.
+@@ -195,6 +196,14 @@
+             pub(super) use moto_rt::tls::{Key, get, set};
+             use moto_rt::tls::{create, destroy};
+         }
++        target_os = "xbox360" => {
++            mod racy;
++            #[path = "xbox360.rs"]
++            mod xbox360_key;
++            pub(super) use racy::LazyKey;
++            pub(super) use xbox360_key::{Key, get, set};
++            use xbox360_key::{create, destroy};
++        }
+         _ => {}
+     }
+ }
 --- a/library/std/src/sys/time/mod.rs
 +++ b/library/std/src/sys/time/mod.rs
 @@ -44,6 +44,10 @@
@@ -106,6 +113,69 @@
      _ => {
          mod unsupported;
          pub use unsupported::*;
+--- a/library/std/src/sys/thread/mod.rs
++++ b/library/std/src/sys/thread/mod.rs
+@@ -115,6 +115,10 @@
+         mod unsupported;
+         pub use unsupported::{current_os_id, set_name};
+     }
++    target_os = "xbox360" => {
++        mod xbox360;
++        pub use xbox360::*;
++    }
+     _ => {
+         mod unsupported;
+         pub use unsupported::{Thread, available_parallelism, current_os_id, set_name, sleep, yield_now, DEFAULT_MIN_STACK_SIZE};
+--- a/library/std/src/sys/sync/mutex/mod.rs
++++ b/library/std/src/sys/sync/mutex/mod.rs
+@@ -8,6 +8,7 @@
+         target_os = "motor",
+         target_os = "dragonfly",
+         all(target_family = "wasm", target_feature = "atomics"),
++        target_os = "xbox360",
+         target_os = "hermit",
+     ) => {
+         mod futex;
+--- a/library/std/src/sys/sync/condvar/mod.rs
++++ b/library/std/src/sys/sync/condvar/mod.rs
+@@ -9,6 +9,7 @@
+         target_os = "motor",
+         target_os = "fuchsia",
+         all(target_family = "wasm", target_feature = "atomics"),
++        target_os = "xbox360",
+         target_os = "hermit",
+     ) => {
+         mod futex;
+--- a/library/std/src/sys/sync/rwlock/mod.rs
++++ b/library/std/src/sys/sync/rwlock/mod.rs
+@@ -8,6 +8,7 @@
+         target_os = "dragonfly",
+         target_os = "fuchsia",
+         all(target_family = "wasm", target_feature = "atomics"),
++        target_os = "xbox360",
+         target_os = "hermit",
+        target_os = "motor",
+     ) => {
+--- a/library/std/src/sys/sync/once/mod.rs
++++ b/library/std/src/sys/sync/once/mod.rs
+@@ -18,6 +18,7 @@
+         target_os = "openbsd",
+         target_os = "dragonfly",
+         target_os = "fuchsia",
++        target_os = "xbox360",
+         target_os = "hermit",
+     ) => {
+         mod futex;
+--- a/library/std/src/sys/sync/thread_parking/mod.rs
++++ b/library/std/src/sys/sync/thread_parking/mod.rs
+@@ -9,6 +9,7 @@
+         target_os = "dragonfly",
+         target_os = "fuchsia",
+         target_os = "motor",
++        target_os = "xbox360",
+         target_os = "hermit",
+     ) => {
+         mod futex;
 --- a/library/std/build.rs
 +++ b/library/std/build.rs
 @@ -58,6 +58,7 @@

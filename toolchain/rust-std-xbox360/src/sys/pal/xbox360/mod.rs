@@ -8,3 +8,4 @@ mod common;
 pub use common::*;
 
 pub mod abi;
+pub mod futex;
