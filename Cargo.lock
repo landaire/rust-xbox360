@@ -746,6 +746,7 @@ dependencies = [
 name = "xex-link"
 version = "0.1.0"
 dependencies = [
+ "bitflags",
  "byteorder",
  "object",
  "rootcause",

@@ -15,6 +15,8 @@ pub enum XexLinkError {
     NoSections,
     #[error("ELF entry {entry:#010x} is below image base {base:#010x}")]
     EntryBelowBase { entry: u32, base: u32 },
+    #[error("load address {base:#010x} is not a multiple of the 0x{align:x} page size")]
+    UnalignedLoadAddress { base: u32, align: u32 },
     #[error("section {name:?} address {addr:#010x} is below image base {base:#010x}")]
     SectionBelowBase { name: String, addr: u32, base: u32 },
     #[error("section {name:?} at rva {rva:#x} overlaps PE headers ({headers:#x})")]
@@ -31,8 +33,18 @@ pub enum XexLinkError {
     UnknownLibrary(u8),
     #[error("building the XEX failed: {0}")]
     Xex(String),
-    #[error("usage: xex-link <input.elf> <output.xex> [--title-id HEX]")]
-    Usage,
+    #[error("invalid value {value:?} for {flag}: {reason}")]
+    BadValue {
+        flag: String,
+        value: String,
+        reason: String,
+    },
+    #[error("missing value for {0}")]
+    MissingValue(String),
+    #[error("unexpected argument {0:?}")]
+    UnexpectedArg(String),
+    #[error("missing required input and output paths")]
+    MissingPaths,
 }
 
 pub type Report = rootcause::Report<XexLinkError>;

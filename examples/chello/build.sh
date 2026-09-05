@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Build a C program into an Xbox 360 XEX, proving the toolchain is not
 # Rust-specific: any LLVM frontend (clang here) emits a big-endian PowerPC ELF,
-# which xex-link packages into a XEX.
+# which the single xex-link step turns into a devkit-signed XEX.
 #
 #   C --clang--> ppc BE ELF obj --rust-lld--> ELF exe --xex-link--> XEX
 set -euo pipefail

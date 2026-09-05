@@ -37,12 +37,18 @@ them.
       -> ELF32 PPC big-endian object(s)
       -> rust-lld with linker script, image base 0x82000000
       -> ELF32 PPC executable
-      -> xex-link: relayout PT_LOAD segments into an Xbox PPC PE image
-         (machine POWERPCBE 0x01F2, 32-bit optional header), synthesize import
-         thunks + IMPORT_LIBRARIES table
-      -> acceleration Xex2Builder: wrap PE as uncompressed, unencrypted,
-         devkit-signed XEX2
+      -> xex-link: ELF -> devkit-signed XEX in one step
       -> Xenia (--headless) runs it
+
+`xex-link` is the single post-link step: it relayouts the PT_LOAD segments into
+an Xbox PPC PE image (machine POWERPCBE 0x01F2, 32-bit optional header) in
+memory, synthesizes the import thunks + IMPORT_LIBRARIES table, and wraps the
+result as a devkit-signed XEX2 via acceleration's `Xex2Builder` -- all without
+writing an intermediate ELF-to-EXE file. Title id, load address, media id,
+version, image/module flags, and LZX compression are CLI options; run
+`xex-link --help`. Keeping this conversion an external post-link tool (rather
+than folding it into LLVM) is the idiomatic pattern; see
+[docs/llvm-integration.md](docs/llvm-integration.md).
 
 Xenia loads the XEX by reconstructing the PE image, mapping sections, and
 rewriting each kernel import thunk to a `sc 2` syscall trap dispatched to its
