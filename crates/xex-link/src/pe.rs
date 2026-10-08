@@ -62,12 +62,8 @@ impl PeImage {
 
         for s in &self.sections {
             if s.rva < headers_len {
-                return Err(XexLinkError::HeaderOverlap {
-                    name: name_str(&s.name),
-                    rva: s.rva,
-                    headers: headers_len,
-                }
-                .into_report());
+                return Err(XexLinkError::HeaderOverlap { name: name_str(&s.name), rva: s.rva, headers: headers_len }
+                    .into_report());
             }
             if s.data.len() as u32 > s.virtual_size {
                 return Err(XexLinkError::SectionDataOverflow {
@@ -79,14 +75,8 @@ impl PeImage {
             }
         }
 
-        let image_size = align_up(
-            self.sections
-                .iter()
-                .map(|s| s.rva + s.virtual_size)
-                .max()
-                .unwrap_or(0),
-            self.section_alignment,
-        );
+        let image_size =
+            align_up(self.sections.iter().map(|s| s.rva + s.virtual_size).max().unwrap_or(0), self.section_alignment);
 
         let mut buf = vec![0u8; image_size as usize];
         for s in &self.sections {
@@ -101,19 +91,10 @@ impl PeImage {
 
     fn build_headers(&self, image_size: u32, size_of_headers: u32) -> Result<Vec<u8>, Report> {
         let sum_where = |mask: u32| -> u32 {
-            self.sections
-                .iter()
-                .filter(|s| s.characteristics & mask != 0)
-                .map(|s| s.virtual_size)
-                .sum()
+            self.sections.iter().filter(|s| s.characteristics & mask != 0).map(|s| s.virtual_size).sum()
         };
         let min_rva_where = |mask: u32, want: bool| -> u32 {
-            self.sections
-                .iter()
-                .filter(|s| (s.characteristics & mask != 0) == want)
-                .map(|s| s.rva)
-                .min()
-                .unwrap_or(0)
+            self.sections.iter().filter(|s| (s.characteristics & mask != 0) == want).map(|s| s.rva).min().unwrap_or(0)
         };
 
         let mut h: Vec<u8> = Vec::new();

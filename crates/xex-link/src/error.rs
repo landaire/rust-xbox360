@@ -22,11 +22,7 @@ pub enum XexLinkError {
     #[error("section {name:?} at rva {rva:#x} overlaps PE headers ({headers:#x})")]
     HeaderOverlap { name: String, rva: u32, headers: u32 },
     #[error("section {name:?} file data {data_len:#x} exceeds virtual size {virtual_size:#x}")]
-    SectionDataOverflow {
-        name: String,
-        data_len: usize,
-        virtual_size: u32,
-    },
+    SectionDataOverflow { name: String, data_len: usize, virtual_size: u32 },
     #[error("thunk at {va:#010x} has non-function record {record:#010x}")]
     BadThunk { va: u32, record: u32 },
     #[error("thunk references unknown import library index {0}")]
@@ -34,11 +30,7 @@ pub enum XexLinkError {
     #[error("building the XEX failed: {0}")]
     Xex(String),
     #[error("invalid value {value:?} for {flag}: {reason}")]
-    BadValue {
-        flag: String,
-        value: String,
-        reason: String,
-    },
+    BadValue { flag: String, value: String, reason: String },
     #[error("missing value for {0}")]
     MissingValue(String),
     #[error("unexpected argument {0:?}")]
@@ -50,15 +42,6 @@ pub enum XexLinkError {
 pub type Report = rootcause::Report<XexLinkError>;
 pub type Result<T> = std::result::Result<T, Report>;
 
-pub(crate) fn io<T>(
-    path: &str,
-    r: std::result::Result<T, std::io::Error>,
-) -> Result<T> {
-    r.map_err(|source| {
-        XexLinkError::Io {
-            path: path.to_string(),
-            source,
-        }
-        .into_report()
-    })
+pub(crate) fn io<T>(path: &str, r: std::result::Result<T, std::io::Error>) -> Result<T> {
+    r.map_err(|source| XexLinkError::Io { path: path.to_string(), source }.into_report())
 }
