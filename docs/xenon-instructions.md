@@ -70,5 +70,6 @@ lacks.
   len, byteoffset). `GENERIC_READ` alone does not grant read for `NtReadFile` --
   add `FILE_READ_DATA`. The devkit HDD rejects reads shorter than the bytes
   remaining to EOF and DMAs only into title (stack/image) memory, not pool heap.
-- `DbgPrint` must be called with a single %-escaped string, not `("%s", buf)`;
-  the 2-arg variadic call faults on this ABI.
+- `DbgPrint` and other console callees store r3-r10 into the caller's
+  parameter home area at sp+0x10..sp+0x50. A SysV caller frame without that
+  area loses saved registers and LR; see `ARCHITECTURE.md`.

@@ -8,7 +8,7 @@
 
 #![no_std]
 
-/// Library index shared with `xex-link`'s `LIBRARY_NAMES`.
+/// Library index shared with `xex-link`'s `LIBRARIES`.
 pub mod lib_index {
     pub const XBOXKRNL: u32 = 0;
     pub const XAM: u32 = 1;

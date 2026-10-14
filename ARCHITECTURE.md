@@ -25,10 +25,17 @@ Microsoft ABI facts that constrain codegen:
   thunks, not a GOT.
 
 For a self-contained homebrew title we only need the register-level convention
-to match at import boundaries (Xenia fetches args from r3-r10). Exact frame
-layout, `.pdata` unwind, and millicode save/restore helpers are required for
-full MS compatibility but not for a title to boot, so early milestones skip
-them.
+to match at import boundaries. `.pdata` unwind and millicode save/restore
+helpers are required for full MS compatibility but not for a title to run.
+
+The parameter home area is required on hardware. Console callees store
+r3-r10 into the caller's frame at sp+0x10..sp+0x50, including non-variadic
+kernel functions and `DbgPrint`. The SysV frames LLVM emits do not reserve that
+area, so a direct call from a small frame overwrites the caller's saved
+registers and LR. Xenia does not reproduce this. A call through an import must
+allocate a 0x50-byte frame first; openxbdm's import stubs do this. The
+`xbox-sys` and std overlay thunks are called directly and still have this
+defect.
 
 ## Pipeline
 
@@ -64,6 +71,11 @@ import records inside the image. Each record DWORD encodes
 `type<<24 | libindex<<16 | ordinal`. Type 1 records are 16-byte code thunks in
 `.text`; Xenia rewrites kernel thunks to `sc 2; blr`. Type 0 records are data
 IAT slots.
+
+Each library entry also carries the exporting module's identifier. The
+hardware loader rejects a mismatch with `C0000225`. `xex-link` emits
+`0x45dc17e0` for `xboxkrnl.exe`, `0xfca15c76` for `xam.xex`, and `0xeceb8109`
+for `xbdm.xex`.
 
 Key ordinals (verified in Xenia export tables):
 

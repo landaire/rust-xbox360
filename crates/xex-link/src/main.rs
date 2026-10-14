@@ -41,8 +41,19 @@ const THUNK_SIZE: usize = 16;
 const RECORD_TYPE_THUNK: u32 = 1;
 const RECORD_TYPE_THUNK_TARGET: u32 = 2;
 
-// Import library index -> module name. The xbox-sys thunks encode the index.
-const LIBRARY_NAMES: &[&str] = &["xboxkrnl.exe", "xam.xex", "xbdm.xex"];
+/// An importable system module. The loader rejects an import library whose
+/// `import_id` differs from the module number in the exporter's export table.
+struct ExportingModule {
+    name: &'static str,
+    import_id: u32,
+}
+
+// Import library index -> exporting module. The xbox-sys thunks encode the index.
+const LIBRARIES: &[ExportingModule] = &[
+    ExportingModule { name: "xboxkrnl.exe", import_id: 0x45dc_17e0 },
+    ExportingModule { name: "xam.xex", import_id: 0xfca1_5c76 },
+    ExportingModule { name: "xbdm.xex", import_id: 0xeceb_8109 },
+];
 const DEFAULT_IMPORT_VERSION: Version = Version { major: 2, minor: 0, build: 21173, revision: 0 };
 const DEFAULT_IMPORT_MIN_VERSION: Version = Version { major: 2, minor: 0, build: 1861, revision: 0 };
 
@@ -385,13 +396,13 @@ fn prepare_direct_imports(
 
     let mut libraries = Vec::with_capacity(by_library.len());
     for (library_index, records) in by_library {
-        let name = LIBRARY_NAMES
+        let module = LIBRARIES
             .get(library_index as usize)
             .ok_or_else(|| XexLinkError::UnknownLibrary(library_index).into_report())?;
         libraries.push(ImportLibrary {
-            name: (*name).to_string(),
+            name: module.name.to_string(),
             digest: Sha1Hash::ZERO,
-            import_id: 0,
+            import_id: module.import_id,
             version,
             version_min,
             records,
