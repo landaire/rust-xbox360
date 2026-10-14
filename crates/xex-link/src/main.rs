@@ -24,6 +24,7 @@ use xenon_types::Sha1Hash;
 use xenon_types::TitleId;
 use xenon_types::Version;
 use xenon_types::VirtualAddress;
+use xex2::builder::BoundingPath;
 use xex2::builder::EncryptionTarget;
 use xex2::builder::Xex2Builder;
 use xex2::imports::ImportLibrary;
@@ -72,7 +73,8 @@ options:
   --image-flags FLAGS     comma-separated ImageFlags or 0xHEX (e.g. SMALL_PAGES)
   --module-flags FLAGS    comma-separated ModuleFlags or 0xHEX (default TITLE)
   --compress              LZX-compress the image (Normal, 64 KB window)
-  --encrypt TARGET        encrypt payload with the devkit or retail master key";
+  --encrypt TARGET        encrypt payload with the devkit or retail master key
+  --bounding-path PATH    device path the loaded file must resolve to";
 
 fn main() -> std::process::ExitCode {
     match run() {
@@ -98,6 +100,7 @@ struct Config {
     module_flags: ModuleFlags,
     compress: bool,
     encryption_target: Option<EncryptionTarget>,
+    bounding_path: Option<BoundingPath>,
 }
 
 fn parse_args() -> Result<Config> {
@@ -114,6 +117,7 @@ fn parse_args() -> Result<Config> {
     let mut module_flags = ModuleFlags::TITLE;
     let mut compress = false;
     let mut encryption_target = None;
+    let mut bounding_path = None;
 
     let mut it = std::env::args().skip(1);
     while let Some(a) = it.next() {
@@ -134,6 +138,12 @@ fn parse_args() -> Result<Config> {
             "--module-flags" => module_flags = parse_module_flags(&value("--module-flags")?)?,
             "--compress" => compress = true,
             "--encrypt" => encryption_target = Some(parse_encryption_target(&value("--encrypt")?)?),
+            "--bounding-path" => {
+                bounding_path = Some(
+                    BoundingPath::new(value("--bounding-path")?)
+                        .map_err(|e| XexLinkError::Xex(format!("{e:?}")).into_report())?,
+                )
+            }
             "-h" | "--help" => {
                 println!("{USAGE}");
                 std::process::exit(0);
@@ -165,6 +175,7 @@ fn parse_args() -> Result<Config> {
         module_flags,
         compress,
         encryption_target,
+        bounding_path,
     })
 }
 
@@ -281,6 +292,9 @@ fn run() -> Result<()> {
         .imports(imports);
     if let Some(target) = cfg.encryption_target {
         builder = builder.encrypt(target);
+    }
+    if let Some(path) = cfg.bounding_path {
+        builder = builder.bounding_path(path);
     }
     if cfg.compress {
         builder = builder.compress();
