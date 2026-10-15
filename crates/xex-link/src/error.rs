@@ -25,6 +25,24 @@ pub enum XexLinkError {
     SectionDataOverflow { name: String, data_len: usize, virtual_size: u32 },
     #[error("thunk at {va:#010x} has non-function record {record:#010x}")]
     BadThunk { va: u32, record: u32 },
+    #[error("data import slot at {va:#010x} has invalid record {record:#010x}")]
+    BadVariable { va: u32, record: u32 },
+    #[error("import slot at {va:#010x} is outside the image")]
+    ImportSlotOutsideImage { va: u32 },
+    #[error("export table needs a 64 KB aligned image base, got {base:#010x}")]
+    UnalignedExportBase { base: u32 },
+    #[error("export version {version} is below the export minimum version {minimum}")]
+    ExportVersionBelowMinimum { version: xenon_types::Version, minimum: xenon_types::Version },
+    #[error("export section length {len:#x} is not a whole number of 8-byte records")]
+    BadExportSection { len: usize },
+    #[error("export of {va:#010x} has invalid ordinal {ordinal}")]
+    BadExportOrdinal { ordinal: u32, va: u32 },
+    #[error("export ordinal {ordinal} address {va:#010x} is outside the image")]
+    BadExportAddress { ordinal: u16, va: u32 },
+    #[error("export ordinal {ordinal} is declared more than once")]
+    DuplicateExport { ordinal: u16 },
+    #[error("{count} export(s) declared but no --export-module given")]
+    ExportsWithoutModule { count: usize },
     #[error("thunk references unknown import library index {0}")]
     UnknownLibrary(u8),
     #[error("building the XEX failed: {0}")]
