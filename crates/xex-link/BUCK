@@ -1,0 +1,19 @@
+rust_binary(
+    name = "xex-link",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "xex_link",
+    crate_root = "src/main.rs",
+    edition = "2024",
+    deps = [
+        "//third-party/rust:bitflags",
+        "//third-party/rust:byteorder",
+        "//third-party/rust:object",
+        "//third-party/rust:rootcause",
+        "//third-party/rust:serde",
+        "//third-party/rust:thiserror",
+        "//third-party/rust:toml",
+        "//third-party/rust:xenon_types",
+        "//third-party/rust:xex2",
+    ],
+    visibility = ["PUBLIC"],
+)

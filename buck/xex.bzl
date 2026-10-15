@@ -17,7 +17,7 @@ _XEX_ATTRS = {
     # defaults apply.
     "manifest": attrs.option(attrs.source(), default = None),
     "out": attrs.option(attrs.string(), default = None),
-    "_xex_link": attrs.exec_dep(providers = [RunInfo], default = "xbox360//:xex-link"),
+    "_xex_link": attrs.exec_dep(providers = [RunInfo], default = "xbox360//crates/xex-link:xex-link"),
 }
 
 # The rule configures itself, and so the executable, for the console. The
