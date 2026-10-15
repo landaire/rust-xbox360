@@ -5,36 +5,40 @@ load("@prelude//python_bootstrap:python_bootstrap.bzl", "PythonBootstrapToolchai
 load("@prelude//rust:rust_toolchain.bzl", "PanicRuntime", "RustExplicitSysrootDeps", "RustToolchainInfo")
 load(":rust_release.bzl", "RUST_HOSTS")
 
+# The components of rust_release.bzl that the Rust toolchain runs: rustc and
+# rustdoc, the host standard library, and clippy-driver.
+RUST_TOOLCHAIN_COMPONENTS = ["rustc", "rust-std", "clippy-preview"]
+
 RustReleaseInfo = provider(fields = {
-    # rustc, rustdoc, clippy-driver and the host standard library in one
-    # directory, laid out like a rustup toolchain.
+    # The component archives in one directory, laid out like a rustup
+    # toolchain.
     "sysroot": provider_field(Artifact),
     "executable_suffix": provider_field(str),
     "host_triple": provider_field(str),
 })
 
-def _select_host(field: typing.Callable) -> Select:
+def _select_host(hosts: dict, field: typing.Callable) -> Select:
     """Selects `field(host)` for the configured host."""
     return select({
         "prelude//os:" + os_name: select({
             "prelude//cpu:" + cpu: field(host)
             for cpu, host in cpus.items()
         })
-        for os_name, cpus in RUST_HOSTS.items()
+        for os_name, cpus in hosts.items()
     })
 
-def rust_release_archives(components: list[str]) -> list[str]:
+def _rust_release_archives(name: str, components: list[str], hosts: dict) -> list[str]:
     """Declares an `http_file` per component and returns their labels."""
     labels = []
     for component in components:
-        name = "rust-{}-archive".format(component)
+        archive = "{}-{}-archive".format(name, component)
         native.http_file(
-            name = name,
-            urls = [_select_host(lambda host: host["archives"][component]["url"])],
-            sha256 = _select_host(lambda host: host["archives"][component]["sha256"]),
+            name = archive,
+            urls = [_select_host(hosts, lambda host: host["archives"][component]["url"])],
+            sha256 = _select_host(hosts, lambda host: host["archives"][component]["sha256"]),
             out = "{}.tar.xz".format(component),
         )
-        labels.append(":" + name)
+        labels.append(":" + archive)
     return labels
 
 def _rust_release_impl(ctx: AnalysisContext) -> list[Provider]:
@@ -71,17 +75,44 @@ _rust_release = rule(
     },
 )
 
-def rust_release(name: str, visibility: list[str] = []):
+def rust_release(
+        name: str,
+        components: list[str] = RUST_TOOLCHAIN_COMPONENTS,
+        hosts: dict = RUST_HOSTS,
+        visibility: list[str] = []):
+    """Installs `components` of the host's entry in `hosts` into one directory.
+
+    `hosts` has the layout of RUST_HOSTS in rust_release.bzl.
+    """
     _rust_release(
         name = name,
-        archives = rust_release_archives(["rustc", "rust-std", "clippy-preview"]),
+        archives = _rust_release_archives(name, components, hosts),
         executable_suffix = select({
             "DEFAULT": "",
             "prelude//os:windows": ".exe",
         }),
-        host_triple = _select_host(lambda host: host["triple"]),
+        host_triple = _select_host(hosts, lambda host: host["triple"]),
         visibility = visibility,
     )
+
+def _release_tool_impl(ctx: AnalysisContext) -> list[Provider]:
+    release = ctx.attrs.release[RustReleaseInfo]
+    path = ctx.attrs.path.format(host_triple = release.host_triple)
+    return [
+        DefaultInfo(),
+        RunInfo(args = cmd_args(release.sysroot, format = "{}/" + path + release.executable_suffix)),
+    ]
+
+# An executable of a rust_release, to run from rules or with `buck2 run`.
+release_tool = rule(
+    impl = _release_tool_impl,
+    attrs = {
+        # Relative to the release directory, without the executable suffix;
+        # `{host_triple}` stands for the release's host triple.
+        "path": attrs.string(),
+        "release": attrs.exec_dep(providers = [RustReleaseInfo]),
+    },
+)
 
 def _rust_release_toolchain_impl(ctx: AnalysisContext) -> list[Provider]:
     release = ctx.attrs.release[RustReleaseInfo]
@@ -113,6 +144,7 @@ def _rust_release_toolchain_impl(ctx: AnalysisContext) -> list[Provider]:
             rustc_flags = ctx.attrs.rustc_flags,
             rustc_target_triple = ctx.attrs.rustc_target_triple or release.host_triple,
             rustdoc = tool("rustdoc"),
+            rustdoc_flags = ctx.attrs.rustdoc_flags,
         ),
     ]
 
@@ -131,8 +163,10 @@ rust_release_toolchain = rule(
         "release": attrs.exec_dep(providers = [RustReleaseInfo]),
         # A directory with the custom target specification.
         "rust_target_path": attrs.option(attrs.dep(), default = None),
+        # Also passed to tests, which the prelude builds as binaries.
         "rustc_binary_flags": attrs.list(attrs.arg(), default = []),
         "rustc_flags": attrs.list(attrs.arg(), default = []),
+        "rustdoc_flags": attrs.list(attrs.arg(), default = []),
         # Unset: the host triple of `release`.
         "rustc_target_triple": attrs.option(attrs.string(), default = None),
         # The standard library crates. Each label must name a target that

@@ -29,8 +29,10 @@ DIST_URL = "https://static.rust-lang.org/dist"
 RELEASE_PATTERN = re.compile(r"\d+\.\d+\.\d+")
 
 # Components that Buck2 runs: rustc and rustdoc, the host standard
-# library, and clippy-driver.
-COMPONENTS = ["rustc", "rust-std", "clippy-preview"]
+# library, and clippy-driver for the toolchain (RUST_TOOLCHAIN_COMPONENTS
+# in rust.bzl), and the LLVM tools (llvm-objdump and others) built from the
+# release's LLVM.
+COMPONENTS = ["rustc", "rust-std", "clippy-preview", "llvm-tools-preview"]
 
 # Buck2 `prelude//os` and `prelude//cpu` constraint names to Rust host
 # triples.
