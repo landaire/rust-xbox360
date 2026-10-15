@@ -6,11 +6,14 @@
 //! separate ELF-to-EXE or EXE-to-XEX tool is required.
 
 mod error;
+mod manifest;
 mod pe;
 
 use crate::error::Result;
 use crate::error::XexLinkError;
 use crate::error::io;
+use crate::manifest::ExportSettings;
+use crate::manifest::Manifest;
 use byteorder::BigEndian;
 use byteorder::ByteOrder;
 use object::Object;
@@ -19,19 +22,15 @@ use object::SectionFlags;
 use object::SectionKind;
 use rootcause::IntoReport;
 use std::collections::BTreeMap;
-use xenon_types::MediaId;
+use std::path::Path;
 use xenon_types::Sha1Hash;
-use xenon_types::TitleId;
 use xenon_types::Version;
 use xenon_types::VirtualAddress;
-use xex2::builder::BoundingPath;
 use xex2::builder::EncryptionTarget;
 use xex2::builder::Xex2Builder;
 use xex2::imports::ImportLibrary;
 use xex2::opt::ImageFlags;
-use xex2::opt::ModuleFlags;
 
-const DEFAULT_LOAD_ADDRESS: u32 = 0x8200_0000;
 // Sections and the file are aligned to the loader page size: 4 KB with
 // SMALL_PAGES, else 64 KB.
 const SMALL_PAGE: u32 = 0x1000;
@@ -61,6 +60,7 @@ const EXPORT_TABLE_SECTION: [u8; 8] = *b".xexp\0\0\0";
 
 /// An importable system module. The loader rejects an import library whose
 /// `import_id` differs from the module number in the exporter's export table.
+#[derive(Debug, PartialEq)]
 struct ExportingModule {
     name: &'static str,
     import_id: u32,
@@ -72,31 +72,32 @@ const LIBRARIES: &[ExportingModule] = &[
     ExportingModule { name: "xam.xex", import_id: 0xfca1_5c76 },
     ExportingModule { name: "xbdm.xex", import_id: 0xeceb_8109 },
 ];
-const DEFAULT_IMPORT_VERSION: Version = Version { major: 2, minor: 0, build: 21173, revision: 0 };
-const DEFAULT_IMPORT_MIN_VERSION: Version = Version { major: 2, minor: 0, build: 1861, revision: 0 };
 
 const USAGE: &str = "\
-usage: xex-link <input.elf> <output.xex> [options]
+usage: xex-link <input.elf> <output.xex> [--manifest PATH]
 
 options:
-  --title-id HEX          title id (default 0x00000000)
-  --load-address HEX      image base the ELF was linked at (default 0x82000000)
-  --media-id HEX          media id (default 0x00000000)
-  --version VER           title version and export table version, dotted a.b.c.d or 0xHEX (default 0.0.0.0)
-  --base-version VER      minimum loader version, same format (default 0.0.0.0)
-  --import-version VER    imported module version (default 2.0.21173.0)
-  --import-min-version VER
-                          minimum imported module version (default 2.0.1861.0)
-  --image-flags FLAGS     comma-separated ImageFlags or 0xHEX (e.g. SMALL_PAGES)
-  --module-flags FLAGS    comma-separated ModuleFlags or 0xHEX (default TITLE)
-  --compress              LZX-compress the image (Normal, 64 KB window)
-  --encrypt TARGET        encrypt payload with the devkit or retail master key
-  --bounding-path PATH    device path the loaded file must resolve to
-  --export-module NAME    emit an export table with NAME's module id
-                          (xboxkrnl.exe, xam.xex, xbdm.xex)
-  --export-min-version VER
-                          oldest compatible version recorded in the export
-                          table (default 2.0.1861.0)";
+  --manifest PATH         TOML file of XEX metadata; every key is optional
+
+manifest keys:
+  title_id = INT          title id (default 0x00000000)
+  media_id = INT          media id (default 0x00000000)
+  load_address = INT      image base the ELF was linked at (default 0x82000000)
+  version = \"VER\"         title version and export table version, dotted
+                          a.b.c.d or \"0xHEX\" (default \"0.0.0.0\")
+  base_version = \"VER\"    minimum loader version, same format (default \"0.0.0.0\")
+  image_flags = [\"FLAG\"]  ImageFlags names or \"0xHEX\" (e.g. SMALL_PAGES; default [])
+  module_flags = [\"FLAG\"] ModuleFlags names or \"0xHEX\" (default [\"TITLE\"])
+  bounding_path = \"PATH\"  device path the loaded file must resolve to
+  compress = BOOL         LZX-compress the image (Normal, 64 KB window; default false)
+  encrypt = \"TARGET\"      encrypt payload with the \"devkit\" or \"retail\" master key
+  [imports]
+  version = \"VER\"         imported module version (default \"2.0.21173.0\")
+  min_version = \"VER\"     minimum imported module version (default \"2.0.1861.0\")
+  [exports]               emit an export table
+  module = \"NAME\"         module id to record: xboxkrnl.exe, xam.xex, xbdm.xex
+  min_version = \"VER\"     oldest compatible version recorded in the export
+                          table (default \"2.0.1861.0\")";
 
 fn main() -> std::process::ExitCode {
     match run() {
@@ -111,68 +112,19 @@ fn main() -> std::process::ExitCode {
 struct Config {
     input: String,
     output: String,
-    title_id: TitleId,
-    load_address: u32,
-    media_id: MediaId,
-    version: Version,
-    base_version: Version,
-    import_version: Version,
-    import_min_version: Version,
-    image_flags: ImageFlags,
-    module_flags: ModuleFlags,
-    compress: bool,
-    encryption_target: Option<EncryptionTarget>,
-    bounding_path: Option<BoundingPath>,
-    export_module: Option<&'static ExportingModule>,
-    export_min_version: Version,
+    manifest: Manifest,
 }
 
 fn parse_args() -> Result<Config> {
     let mut input = None;
     let mut output = None;
-    let mut title_id = TitleId(0);
-    let mut load_address = DEFAULT_LOAD_ADDRESS;
-    let mut media_id = MediaId(0);
-    let mut version = Version::from(0u32);
-    let mut base_version = Version::from(0u32);
-    let mut import_version = DEFAULT_IMPORT_VERSION;
-    let mut import_min_version = DEFAULT_IMPORT_MIN_VERSION;
-    let mut image_flags = ImageFlags::empty();
-    let mut module_flags = ModuleFlags::TITLE;
-    let mut compress = false;
-    let mut encryption_target = None;
-    let mut bounding_path = None;
-    let mut export_module = None;
-    let mut export_min_version = DEFAULT_IMPORT_MIN_VERSION;
+    let mut manifest_path = None;
 
     let mut it = std::env::args().skip(1);
     while let Some(a) = it.next() {
-        let mut value = |flag: &str| -> Result<String> {
-            it.next().ok_or_else(|| XexLinkError::MissingValue(flag.to_string()).into_report())
-        };
         match a.as_str() {
-            "--title-id" => title_id = TitleId(parse_hex_u32("--title-id", &value("--title-id")?)?),
-            "--load-address" => load_address = parse_hex_u32("--load-address", &value("--load-address")?)?,
-            "--media-id" => media_id = MediaId(parse_hex_u32("--media-id", &value("--media-id")?)?),
-            "--version" => version = parse_version("--version", &value("--version")?)?,
-            "--base-version" => base_version = parse_version("--base-version", &value("--base-version")?)?,
-            "--import-version" => import_version = parse_version("--import-version", &value("--import-version")?)?,
-            "--import-min-version" => {
-                import_min_version = parse_version("--import-min-version", &value("--import-min-version")?)?
-            }
-            "--image-flags" => image_flags = parse_image_flags(&value("--image-flags")?)?,
-            "--module-flags" => module_flags = parse_module_flags(&value("--module-flags")?)?,
-            "--compress" => compress = true,
-            "--encrypt" => encryption_target = Some(parse_encryption_target(&value("--encrypt")?)?),
-            "--bounding-path" => {
-                bounding_path = Some(
-                    BoundingPath::new(value("--bounding-path")?)
-                        .map_err(|e| XexLinkError::Xex(format!("{e:?}")).into_report())?,
-                )
-            }
-            "--export-module" => export_module = Some(parse_export_module(&value("--export-module")?)?),
-            "--export-min-version" => {
-                export_min_version = parse_version("--export-min-version", &value("--export-min-version")?)?
+            "--manifest" => {
+                manifest_path = Some(it.next().ok_or_else(|| XexLinkError::MissingValue(a.clone()).into_report())?)
             }
             "-h" | "--help" => {
                 println!("{USAGE}");
@@ -191,112 +143,27 @@ fn parse_args() -> Result<Config> {
         (Some(i), Some(o)) => (i, o),
         _ => return Err(XexLinkError::MissingPaths.into_report()),
     };
-    Ok(Config {
-        input,
-        output,
-        title_id,
-        load_address,
-        media_id,
-        version,
-        base_version,
-        import_version,
-        import_min_version,
-        image_flags,
-        module_flags,
-        compress,
-        encryption_target,
-        bounding_path,
-        export_module,
-        export_min_version,
-    })
-}
-
-fn parse_export_module(value: &str) -> Result<&'static ExportingModule> {
-    LIBRARIES.iter().find(|module| module.name == value).ok_or_else(|| {
-        bad("--export-module", value, "expected a known module (xboxkrnl.exe, xam.xex, xbdm.xex)")
-    })
-}
-
-fn parse_encryption_target(value: &str) -> Result<EncryptionTarget> {
-    match value {
-        "devkit" => Ok(EncryptionTarget::Devkit),
-        "retail" => Ok(EncryptionTarget::Retail),
-        _ => Err(bad("--encrypt", value, "expected devkit or retail")),
-    }
-}
-
-fn parse_hex_u32(flag: &str, value: &str) -> Result<u32> {
-    let digits = value.trim_start_matches("0x").trim_start_matches("0X");
-    u32::from_str_radix(digits, 16).map_err(|e| {
-        XexLinkError::BadValue { flag: flag.to_string(), value: value.to_string(), reason: e.to_string() }.into_report()
-    })
-}
-
-/// Parse a version as dotted `major.minor.build.revision`, or a packed `0xHEX`.
-fn parse_version(flag: &str, value: &str) -> Result<Version> {
-    if value.contains('.') {
-        let mut parts = [0u16; 4];
-        let mut count = 0;
-        for (i, field) in value.split('.').enumerate() {
-            if i >= 4 {
-                return Err(bad(flag, value, "expected at most 4 dotted fields"));
-            }
-            parts[i] = field.parse::<u16>().map_err(|e| bad(flag, value, &e.to_string()))?;
-            count = i + 1;
+    let manifest = match manifest_path {
+        Some(path) => {
+            let text = io(&path, std::fs::read_to_string(&path))?;
+            Manifest::parse(Path::new(&path), &text).map_err(|e| XexLinkError::Manifest(e).into_report())?
         }
-        if count == 0 {
-            return Err(bad(flag, value, "empty version"));
-        }
-        // Version packs as major:4, minor:4, build:16, revision:8. Reject fields
-        // that would overflow their width and silently corrupt neighbors.
-        if parts[0] > 0xF {
-            return Err(bad(flag, value, "major must be 0..15"));
-        }
-        if parts[1] > 0xF {
-            return Err(bad(flag, value, "minor must be 0..15"));
-        }
-        if parts[3] > 0xFF {
-            return Err(bad(flag, value, "revision must be 0..255"));
-        }
-        Ok(Version { major: parts[0], minor: parts[1], build: parts[2], revision: parts[3] })
-    } else {
-        Ok(Version::from(parse_hex_u32(flag, value)?))
-    }
+        None => Manifest::default(),
+    };
+    Ok(Config { input, output, manifest })
 }
 
-/// Parse an ImageFlags value: comma-separated flag names, or a packed `0xHEX`.
-/// bitflags' parser accepts `A | B | 0x4`; we accept commas so the value needs
-/// no shell quoting.
-fn parse_image_flags(value: &str) -> Result<ImageFlags> {
-    if value.trim().is_empty() {
-        return Err(bad("--image-flags", value, "empty flags"));
-    }
-    let normalized = value.replace(',', " | ");
-    bitflags::parser::from_str::<ImageFlags>(&normalized).map_err(|e| bad("--image-flags", value, &e.to_string()))
-}
-
-fn parse_module_flags(value: &str) -> Result<ModuleFlags> {
-    if value.trim().is_empty() {
-        return Err(bad("--module-flags", value, "empty flags"));
-    }
-    let normalized = value.replace(',', " | ");
-    bitflags::parser::from_str::<ModuleFlags>(&normalized).map_err(|e| bad("--module-flags", value, &e.to_string()))
-}
-
-fn bad(flag: &str, value: &str, reason: &str) -> crate::error::Report {
-    XexLinkError::BadValue { flag: flag.to_string(), value: value.to_string(), reason: reason.to_string() }
-        .into_report()
+/// Loader page size, which aligns the load address, sections, and file.
+fn page_size(image_flags: ImageFlags) -> u32 {
+    if image_flags.contains(ImageFlags::SMALL_PAGES) { SMALL_PAGE } else { LARGE_PAGE }
 }
 
 fn run() -> Result<()> {
-    let cfg = parse_args()?;
-    let base = cfg.load_address;
-    let page = if cfg.image_flags.contains(ImageFlags::SMALL_PAGES) { SMALL_PAGE } else { LARGE_PAGE };
-    if base % page != 0 {
-        return Err(XexLinkError::UnalignedLoadAddress { base, align: page }.into_report());
-    }
+    let Config { input, output, manifest } = parse_args()?;
+    let base = manifest.load_address.0;
+    let page = page_size(manifest.image_flags);
 
-    let data = io(&cfg.input, std::fs::read(&cfg.input))?;
+    let data = io(&input, std::fs::read(&input))?;
     let elf = object::File::parse(&*data).map_err(|e| XexLinkError::Elf(e).into_report())?;
 
     let entry = elf.entry() as u32;
@@ -316,27 +183,24 @@ fn run() -> Result<()> {
         &mut sections,
         base,
         base + loader_rva,
-        cfg.import_version,
-        cfg.import_min_version,
+        manifest.imports.version,
+        manifest.imports.min_version,
     )?;
-    let export_table = match cfg.export_module {
-        Some(module) => {
+    let export_table = match &manifest.exports {
+        Some(ExportSettings { module, min_version }) => {
             // The table stores the image base as its upper half only.
             if base % LARGE_PAGE != 0 {
                 return Err(XexLinkError::UnalignedExportBase { base }.into_report());
             }
-            if u32::from(cfg.version) < u32::from(cfg.export_min_version) {
+            if u32::from(manifest.version) < u32::from(*min_version) {
                 return Err(XexLinkError::ExportVersionBelowMinimum {
-                    version: cfg.version,
-                    minimum: cfg.export_min_version,
+                    version: manifest.version,
+                    minimum: *min_version,
                 }
                 .into_report());
             }
-            let identity = ExportIdentity {
-                module_id: module.import_id,
-                version: cfg.version,
-                min_version: cfg.export_min_version,
-            };
+            let identity =
+                ExportIdentity { module_id: module.import_id, version: manifest.version, min_version: *min_version };
             Some(build_export_table(&exports, &sections, base, identity)?)
         }
         None if exports.is_empty() => None,
@@ -378,41 +242,41 @@ fn run() -> Result<()> {
     let import_count = thunks.len() + variables.len();
     let section_count = image.sections.len();
     let mut builder = Xex2Builder::new(pe_bytes)
-        .load_address(VirtualAddress(base))
+        .load_address(manifest.load_address)
         .entry_point(VirtualAddress(entry))
-        .title_id(cfg.title_id)
-        .media_id(cfg.media_id)
-        .version(cfg.version)
-        .base_version(cfg.base_version)
-        .image_flags(cfg.image_flags)
-        .module_flags(cfg.module_flags)
+        .title_id(manifest.title_id)
+        .media_id(manifest.media_id)
+        .version(manifest.version)
+        .base_version(manifest.base_version)
+        .image_flags(manifest.image_flags)
+        .module_flags(manifest.module_flags)
         .imports(imports);
     if let Some(table) = export_table {
         builder = builder.export_table(table);
     }
-    if let Some(target) = cfg.encryption_target {
+    if let Some(target) = manifest.encryption_target {
         builder = builder.encrypt(target);
     }
-    if let Some(path) = cfg.bounding_path {
+    if let Some(path) = manifest.bounding_path {
         builder = builder.bounding_path(path);
     }
-    if cfg.compress {
+    if manifest.compress {
         builder = builder.compress();
     }
     let xex = builder.build().map_err(|e| XexLinkError::Xex(format!("{e:?}")).into_report())?;
 
-    io(&cfg.output, std::fs::write(&cfg.output, &xex))?;
+    io(&output, std::fs::write(&output, &xex))?;
     println!(
         "wrote {} ({} bytes), entry {:#010x}, base {:#010x}, {} section(s), {} import(s), {} export(s){}{}",
-        cfg.output,
+        output,
         xex.len(),
         entry,
         base,
         section_count,
         import_count,
         exports.len(),
-        if cfg.compress { ", compressed" } else { "" },
-        match cfg.encryption_target {
+        if manifest.compress { ", compressed" } else { "" },
+        match manifest.encryption_target {
             Some(EncryptionTarget::Devkit) => ", encrypted with devkit key",
             Some(EncryptionTarget::Retail) => ", encrypted with retail key",
             None => "",
@@ -709,6 +573,8 @@ fn section_name<'d>(sec: &impl ObjectSection<'d>) -> [u8; 8] {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::manifest::DEFAULT_IMPORT_MIN_VERSION;
+    use crate::manifest::DEFAULT_IMPORT_VERSION;
 
     const IAT_VA: u32 = 0x8203_0000;
 

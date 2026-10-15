@@ -52,7 +52,8 @@ an Xbox PPC PE image (machine POWERPCBE 0x01F2, 32-bit optional header) in
 memory, synthesizes the import thunks + IMPORT_LIBRARIES table, and wraps the
 result as a devkit-signed XEX2 via acceleration's `Xex2Builder` -- all without
 writing an intermediate ELF-to-EXE file. Title id, load address, media id,
-version, image/module flags, and LZX compression are CLI options; run
+versions, image/module flags, compression, encryption, and the export table are
+read from a TOML manifest (`--manifest`; each example has an `xex.toml`); run
 `xex-link --help`. Keeping this conversion an external post-link tool (rather
 than folding it into LLVM) is the idiomatic pattern; see
 [docs/llvm-integration.md](docs/llvm-integration.md).

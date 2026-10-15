@@ -15,5 +15,5 @@ nix-shell -p llvmPackages.clang-unwrapped --run \
 
 "$lld" -flavor gnu "$here/hello.o" -T "$here/link.x" -o "$here/chello" --no-rosegment -e _start
 
-"$root/target/debug/xex-link" "$here/chello" "$out" --title-id 0x43484c4f
+"$root/target/debug/xex-link" "$here/chello" "$out" --manifest "$here/xex.toml"
 echo "built $out"

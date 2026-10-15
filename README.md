@@ -96,12 +96,12 @@ RUSTC_BOOTSTRAP=1 cargo build --release -Zjson-target-spec
 ```
 
 The ELF is written to `target/powerpc-unknown-xbox360/release/hello`. Convert it
-to a XEX:
+to a XEX with the metadata in the example's `xex.toml`:
 
 ```
 ../../target/debug/xex-link \
   target/powerpc-unknown-xbox360/release/hello hello.xex \
-  --title-id 0x48454C4F
+  --manifest xex.toml
 ```
 
 Run it under Xenia:
@@ -170,24 +170,39 @@ converts the result with `xex-link`.
 
 ## Linker options
 
-`xex-link` exposes the XEX metadata as command-line options:
+`xex-link` reads the XEX metadata from a TOML manifest:
 
 ```
-usage: xex-link <input.elf> <output.xex> [options]
+usage: xex-link <input.elf> <output.xex> [--manifest PATH]
+```
 
-options:
-  --title-id HEX          title id (default 0x00000000)
-  --load-address HEX      image base the ELF was linked at (default 0x82000000)
-  --media-id HEX          media id (default 0x00000000)
-  --version VER           title version, dotted a.b.c.d or 0xHEX (default 0.0.0.0)
-  --base-version VER      minimum loader version, same format (default 0.0.0.0)
-  --image-flags FLAGS     comma-separated ImageFlags or 0xHEX (e.g. SMALL_PAGES)
-  --module-flags FLAGS    comma-separated ModuleFlags or 0xHEX (default TITLE)
-  --compress              LZX-compress the image (Normal, 64 KB window)
+Every key is optional; an absent key, or an absent `--manifest`, takes the
+default shown. Commented keys have no default. Unknown keys are rejected.
+
+```toml
+title_id = 0x00000000       # integer
+media_id = 0x00000000       # integer
+load_address = 0x82000000   # image base the ELF was linked at
+version = "0.0.0.0"         # title and export table version: a.b.c.d or "0xHEX"
+base_version = "0.0.0.0"    # minimum loader version, same format
+image_flags = []            # ImageFlags names or "0xHEX", e.g. ["SMALL_PAGES"]
+module_flags = ["TITLE"]    # ModuleFlags names or "0xHEX"
+compress = false            # LZX-compress the image (Normal, 64 KB window)
+# bounding_path = '\Device\Harddisk0\Partition1\DEVKIT\FlashEx\xbdm.xex'
+# encrypt = "devkit"        # encrypt with the "devkit" or "retail" master key
+
+[imports]
+version = "2.0.21173.0"     # imported module version
+min_version = "2.0.1861.0"  # minimum imported module version
+
+# Emits an export table; module is required when the table is present.
+# [exports]
+# module = "xbdm.xex"       # xboxkrnl.exe, xam.xex, or xbdm.xex
+# min_version = "2.0.1861.0" # oldest compatible version in the export table
 ```
 
 The load address must match the image base the ELF was linked at and must be a
-multiple of the 64 KB page size.
+multiple of the page size: 64 KB, or 4 KB with `SMALL_PAGES`.
 
 ## Examples
 
