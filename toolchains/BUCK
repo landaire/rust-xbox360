@@ -1,0 +1,3 @@
+load("@xbox360//buck:toolchains.bzl", "xbox360_toolchains")
+
+xbox360_toolchains()

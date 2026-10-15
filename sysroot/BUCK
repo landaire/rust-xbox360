@@ -1,0 +1,18 @@
+load("//buck:rust_release.bzl", "RUST_SRC")
+load("//buck:sysroot.bzl", "rust_library_source", "sysroot_crates", "sysroot_package_dirs")
+
+http_file(
+    name = "rust-src-archive",
+    out = "rust-src.tar.xz",
+    sha256 = RUST_SRC["sha256"],
+    urls = [RUST_SRC["url"]],
+)
+
+rust_library_source(
+    name = "library",
+    archive = ":rust-src-archive",
+    overlay = "//toolchain/rust-std-xbox360:library",
+    package_dirs = sysroot_package_dirs(),
+)
+
+sysroot_crates(library_source = ":library")

@@ -1,0 +1,6 @@
+# The directory that RUST_TARGET_PATH names for custom target specifications.
+filegroup(
+    name = "specs",
+    srcs = ["powerpc-unknown-xbox360.json"],
+    visibility = ["PUBLIC"],
+)

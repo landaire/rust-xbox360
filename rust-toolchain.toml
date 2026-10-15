@@ -1,0 +1,7 @@
+# Rust for Cargo and rust-analyzer, through rustup or devenv.nix. Buck2
+# downloads the same release (buck/rust_release.bzl). The standard library
+# overlay in toolchain/rust-std-xbox360 is specific to this release.
+[toolchain]
+channel = "1.98.0"
+components = ["clippy", "rustfmt", "rust-src", "rust-analyzer"]
+profile = "minimal"

@@ -1,0 +1,77 @@
+load("//buck:platforms.bzl", "sysroot_build_transition")
+
+# Targets configured with `console = xbox360` build for
+# powerpc-unknown-xbox360 (see buck/rust.bzl). No platform sets it; titles
+# enter the configuration through the transitions in buck/platforms.bzl.
+constraint_setting(
+    name = "console",
+    visibility = ["PUBLIC"],
+)
+
+constraint_value(
+    name = "xbox360",
+    constraint_setting = ":console",
+    visibility = ["PUBLIC"],
+)
+
+# Which standard library crates the Rust toolchain provides to a crate:
+# none while building those crates themselves, core and alloc for
+# no_std titles, or std.
+constraint_setting(
+    name = "sysroot",
+    visibility = ["PUBLIC"],
+)
+
+constraint_value(
+    name = "sysroot-none",
+    constraint_setting = ":sysroot",
+    visibility = ["PUBLIC"],
+)
+
+constraint_value(
+    name = "sysroot-core",
+    constraint_setting = ":sysroot",
+    visibility = ["PUBLIC"],
+)
+
+constraint_value(
+    name = "sysroot-std",
+    constraint_setting = ":sysroot",
+    visibility = ["PUBLIC"],
+)
+
+# For building targets directly, for example
+# `buck2 build xbox360//sysroot:std --target-platforms xbox360//platforms:xbox360-std`.
+# Titles do not need them; xbox360_title applies the same constraints.
+platform(
+    name = "xbox360-core",
+    constraint_values = [
+        ":sysroot-core",
+        ":xbox360",
+    ],
+    visibility = ["PUBLIC"],
+)
+
+platform(
+    name = "xbox360-std",
+    constraint_values = [
+        ":sysroot-std",
+        ":xbox360",
+    ],
+    visibility = ["PUBLIC"],
+)
+
+platform(
+    name = "xbox360-sysroot",
+    constraint_values = [
+        ":sysroot-none",
+        ":xbox360",
+    ],
+    visibility = ["PUBLIC"],
+)
+
+sysroot_build_transition(
+    name = "sysroot-build-transition",
+    sysroot_none = ":sysroot-none",
+    visibility = ["PUBLIC"],
+)

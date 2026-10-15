@@ -7,3 +7,4 @@ stdout
 /.rustsrc-backup/
 *.o
 examples/chello/chello
+/buck-out

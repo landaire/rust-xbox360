@@ -12,5 +12,5 @@ serde = { version = "1.0", features = ["derive"] }
 toml = { version = "1.1", default-features = false, features = ["std", "serde", "parse"] }
 thiserror = "2.0"
 rootcause = "0.12"
-xex2 = { path = "../../../acceleration/crates/xex2" }
-xenon_types = { path = "../../../acceleration/crates/xenon_types" }
+xex2 = "0.2"
+xenon_types = "0.2"

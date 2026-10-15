@@ -1,0 +1,9 @@
+# The overlay, keyed by path relative to the Rust `library` directory.
+filegroup(
+    name = "library",
+    srcs = {
+        path.removeprefix("library/"): path
+        for path in glob(["library/**"])
+    },
+    visibility = ["PUBLIC"],
+)
