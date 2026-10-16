@@ -43,6 +43,25 @@ def install_archive(archive, extract_dir, sysroot):
     shutil.rmtree(extract_dir)
 
 
+def link_rust_lld_llvm(sysroot):
+    """Makes the rustc component's libLLVM.dylib visible to rust-lld.
+
+    On macOS rust-lld (lib/rustlib/<host>/bin) loads @rpath/libLLVM.dylib
+    from lib/rustlib/<host>/lib, where only the llvm-tools component puts a
+    copy; rustc keeps its own in lib/. rustup's proxies make rust-lld find
+    it through DYLD_FALLBACK_LIBRARY_PATH instead.
+    """
+    library = sysroot / "lib" / "libLLVM.dylib"
+    if not library.is_file():
+        return
+    for rust_lld in sorted(sysroot.glob("lib/rustlib/*/bin/rust-lld")):
+        link = rust_lld.parent.parent / "lib" / "libLLVM.dylib"
+        if link.exists():
+            continue
+        link.parent.mkdir(parents=True, exist_ok=True)
+        link.symlink_to(os.path.relpath(library, link.parent))
+
+
 def main():
     if len(sys.argv) < 3:
         raise SystemExit(__doc__.strip())
@@ -52,6 +71,7 @@ def main():
     extract_dir = sysroot / ".extract"
     for archive in sys.argv[2:]:
         install_archive(Path(archive), extract_dir, sysroot)
+    link_rust_lld_llvm(sysroot)
 
 
 if __name__ == "__main__":
