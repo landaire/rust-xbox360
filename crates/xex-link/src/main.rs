@@ -292,26 +292,25 @@ struct Thunk {
     ordinal: u16,
 }
 
-/// Scan `.xthunks` and return every import thunk with its VA, library, ordinal.
+/// Scan `.xthunks` and every `.xthunks.*` section and return every import
+/// thunk with its VA, library, ordinal.
 fn collect_thunks(elf: &object::File) -> Result<Vec<Thunk>> {
-    let Some(sec) = elf.section_by_name(THUNK_SECTION) else {
-        return Ok(Vec::new());
-    };
-    let base = sec.address() as u32;
-    let data = sec.data().map_err(|e| XexLinkError::Elf(e).into_report())?;
     let mut out = Vec::new();
-    let mut offset = 0usize;
-    while offset + 4 <= data.len() {
-        let record = BigEndian::read_u32(&data[offset..offset + 4]);
-        if record != 0 {
-            let va = base + offset as u32;
+    for sec in elf.sections() {
+        let Some((base, data)) = record_section(&sec, THUNK_SECTION, THUNK_SIZE)? else { continue };
+        for (index, slot) in data.as_chunks::<THUNK_SIZE>().0.iter().enumerate() {
+            let record = BigEndian::read_u32(&slot[0..4]);
+            if record == 0 {
+                continue;
+            }
+            let va = base + (index * THUNK_SIZE) as u32;
             if (record >> 24) & 0xFF != RECORD_TYPE_THUNK {
                 return Err(XexLinkError::BadThunk { va, record }.into_report());
             }
             out.push(Thunk { va, library_index: ((record >> 16) & 0xFF) as u8, ordinal: (record & 0xFFFF) as u16 });
         }
-        offset += THUNK_SIZE;
     }
+    out.sort_by_key(|thunk| thunk.va);
     Ok(out)
 }
 
@@ -322,30 +321,60 @@ struct Variable {
     ordinal: u16,
 }
 
-/// Scan `.xvars` and return every data import slot.
+/// Scan `.xvars` and every `.xvars.*` section and return every data import
+/// slot.
 fn collect_variables(elf: &object::File) -> Result<Vec<Variable>> {
-    let Some(sec) = elf.section_by_name(VARIABLE_SECTION) else {
-        return Ok(Vec::new());
-    };
-    let base = sec.address() as u32;
-    let data = sec.data().map_err(|e| XexLinkError::Elf(e).into_report())?;
     let mut out = Vec::new();
-    for (index, slot) in data.chunks_exact(VARIABLE_SIZE).enumerate() {
-        let record = BigEndian::read_u32(slot);
-        if record == 0 {
-            continue;
+    for sec in elf.sections() {
+        let Some((base, data)) = record_section(&sec, VARIABLE_SECTION, VARIABLE_SIZE)? else { continue };
+        for (index, slot) in data.as_chunks::<VARIABLE_SIZE>().0.iter().enumerate() {
+            let record = BigEndian::read_u32(slot);
+            if record == 0 {
+                continue;
+            }
+            let va = base + (index * VARIABLE_SIZE) as u32;
+            if record >> 24 != 0 {
+                return Err(XexLinkError::BadVariable { va, record }.into_report());
+            }
+            out.push(Variable { va, library_index: ((record >> 16) & 0xFF) as u8, ordinal: (record & 0xFFFF) as u16 });
         }
-        let va = base + (index * VARIABLE_SIZE) as u32;
-        if record >> 24 != 0 {
-            return Err(XexLinkError::BadVariable { va, record }.into_report());
-        }
-        out.push(Variable { va, library_index: ((record >> 16) & 0xFF) as u8, ordinal: (record & 0xFFFF) as u16 });
     }
+    out.sort_by_key(|variable| variable.va);
     Ok(out)
 }
 
+/// The address and contents of `sec` when it is an allocated `section` or
+/// `section.*` record section. Sections that are not loaded, such as those
+/// of a relocatable object, are skipped.
+fn record_section<'data>(
+    sec: &impl ObjectSection<'data>,
+    section: &str,
+    record_size: usize,
+) -> Result<Option<(u32, &'data [u8])>> {
+    let Ok(name) = sec.name() else { return Ok(None) };
+    if !is_record_section(name, section) || !is_allocated(sec) {
+        return Ok(None);
+    }
+    let data = sec.data().map_err(|e| XexLinkError::Elf(e).into_report())?;
+    if data.len() % record_size != 0 {
+        return Err(XexLinkError::PartialRecord { name: name.to_string(), size: data.len(), record_size }.into_report());
+    }
+    Ok(Some((sec.address() as u32, data)))
+}
+
+fn is_allocated<'data>(sec: &impl ObjectSection<'data>) -> bool {
+    matches!(sec.flags(), SectionFlags::Elf { sh_flags } if sh_flags & SHF_ALLOC != 0) && sec.address() != 0
+}
+
+/// Whether `name` is `section` or one of its per-record sections
+/// (`section.*`). Linker scripts that do not merge the per-record sections
+/// leave them as separate output sections.
+fn is_record_section(name: &str, section: &str) -> bool {
+    name.strip_prefix(section).is_some_and(|rest| rest.is_empty() || rest.starts_with('.'))
+}
+
 /// Find the section byte range of a `size`-byte record at `va`.
-fn record_slot<'s>(sections: &'s mut [pe::Section], base: u32, va: u32, size: usize) -> Option<&'s mut [u8]> {
+fn record_slot(sections: &mut [pe::Section], base: u32, va: u32, size: usize) -> Option<&mut [u8]> {
     let section = sections.iter_mut().find(|section| {
         let start = base + section.rva;
         va >= start && va < start + section.virtual_size
@@ -517,8 +546,7 @@ fn build_export_table(
 fn collect_sections(elf: &object::File, base: u32) -> Result<Vec<pe::Section>> {
     let mut sections = Vec::new();
     for sec in elf.sections() {
-        let allocated = matches!(sec.flags(), SectionFlags::Elf { sh_flags } if sh_flags & SHF_ALLOC != 0);
-        if !allocated || sec.name() == Ok(EXPORT_SECTION) {
+        if !is_allocated(&sec) || sec.name() == Ok(EXPORT_SECTION) {
             continue;
         }
         let addr = sec.address() as u32;

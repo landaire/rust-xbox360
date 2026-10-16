@@ -11,7 +11,7 @@ SECTIONS {
         *(.text .text.*)
     }
     . = ALIGN(4);
-    .xthunks : { *(.xthunks) }
+    .xthunks : { *(.xthunks .xthunks.*) }
 
     . = ALIGN(0x10000);
     .rodata : { *(.rodata .rodata.*) }

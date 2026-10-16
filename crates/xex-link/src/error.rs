@@ -27,6 +27,8 @@ pub enum XexLinkError {
     BadThunk { va: u32, record: u32 },
     #[error("data import slot at {va:#010x} has invalid record {record:#010x}")]
     BadVariable { va: u32, record: u32 },
+    #[error("record section {name:?} is {size:#x} bytes, not a multiple of the {record_size}-byte record")]
+    PartialRecord { name: String, size: usize, record_size: usize },
     #[error("import slot at {va:#010x} is outside the image")]
     ImportSlotOutsideImage { va: u32 },
     #[error("export table needs a 64 KB aligned image base, got {base:#010x}")]
