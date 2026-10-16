@@ -232,7 +232,8 @@ SYSROOT_CRATES = {
             "panic_abort": "panic_abort@0.0.0",
             "rustc_demangle": "rustc-demangle@0.1.27",
             "std_detect": "std_detect@0.1.5",
-            "unwind": "unwind@0.0.0"
+            "unwind": "unwind@0.0.0",
+            "xbox360_sys": "xbox360-sys@0.1.0"
         },
         "edition": "2024",
         "features": [
@@ -271,5 +272,21 @@ SYSROOT_CRATES = {
         "registry_sha256": None,
         "root": "unwind/src/lib.rs",
         "version": "0.0.0"
+    },
+    "xbox360-sys@0.1.0": {
+        "build_script": None,
+        "crate": "xbox360_sys",
+        "deps": {
+            "core": "rustc-std-workspace-core@1.99.0"
+        },
+        "edition": "2024",
+        "features": [
+            "core",
+            "rustc-dep-of-std"
+        ],
+        "name": "xbox360-sys",
+        "registry_sha256": "eaa7fd5031b4062a96cf18a4d32f7dec542745b9ffce5ed20977e3ba291bf878",
+        "root": "src/lib.rs",
+        "version": "0.1.0"
     }
 }

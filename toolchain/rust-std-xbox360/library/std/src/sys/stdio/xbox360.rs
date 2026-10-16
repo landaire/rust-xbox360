@@ -1,5 +1,6 @@
 use crate::io::{self, IoSlice, IoSliceMut};
-use crate::sys::pal::abi;
+
+use xbox360_sys::xboxkrnl;
 
 pub struct Stdin;
 pub struct Stdout;
@@ -35,9 +36,10 @@ fn dbg_write(buf: &[u8]) {
     const CAP: usize = 255;
     let mut tmp = [0u8; CAP + 1];
     let mut n = 0;
-    let mut flush = |tmp: &mut [u8; CAP + 1], n: &mut usize| {
+    let flush = |tmp: &mut [u8; CAP + 1], n: &mut usize| {
         tmp[*n] = 0;
-        unsafe { abi::DbgPrint(tmp.as_ptr()) };
+        // SAFETY: `tmp` is nul-terminated at `n` and holds no unescaped `%`.
+        unsafe { xboxkrnl::DbgPrint(tmp.as_ptr()) };
         *n = 0;
     };
     for &b in buf {

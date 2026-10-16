@@ -2,34 +2,41 @@
 //!
 //! Backed by the kernel pool (`ExAllocatePoolWithTag`/`ExFreePool`). The pool
 //! guarantees at least machine-word alignment, so an over-allocation shim
-//! stashes the real base pointer just below the aligned pointer we return.
+//! stores the pool address just below the aligned pointer it returns.
 
 use crate::alloc::{GlobalAlloc, Layout, System};
 use crate::mem::size_of;
-use crate::sys::pal::abi;
+use crate::ptr;
 
-const TAG: u32 = 0x5273_7478; // "Rtx"
+use xbox360_sys::xboxkrnl::{self, PoolTag};
+
+const TAG: PoolTag = PoolTag::new(*b"Rstx");
 
 #[stable(feature = "alloc_system_type", since = "1.28.0")]
 unsafe impl GlobalAlloc for System {
     #[inline]
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
-        let align = layout.align().max(size_of::<usize>());
-        // Room to align up past a stashed base pointer.
-        let request = layout.size() + align + size_of::<usize>();
-        let base = unsafe { abi::ExAllocatePoolWithTag(request, TAG) };
-        if base.is_null() {
-            return crate::ptr::null_mut();
+        let align = layout.align().max(size_of::<u32>());
+        // Room to align up past the stored pool address. `Layout` bounds the
+        // size, so the sum does not overflow.
+        let request = layout.size() + align + size_of::<u32>();
+        // SAFETY: allocating pool memory has no preconditions.
+        let base = unsafe { xboxkrnl::ExAllocatePoolWithTag(request as u32, TAG) };
+        if base == 0 {
+            return ptr::null_mut();
         }
-        let base_addr = base as usize;
-        let user = (base_addr + size_of::<usize>() + align - 1) & !(align - 1);
-        unsafe { ((user - size_of::<usize>()) as *mut usize).write(base_addr) };
-        user as *mut u8
+        let user = (base as usize + size_of::<u32>()).next_multiple_of(align);
+        let user = ptr::with_exposed_provenance_mut::<u8>(user);
+        // SAFETY: `user - 4` is at or above `base` and inside the block.
+        unsafe { user.cast::<u32>().sub(1).write(base) };
+        user
     }
 
     #[inline]
     unsafe fn dealloc(&self, ptr: *mut u8, _layout: Layout) {
-        let base = unsafe { ((ptr as usize - size_of::<usize>()) as *const usize).read() };
-        unsafe { abi::ExFreePool(base as *mut u8) };
+        // SAFETY: `alloc` stored the pool address in the word below `ptr`.
+        let base = unsafe { ptr.cast::<u32>().sub(1).read() };
+        // SAFETY: `base` is the pool address that `alloc` stored before `ptr`.
+        unsafe { xboxkrnl::ExFreePool(base) };
     }
 }

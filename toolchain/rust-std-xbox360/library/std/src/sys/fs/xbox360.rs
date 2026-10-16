@@ -9,63 +9,31 @@
 use crate::ffi::OsString;
 use crate::fmt;
 use crate::fs::TryLockError;
-use crate::hash::{Hash, Hasher};
+use crate::hash::Hash;
 use crate::io::{self, BorrowedCursor, IoSlice, IoSliceMut, SeekFrom};
 use crate::path::{Path, PathBuf};
 pub use crate::sys::fs::common::Dir;
 use crate::sync::atomic::{AtomicU32, Ordering};
-use crate::sys::pal::abi;
 use crate::sys::time::{SystemTime, UNIX_EPOCH};
 use crate::sys::unsupported;
 
-const GENERIC_READ: u32 = 0x8000_0000;
-const GENERIC_WRITE: u32 = 0x4000_0000;
-const FILE_APPEND_DATA: u32 = 0x0000_0004;
-const SYNCHRONIZE: u32 = 0x0010_0000;
-const FILE_SHARE_READ: u32 = 1;
-const FILE_ATTRIBUTE_NORMAL: u32 = 0x80;
-const FILE_SYNCHRONOUS_IO_NONALERT: u32 = 0x20;
-const FILE_NON_DIRECTORY_FILE: u32 = 0x40;
-
-const FILE_SUPERSEDE_OPEN: u32 = 1; // FILE_OPEN
-const FILE_CREATE: u32 = 2;
-const FILE_OPEN_IF: u32 = 3;
-const FILE_OVERWRITE: u32 = 4;
-const FILE_OVERWRITE_IF: u32 = 5;
-
-const FILE_STANDARD_INFORMATION: u32 = 5;
-const FILE_POSITION_INFORMATION: u32 = 14;
+use xbox360_sys::status::KernelError;
+use xbox360_sys::xboxkrnl::{
+    self, AccessMask, AnsiString, CreateDisposition, CreateOptions, FileAttributes,
+    FileInformationClass, Handle, IoStatusBlock, NtStatus, ObjectAttributeFlags, ObjectAttributes,
+    ShareAccess,
+};
 
 // LARGE_INTEGER sentinel telling NtRead/WriteFile to use & advance the file pointer.
 #[allow(dead_code)]
 const USE_FILE_POINTER: i64 = -2;
 
-#[repr(C)]
-struct AnsiString {
-    length: u16,
-    maximum_length: u16,
-    buffer: *const u8,
-}
-
-#[repr(C)]
-struct ObjectAttributes {
-    root_directory: u32,
-    object_name: *const AnsiString,
-    attributes: u32,
-}
-
-#[repr(C)]
-struct IoStatusBlock {
-    status: u32,
-    information: u32,
-}
-
-fn nt_err(status: u32) -> io::Error {
-    io::Error::from_raw_os_error(status as i32)
+fn nt_err(status: NtStatus) -> io::Error {
+    io::Error::from_raw_os_error(status.0 as i32)
 }
 
 pub struct File {
-    handle: u32,
+    handle: Handle,
     pos: AtomicU32,
 }
 
@@ -213,31 +181,31 @@ impl OpenOptions {
         self.create_new = create_new;
     }
 
-    fn access(&self) -> u32 {
-        let mut a = SYNCHRONIZE;
+    fn access(&self) -> AccessMask {
+        let mut a = AccessMask::SYNCHRONIZE;
         if self.read {
-            a |= GENERIC_READ | 0x1 /*FILE_READ_DATA*/ | 0x80 /*FILE_READ_ATTRIBUTES*/;
+            a |= AccessMask::GENERIC_READ | AccessMask::READ_DATA | AccessMask::READ_ATTRIBUTES;
         }
         if self.write {
-            a |= GENERIC_WRITE;
+            a |= AccessMask::GENERIC_WRITE;
         }
         if self.append {
-            a |= FILE_APPEND_DATA;
+            a |= AccessMask::APPEND_DATA;
         }
         a
     }
 
-    fn disposition(&self) -> u32 {
+    fn disposition(&self) -> CreateDisposition {
         if self.create_new {
-            FILE_CREATE
+            CreateDisposition::Create
         } else if self.create && self.truncate {
-            FILE_OVERWRITE_IF
+            CreateDisposition::OverwriteIf
         } else if self.create {
-            FILE_OPEN_IF
+            CreateDisposition::OpenIf
         } else if self.truncate {
-            FILE_OVERWRITE
+            CreateDisposition::Overwrite
         } else {
-            FILE_SUPERSEDE_OPEN
+            CreateDisposition::Open
         }
     }
 }
@@ -245,32 +213,31 @@ impl OpenOptions {
 impl File {
     pub fn open(path: &Path, opts: &OpenOptions) -> io::Result<File> {
         let bytes = path.as_os_str().as_encoded_bytes();
-        let name = AnsiString {
-            length: bytes.len() as u16,
-            maximum_length: bytes.len() as u16,
-            buffer: bytes.as_ptr(),
+        let Some(name) = AnsiString::new(bytes) else {
+            return Err(io::const_error!(io::ErrorKind::InvalidFilename, "path is too long"));
         };
         let oa = ObjectAttributes {
-            root_directory: 0,
+            root_directory: Handle::NULL,
             object_name: &name,
-            attributes: 0x40, // OBJ_CASE_INSENSITIVE
+            attributes: ObjectAttributeFlags::CASE_INSENSITIVE,
         };
-        let mut iosb = IoStatusBlock { status: 0, information: 0 };
-        let mut handle: u32 = 0;
+        let mut iosb = IoStatusBlock::default();
+        let mut handle = Handle::NULL;
+        // SAFETY: every pointer refers to a live local or to `name`, which outlives the call.
         let status = unsafe {
-            abi::NtCreateFile(
+            xboxkrnl::NtCreateFile(
                 &mut handle,
                 opts.access(),
-                &oa as *const ObjectAttributes as *const u8,
-                &mut iosb as *mut IoStatusBlock as *mut u8,
+                &oa,
+                &mut iosb,
                 crate::ptr::null(),
-                FILE_ATTRIBUTE_NORMAL,
-                FILE_SHARE_READ,
+                FileAttributes::NORMAL,
+                ShareAccess::READ,
                 opts.disposition(),
-                FILE_SYNCHRONOUS_IO_NONALERT | FILE_NON_DIRECTORY_FILE,
+                CreateOptions::SYNCHRONOUS_IO_NONALERT | CreateOptions::NON_DIRECTORY_FILE,
             )
         };
-        if status != 0 {
+        if status != NtStatus::SUCCESS {
             return Err(nt_err(status));
         }
         let f = File { handle, pos: AtomicU32::new(0) };
@@ -284,17 +251,19 @@ impl File {
     pub fn file_attr(&self) -> io::Result<FileAttr> {
         // FILE_STANDARD_INFORMATION: AllocationSize(i64), EndOfFile(i64) at +8, ...
         let mut buf = [0u8; 24];
-        let mut iosb = IoStatusBlock { status: 0, information: 0 };
+        let mut iosb = IoStatusBlock::default();
+        // SAFETY: `self.handle` is an open file handle; `buf` and `iosb` are live locals
+        // and `buf.len()` is the size of `buf`.
         let status = unsafe {
-            abi::NtQueryInformationFile(
+            xboxkrnl::NtQueryInformationFile(
                 self.handle,
-                &mut iosb as *mut IoStatusBlock as *mut u8,
+                &mut iosb,
                 buf.as_mut_ptr(),
                 buf.len() as u32,
-                FILE_STANDARD_INFORMATION,
+                FileInformationClass::Standard,
             )
         };
-        if status != 0 {
+        if status != NtStatus::SUCCESS {
             return Err(nt_err(status));
         }
         let end_of_file = u64::from_be_bytes(buf[8..16].try_into().unwrap());
@@ -303,10 +272,10 @@ impl File {
     }
 
     pub fn fsync(&self) -> io::Result<()> {
-        let mut iosb = IoStatusBlock { status: 0, information: 0 };
-        let status =
-            unsafe { abi::NtFlushBuffersFile(self.handle, &mut iosb as *mut IoStatusBlock as *mut u8) };
-        if status != 0 { Err(nt_err(status)) } else { Ok(()) }
+        let mut iosb = IoStatusBlock::default();
+        // SAFETY: `self.handle` is an open file handle and `iosb` is a live local.
+        let status = unsafe { xboxkrnl::NtFlushBuffersFile(self.handle, &mut iosb) };
+        if status != NtStatus::SUCCESS { Err(nt_err(status)) } else { Ok(()) }
     }
     pub fn datasync(&self) -> io::Result<()> {
         self.fsync()
@@ -334,23 +303,26 @@ impl File {
         if buf.is_empty() {
             return Ok(0);
         }
-        // The devkit HDD wants the read length to reach EOF and DMAs into title
-        // memory, so callers should pass a stack buffer at least the file size
-        // (read/read_exact). read_to_end (small growing heap buffers) is not
-        // supported on this device.
-        let mut iosb = IoStatusBlock { status: 0, information: 0 };
-        let off = self.pos.load(Ordering::Relaxed) as i64;
+        let mut iosb = IoStatusBlock::default();
+        let off = u64::from(self.pos.load(Ordering::Relaxed));
+        // SAFETY: `self.handle` is an open synchronous file handle; `buf`, `iosb` and
+        // `off` stay live until the call completes.
         let status = unsafe {
-            abi::NtReadFile(
-                self.handle, 0, 0, 0,
-                &mut iosb as *mut IoStatusBlock as *mut u8,
-                buf.as_mut_ptr(), buf.len() as u32, &off, crate::ptr::null(),
+            xboxkrnl::NtReadFile(
+                self.handle,
+                Handle::NULL,
+                0,
+                0,
+                &mut iosb,
+                buf.as_mut_ptr(),
+                buf.len() as u32,
+                &off,
             )
         };
-        if status == 0xC000_0011 {
-            return Ok(0); // END_OF_FILE
+        if status == KernelError::EndOfFile.status() {
+            return Ok(0);
         }
-        if status != 0 {
+        if status != NtStatus::SUCCESS {
             return Err(nt_err(status));
         }
         let n = iosb.information;
@@ -383,16 +355,23 @@ impl File {
         if buf.is_empty() {
             return Ok(0);
         }
-        let mut iosb = IoStatusBlock { status: 0, information: 0 };
-        let off = self.pos.load(Ordering::Relaxed) as i64;
+        let mut iosb = IoStatusBlock::default();
+        let off = u64::from(self.pos.load(Ordering::Relaxed));
+        // SAFETY: `self.handle` is an open synchronous file handle; `buf`, `iosb` and
+        // `off` stay live until the call completes.
         let status = unsafe {
-            abi::NtWriteFile(
-                self.handle, 0, 0, 0,
-                &mut iosb as *mut IoStatusBlock as *mut u8,
-                buf.as_ptr(), buf.len() as u32, &off, crate::ptr::null(),
+            xboxkrnl::NtWriteFile(
+                self.handle,
+                Handle::NULL,
+                0,
+                0,
+                &mut iosb,
+                buf.as_ptr(),
+                buf.len() as u32,
+                &off,
             )
         };
-        if status != 0 {
+        if status != NtStatus::SUCCESS {
             return Err(nt_err(status));
         }
         let n = iosb.information;
@@ -447,7 +426,8 @@ impl File {
 
 impl Drop for File {
     fn drop(&mut self) {
-        unsafe { abi::NtClose(self.handle) };
+        // SAFETY: `self.handle` is owned by this `File` and is closed only here.
+        unsafe { xboxkrnl::NtClose(self.handle) };
     }
 }
 
@@ -462,7 +442,7 @@ impl DirBuilder {
 
 impl fmt::Debug for File {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "File(handle={})", self.handle)
+        write!(f, "File(handle={})", self.handle.raw())
     }
 }
 

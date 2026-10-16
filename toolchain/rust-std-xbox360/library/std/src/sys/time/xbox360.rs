@@ -5,8 +5,9 @@
 //! (`KeQuerySystemTime`, 100ns ticks since 1601) rebased to the Unix epoch.
 
 use crate::sync::atomic::{AtomicU32, Ordering};
-use crate::sys::pal::abi;
 use crate::time::Duration;
+
+use xbox360_sys::xboxkrnl;
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Debug, Hash)]
 pub struct Instant(Duration);
@@ -45,15 +46,18 @@ fn timebase() -> u64 {
 }
 
 fn tb_freq() -> u64 {
+    // 0 marks a frequency not yet read.
     static FREQ: AtomicU32 = AtomicU32::new(0);
     let f = FREQ.load(Ordering::Relaxed);
     if f != 0 {
-        return f as u64;
+        return u64::from(f);
     }
-    let q = unsafe { abi::KeQueryPerformanceFrequency() };
-    let q = if q == 0 { 50_000_000 } else { q as u32 };
-    FREQ.store(q, Ordering::Relaxed);
-    q as u64
+    let f = xboxkrnl::KeQueryPerformanceFrequency();
+    if f == 0 {
+        rtabort!("KeQueryPerformanceFrequency returned 0");
+    }
+    FREQ.store(f, Ordering::Relaxed);
+    u64::from(f)
 }
 
 impl Instant {
@@ -84,7 +88,8 @@ impl SystemTime {
 
     pub fn now() -> SystemTime {
         let mut t: u64 = 0;
-        unsafe { abi::KeQuerySystemTime(&mut t) };
+        // SAFETY: `t` is a live local.
+        unsafe { xboxkrnl::KeQuerySystemTime(&mut t) };
         let unix = t.saturating_sub(EPOCH_DIFF_100NS);
         let secs = unix / 10_000_000;
         let nanos = ((unix % 10_000_000) * 100) as u32;

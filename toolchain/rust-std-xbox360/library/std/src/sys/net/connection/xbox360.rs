@@ -8,21 +8,18 @@ use crate::fmt;
 use crate::io::{self, BorrowedCursor, IoSlice, IoSliceMut};
 use crate::net::{Ipv4Addr, Ipv6Addr, Shutdown, SocketAddr, ToSocketAddrs};
 use crate::sync::atomic::{AtomicU32, Ordering};
-use crate::sys::pal::abi;
 use crate::time::Duration;
 
-const CALLER: u32 = 1; // XNCALLER_TITLE
-const AF_INET: i32 = 2;
-const SOCK_STREAM: i32 = 1;
-const SOCK_DGRAM: i32 = 2;
-const IPPROTO_TCP: i32 = 6;
-const IPPROTO_UDP: i32 = 17;
-const FIONBIO: u32 = 0x8004_667E;
-const INVALID_SOCKET: u32 = 0xFFFF_FFFF;
-const SOCKET_ERROR: i32 = -1;
+use xbox360_sys::xam::{
+    self, AddressFamily, IoctlCommand, MessageFlags, Protocol, SOCKET_ERROR, ShutdownHow,
+    SockAddrIn, SocketType, XnCaller,
+};
+
+const CALLER: XnCaller = XnCaller::Title;
+const SOCKADDR_LENGTH: i32 = size_of::<SockAddrIn>() as i32;
 
 fn last_error() -> io::Error {
-    io::Error::from_raw_os_error(unsafe { abi::NetDll_WSAGetLastError(CALLER) })
+    io::Error::from_raw_os_error(xam::NetDll_WSAGetLastError(CALLER).0 as i32)
 }
 
 /// Bring up XNet (bypassing security) and winsock exactly once.
@@ -33,27 +30,26 @@ fn ensure_net_init() {
         let mut xnsp = [0u8; 16];
         xnsp[0] = 0x0D;
         xnsp[1] = 0x01;
-        unsafe { abi::NetDll_XNetStartup(CALLER, xnsp.as_ptr()) };
-        let mut wsadata = [0u8; 512];
-        unsafe { abi::NetDll_WSAStartup(CALLER, 0x0202, wsadata.as_mut_ptr()) };
+        // SAFETY: `xnsp` and `wsadata` are live locals of the sizes the calls expect.
+        unsafe {
+            xam::NetDll_XNetStartup(CALLER, xnsp.as_ptr());
+            let mut wsadata = [0u8; 512];
+            xam::NetDll_WSAStartup(CALLER, 0x0202, wsadata.as_mut_ptr());
+        }
     }
 }
 
-#[repr(C)]
-#[derive(Clone, Copy)]
-struct SockAddrIn {
-    family: u16,
-    port: u16, // network byte order == native big-endian
-    addr: u32, // network byte order == native big-endian
-    zero: [u8; 8],
+fn empty_sockaddr() -> SockAddrIn {
+    SockAddrIn { family: 0, port: 0, address: 0, zero: [0; 8] }
 }
 
 fn to_sockaddr(addr: &SocketAddr) -> io::Result<SockAddrIn> {
     match addr {
         SocketAddr::V4(v4) => Ok(SockAddrIn {
-            family: AF_INET as u16,
+            family: AddressFamily::Inet.raw() as u16,
+            // Network byte order is the native big-endian order.
             port: v4.port(),
-            addr: u32::from_be_bytes(v4.ip().octets()),
+            address: u32::from_be_bytes(v4.ip().octets()),
             zero: [0; 8],
         }),
         SocketAddr::V6(_) => Err(io::const_error!(
@@ -64,29 +60,96 @@ fn to_sockaddr(addr: &SocketAddr) -> io::Result<SockAddrIn> {
 }
 
 fn from_sockaddr(sa: &SockAddrIn) -> SocketAddr {
-    let ip = Ipv4Addr::from(sa.addr.to_be_bytes());
+    let ip = Ipv4Addr::from(sa.address.to_be_bytes());
     SocketAddr::V4(crate::net::SocketAddrV4::new(ip, sa.port))
 }
 
-struct Socket(u32);
+fn sockaddr_ptr(sa: &SockAddrIn) -> *const u8 {
+    (sa as *const SockAddrIn).cast()
+}
+
+fn sockaddr_mut_ptr(sa: &mut SockAddrIn) -> *mut u8 {
+    (sa as *mut SockAddrIn).cast()
+}
+
+struct Socket(xam::Socket);
 
 impl Socket {
-    fn new(ty: i32, proto: i32) -> io::Result<Socket> {
+    fn new(ty: SocketType, proto: Protocol) -> io::Result<Socket> {
         ensure_net_init();
-        let s = unsafe { abi::NetDll_socket(CALLER, AF_INET, ty, proto) };
-        if s == INVALID_SOCKET { Err(last_error()) } else { Ok(Socket(s)) }
+        // SAFETY: creating a socket has no pointer arguments.
+        let s = unsafe { xam::NetDll_socket(CALLER, AddressFamily::Inet, ty, proto) };
+        if s == xam::Socket::INVALID { Err(last_error()) } else { Ok(Socket(s)) }
     }
 
     fn set_nonblocking(&self, nb: bool) -> io::Result<()> {
         let mut v: u32 = nb as u32;
-        let r = unsafe { abi::NetDll_ioctlsocket(CALLER, self.0, FIONBIO, &mut v) };
+        // SAFETY: `self.0` is an open socket and `v` is a live local.
+        let r = unsafe { xam::NetDll_ioctlsocket(CALLER, self.0, IoctlCommand::Fionbio, &mut v) };
         if r == SOCKET_ERROR { Err(last_error()) } else { Ok(()) }
+    }
+
+    fn socket_addr(&self) -> io::Result<SocketAddr> {
+        let mut sa = empty_sockaddr();
+        let mut len = SOCKADDR_LENGTH;
+        // SAFETY: `self.0` is an open socket; `sa` and `len` are live locals and `len`
+        // is the size of `sa`.
+        let r = unsafe {
+            xam::NetDll_getsockname(CALLER, self.0, sockaddr_mut_ptr(&mut sa), &mut len)
+        };
+        if r == SOCKET_ERROR { Err(last_error()) } else { Ok(from_sockaddr(&sa)) }
+    }
+
+    fn connect(&self, addr: &SocketAddr) -> io::Result<()> {
+        let sa = to_sockaddr(addr)?;
+        // SAFETY: `self.0` is an open socket and `sa` is a live `SockAddrIn`.
+        let r = unsafe { xam::NetDll_connect(CALLER, self.0, sockaddr_ptr(&sa), SOCKADDR_LENGTH) };
+        if r == SOCKET_ERROR { Err(last_error()) } else { Ok(()) }
+    }
+
+    fn bind(&self, addr: &SocketAddr) -> io::Result<()> {
+        let sa = to_sockaddr(addr)?;
+        // SAFETY: `self.0` is an open socket and `sa` is a live `SockAddrIn`.
+        let r = unsafe { xam::NetDll_bind(CALLER, self.0, sockaddr_ptr(&sa), SOCKADDR_LENGTH) };
+        if r == SOCKET_ERROR { Err(last_error()) } else { Ok(()) }
+    }
+
+    fn recv(&self, buf: &mut [u8], flags: MessageFlags) -> io::Result<usize> {
+        // SAFETY: `self.0` is an open socket and `buf` is writable for `buf.len()` bytes.
+        cvt(unsafe { xam::NetDll_recv(CALLER, self.0, buf.as_mut_ptr(), buf.len() as i32, flags) })
+    }
+
+    fn send(&self, buf: &[u8]) -> io::Result<usize> {
+        // SAFETY: `self.0` is an open socket and `buf` is readable for `buf.len()` bytes.
+        cvt(unsafe {
+            xam::NetDll_send(CALLER, self.0, buf.as_ptr(), buf.len() as i32, MessageFlags::empty())
+        })
+    }
+
+    fn recv_from(&self, buf: &mut [u8], flags: MessageFlags) -> io::Result<(usize, SocketAddr)> {
+        let mut sa = empty_sockaddr();
+        let mut len = SOCKADDR_LENGTH;
+        // SAFETY: `self.0` is an open socket; `buf` is writable for `buf.len()` bytes and
+        // `sa`, `len` are live locals with `len` the size of `sa`.
+        let r = unsafe {
+            xam::NetDll_recvfrom(
+                CALLER,
+                self.0,
+                buf.as_mut_ptr(),
+                buf.len() as i32,
+                flags,
+                sockaddr_mut_ptr(&mut sa),
+                &mut len,
+            )
+        };
+        Ok((cvt(r)?, from_sockaddr(&sa)))
     }
 }
 
 impl Drop for Socket {
     fn drop(&mut self) {
-        unsafe { abi::NetDll_closesocket(CALLER, self.0) };
+        // SAFETY: `self.0` is owned by this `Socket` and is closed only here.
+        unsafe { xam::NetDll_closesocket(CALLER, self.0) };
     }
 }
 
@@ -109,14 +172,8 @@ impl TcpStream {
     }
 
     fn connect_addr(addr: &SocketAddr) -> io::Result<TcpStream> {
-        let sa = to_sockaddr(addr)?;
-        let sock = Socket::new(SOCK_STREAM, IPPROTO_TCP)?;
-        let r = unsafe {
-            abi::NetDll_connect(CALLER, sock.0, &sa as *const SockAddrIn as *const u8, 16)
-        };
-        if r == SOCKET_ERROR {
-            return Err(last_error());
-        }
+        let sock = Socket::new(SocketType::Stream, Protocol::Tcp)?;
+        sock.connect(addr)?;
         Ok(TcpStream(sock))
     }
 
@@ -125,9 +182,7 @@ impl TcpStream {
     }
 
     pub fn read(&self, buf: &mut [u8]) -> io::Result<usize> {
-        cvt(unsafe {
-            abi::NetDll_recv(CALLER, self.0.0, buf.as_mut_ptr(), buf.len() as i32, 0)
-        })
+        self.0.recv(buf, MessageFlags::empty())
     }
 
     pub fn read_buf(&self, mut cursor: BorrowedCursor<'_, u8>) -> io::Result<()> {
@@ -153,9 +208,7 @@ impl TcpStream {
     }
 
     pub fn write(&self, buf: &[u8]) -> io::Result<usize> {
-        cvt(unsafe {
-            abi::NetDll_send(CALLER, self.0.0, buf.as_ptr(), buf.len() as i32, 0)
-        })
+        self.0.send(buf)
     }
 
     pub fn write_vectored(&self, bufs: &[IoSlice<'_>]) -> io::Result<usize> {
@@ -170,36 +223,32 @@ impl TcpStream {
     }
 
     pub fn peek(&self, buf: &mut [u8]) -> io::Result<usize> {
-        cvt(unsafe {
-            abi::NetDll_recv(CALLER, self.0.0, buf.as_mut_ptr(), buf.len() as i32, 2 /*MSG_PEEK*/)
-        })
+        self.0.recv(buf, MessageFlags::PEEK)
     }
 
     pub fn peer_addr(&self) -> io::Result<SocketAddr> {
-        let mut sa = SockAddrIn { family: 0, port: 0, addr: 0, zero: [0; 8] };
-        let mut len: i32 = 16;
+        let mut sa = empty_sockaddr();
+        let mut len = SOCKADDR_LENGTH;
+        // SAFETY: `self.0.0` is an open socket; `sa` and `len` are live locals and `len`
+        // is the size of `sa`.
         let r = unsafe {
-            abi::NetDll_getpeername(CALLER, self.0.0, &mut sa as *mut SockAddrIn as *mut u8, &mut len)
+            xam::NetDll_getpeername(CALLER, self.0.0, sockaddr_mut_ptr(&mut sa), &mut len)
         };
         if r == SOCKET_ERROR { Err(last_error()) } else { Ok(from_sockaddr(&sa)) }
     }
 
     pub fn socket_addr(&self) -> io::Result<SocketAddr> {
-        let mut sa = SockAddrIn { family: 0, port: 0, addr: 0, zero: [0; 8] };
-        let mut len: i32 = 16;
-        let r = unsafe {
-            abi::NetDll_getsockname(CALLER, self.0.0, &mut sa as *mut SockAddrIn as *mut u8, &mut len)
-        };
-        if r == SOCKET_ERROR { Err(last_error()) } else { Ok(from_sockaddr(&sa)) }
+        self.0.socket_addr()
     }
 
     pub fn shutdown(&self, how: Shutdown) -> io::Result<()> {
         let how = match how {
-            Shutdown::Read => 0,
-            Shutdown::Write => 1,
-            Shutdown::Both => 2,
+            Shutdown::Read => ShutdownHow::Receive,
+            Shutdown::Write => ShutdownHow::Send,
+            Shutdown::Both => ShutdownHow::Both,
         };
-        let r = unsafe { abi::NetDll_shutdown(CALLER, self.0.0, how) };
+        // SAFETY: `self.0.0` is an open socket.
+        let r = unsafe { xam::NetDll_shutdown(CALLER, self.0.0, how) };
         if r == SOCKET_ERROR { Err(last_error()) } else { Ok(()) }
     }
 
@@ -252,7 +301,7 @@ impl TcpStream {
 
 impl fmt::Debug for TcpStream {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "TcpStream(socket={})", self.0.0)
+        write!(f, "TcpStream(socket={})", self.0.0.raw())
     }
 }
 
@@ -263,36 +312,28 @@ impl TcpListener {
         let a = addr.to_socket_addrs()?.next().ok_or_else(|| {
             io::const_error!(io::ErrorKind::InvalidInput, "no addresses")
         })?;
-        let sa = to_sockaddr(&a)?;
-        let sock = Socket::new(SOCK_STREAM, IPPROTO_TCP)?;
-        let r = unsafe {
-            abi::NetDll_bind(CALLER, sock.0, &sa as *const SockAddrIn as *const u8, 16)
-        };
-        if r == SOCKET_ERROR {
-            return Err(last_error());
-        }
-        if unsafe { abi::NetDll_listen(CALLER, sock.0, 128) } == SOCKET_ERROR {
+        let sock = Socket::new(SocketType::Stream, Protocol::Tcp)?;
+        sock.bind(&a)?;
+        // SAFETY: `sock.0` is an open, bound socket.
+        if unsafe { xam::NetDll_listen(CALLER, sock.0, 128) } == SOCKET_ERROR {
             return Err(last_error());
         }
         Ok(TcpListener(sock))
     }
 
     pub fn socket_addr(&self) -> io::Result<SocketAddr> {
-        let mut sa = SockAddrIn { family: 0, port: 0, addr: 0, zero: [0; 8] };
-        let mut len: i32 = 16;
-        let r = unsafe {
-            abi::NetDll_getsockname(CALLER, self.0.0, &mut sa as *mut SockAddrIn as *mut u8, &mut len)
-        };
-        if r == SOCKET_ERROR { Err(last_error()) } else { Ok(from_sockaddr(&sa)) }
+        self.0.socket_addr()
     }
 
     pub fn accept(&self) -> io::Result<(TcpStream, SocketAddr)> {
-        let mut sa = SockAddrIn { family: 0, port: 0, addr: 0, zero: [0; 8] };
-        let mut len: i32 = 16;
+        let mut sa = empty_sockaddr();
+        let mut len = SOCKADDR_LENGTH;
+        // SAFETY: `self.0.0` is a listening socket; `sa` and `len` are live locals and
+        // `len` is the size of `sa`.
         let s = unsafe {
-            abi::NetDll_accept(CALLER, self.0.0, &mut sa as *mut SockAddrIn as *mut u8, &mut len)
+            xam::NetDll_accept(CALLER, self.0.0, sockaddr_mut_ptr(&mut sa), &mut len)
         };
-        if s == INVALID_SOCKET {
+        if s == xam::Socket::INVALID {
             return Err(last_error());
         }
         Ok((TcpStream(Socket(s)), from_sockaddr(&sa)))
@@ -323,7 +364,7 @@ impl TcpListener {
 
 impl fmt::Debug for TcpListener {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "TcpListener(socket={})", self.0.0)
+        write!(f, "TcpListener(socket={})", self.0.0.raw())
     }
 }
 
@@ -334,14 +375,8 @@ impl UdpSocket {
         let a = addr.to_socket_addrs()?.next().ok_or_else(|| {
             io::const_error!(io::ErrorKind::InvalidInput, "no addresses")
         })?;
-        let sa = to_sockaddr(&a)?;
-        let sock = Socket::new(SOCK_DGRAM, IPPROTO_UDP)?;
-        let r = unsafe {
-            abi::NetDll_bind(CALLER, sock.0, &sa as *const SockAddrIn as *const u8, 16)
-        };
-        if r == SOCKET_ERROR {
-            return Err(last_error());
-        }
+        let sock = Socket::new(SocketType::Datagram, Protocol::Udp)?;
+        sock.bind(&a)?;
         Ok(UdpSocket(sock))
     }
 
@@ -349,66 +384,48 @@ impl UdpSocket {
         Err(unsupported())
     }
     pub fn socket_addr(&self) -> io::Result<SocketAddr> {
-        let mut sa = SockAddrIn { family: 0, port: 0, addr: 0, zero: [0; 8] };
-        let mut len: i32 = 16;
-        let r = unsafe {
-            abi::NetDll_getsockname(CALLER, self.0.0, &mut sa as *mut SockAddrIn as *mut u8, &mut len)
-        };
-        if r == SOCKET_ERROR { Err(last_error()) } else { Ok(from_sockaddr(&sa)) }
+        self.0.socket_addr()
     }
 
     pub fn recv_from(&self, buf: &mut [u8]) -> io::Result<(usize, SocketAddr)> {
-        let mut sa = SockAddrIn { family: 0, port: 0, addr: 0, zero: [0; 8] };
-        let mut len: i32 = 16;
-        let r = unsafe {
-            abi::NetDll_recvfrom(
-                CALLER, self.0.0, buf.as_mut_ptr(), buf.len() as i32, 0,
-                &mut sa as *mut SockAddrIn as *mut u8, &mut len,
-            )
-        };
-        Ok((cvt(r)?, from_sockaddr(&sa)))
+        self.0.recv_from(buf, MessageFlags::empty())
     }
 
     pub fn peek_from(&self, buf: &mut [u8]) -> io::Result<(usize, SocketAddr)> {
-        let mut sa = SockAddrIn { family: 0, port: 0, addr: 0, zero: [0; 8] };
-        let mut len: i32 = 16;
-        let r = unsafe {
-            abi::NetDll_recvfrom(
-                CALLER, self.0.0, buf.as_mut_ptr(), buf.len() as i32, 2,
-                &mut sa as *mut SockAddrIn as *mut u8, &mut len,
-            )
-        };
-        Ok((cvt(r)?, from_sockaddr(&sa)))
+        self.0.recv_from(buf, MessageFlags::PEEK)
     }
 
     pub fn send_to(&self, buf: &[u8], addr: &SocketAddr) -> io::Result<usize> {
         let sa = to_sockaddr(addr)?;
+        // SAFETY: `self.0.0` is an open socket, `buf` is readable for `buf.len()` bytes
+        // and `sa` is a live `SockAddrIn`.
         cvt(unsafe {
-            abi::NetDll_sendto(
-                CALLER, self.0.0, buf.as_ptr(), buf.len() as i32, 0,
-                &sa as *const SockAddrIn as *const u8, 16,
+            xam::NetDll_sendto(
+                CALLER,
+                self.0.0,
+                buf.as_ptr(),
+                buf.len() as i32,
+                MessageFlags::empty(),
+                sockaddr_ptr(&sa),
+                SOCKADDR_LENGTH,
             )
         })
     }
 
     pub fn recv(&self, buf: &mut [u8]) -> io::Result<usize> {
-        cvt(unsafe { abi::NetDll_recv(CALLER, self.0.0, buf.as_mut_ptr(), buf.len() as i32, 0) })
+        self.0.recv(buf, MessageFlags::empty())
     }
     pub fn peek(&self, buf: &mut [u8]) -> io::Result<usize> {
-        cvt(unsafe { abi::NetDll_recv(CALLER, self.0.0, buf.as_mut_ptr(), buf.len() as i32, 2) })
+        self.0.recv(buf, MessageFlags::PEEK)
     }
     pub fn send(&self, buf: &[u8]) -> io::Result<usize> {
-        cvt(unsafe { abi::NetDll_send(CALLER, self.0.0, buf.as_ptr(), buf.len() as i32, 0) })
+        self.0.send(buf)
     }
     pub fn connect<A: ToSocketAddrs>(&self, addr: A) -> io::Result<()> {
         let a = addr.to_socket_addrs()?.next().ok_or_else(|| {
             io::const_error!(io::ErrorKind::InvalidInput, "no addresses")
         })?;
-        let sa = to_sockaddr(&a)?;
-        let r = unsafe {
-            abi::NetDll_connect(CALLER, self.0.0, &sa as *const SockAddrIn as *const u8, 16)
-        };
-        if r == SOCKET_ERROR { Err(last_error()) } else { Ok(()) }
+        self.0.connect(&a)
     }
 
     pub fn duplicate(&self) -> io::Result<UdpSocket> {
@@ -478,7 +495,7 @@ impl UdpSocket {
 
 impl fmt::Debug for UdpSocket {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "UdpSocket(socket={})", self.0.0)
+        write!(f, "UdpSocket(socket={})", self.0.0.raw())
     }
 }
 
