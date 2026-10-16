@@ -1,0 +1,35 @@
+[package]
+name = "xbox360"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.95"
+description = "Safe Xbox 360 kernel and XAM interfaces for no_std code and for what std does not cover"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/landaire/rust-xbox360"
+readme = "README.md"
+keywords = ["xbox360", "xenon", "no_std", "kernel"]
+categories = ["no-std", "embedded", "api-bindings"]
+exclude = ["BUCK"]
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+xbox360-sys = { path = "../xbox360-sys", version = "0.1.0" }
+
+[features]
+# Boxed closures for `thread::Builder::spawn`. The title must provide a
+# global allocator, for example `pool::PoolAllocator`.
+alloc = []
+
+[lints.rust]
+# `xbox360` is the target_os of the custom powerpc-unknown-xbox360 target.
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(xbox360_docs)', 'cfg(target_os, values("xbox360"))'] }
+
+[package.metadata.docs.rs]
+# docs.rs has no powerpc-unknown-xbox360. `xbox360_docs` builds the
+# console-only items on another PowerPC target, for documentation only.
+targets = ["powerpc-unknown-linux-gnu"]
+rustc-args = ["--cfg", "xbox360_docs"]
+rustdoc-args = ["--cfg", "xbox360_docs"]
+features = ["alloc"]

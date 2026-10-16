@@ -1,0 +1,23 @@
+rust_library(
+    name = "xbox360",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "xbox360",
+    crate_root = "src/lib.rs",
+    edition = "2024",
+    target_compatible_with = ["//platforms:xbox360"],
+    visibility = ["PUBLIC"],
+    deps = ["//crates/xbox360-sys:xbox360-sys"],
+)
+
+# With the `alloc` feature. The title must define a global allocator.
+rust_library(
+    name = "xbox360-alloc",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "xbox360",
+    crate_root = "src/lib.rs",
+    edition = "2024",
+    features = ["alloc"],
+    target_compatible_with = ["//platforms:xbox360"],
+    visibility = ["PUBLIC"],
+    deps = ["//crates/xbox360-sys:xbox360-sys"],
+)

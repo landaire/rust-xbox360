@@ -66,7 +66,7 @@ struct ExportingModule {
     import_id: u32,
 }
 
-// Import library index -> exporting module. The xbox-sys thunks encode the index.
+// Import library index -> exporting module. The xbox360-sys thunks encode the index.
 const LIBRARIES: &[ExportingModule] = &[
     ExportingModule { name: "xboxkrnl.exe", import_id: 0x45dc_17e0 },
     ExportingModule { name: "xam.xex", import_id: 0xfca1_5c76 },

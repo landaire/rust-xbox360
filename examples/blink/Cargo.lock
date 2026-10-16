@@ -6,9 +6,9 @@ version = 4
 name = "blink"
 version = "0.1.0"
 dependencies = [
- "xbox-sys",
+ "xbox360-sys",
 ]
 
 [[package]]
-name = "xbox-sys"
+name = "xbox360-sys"
 version = "0.1.0"

@@ -1,0 +1,33 @@
+[package]
+name = "xbox360-sys"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.95"
+description = "Raw Xbox 360 kernel and XAM bindings for the powerpc-unknown-xbox360 target"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/landaire/rust-xbox360"
+readme = "README.md"
+keywords = ["xbox360", "xenon", "ffi", "no_std", "sys"]
+categories = ["external-ffi-bindings", "no-std", "embedded"]
+exclude = ["BUCK"]
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+# The standard library builds this crate through rustc-std-workspace-core.
+core = { version = "1.0.0", optional = true, package = "rustc-std-workspace-core" }
+
+[features]
+rustc-dep-of-std = ["core"]
+
+[lints.rust]
+# `xbox360` is the target_os of the custom powerpc-unknown-xbox360 target.
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(xbox360_docs)', 'cfg(target_os, values("xbox360"))'] }
+
+[package.metadata.docs.rs]
+# docs.rs has no powerpc-unknown-xbox360. `xbox360_docs` builds the
+# console-only items on another PowerPC target, for documentation only.
+targets = ["powerpc-unknown-linux-gnu"]
+rustc-args = ["--cfg", "xbox360_docs"]
+rustdoc-args = ["--cfg", "xbox360_docs"]

@@ -700,6 +700,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6b1e7f9a428571be2dc5bc0505c13fb6bf936822b894ec87abf8a08a4e51742d"
 
 [[package]]
+name = "rustc-std-workspace-core"
+version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "aa9c45b374136f52f2d6311062c7146bff20fec063c3f5d46a410bd937746955"
+
+[[package]]
 name = "rustix"
 version = "1.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1007,12 +1013,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "xbox360"
+version = "0.1.0"
+dependencies = [
+ "xbox360-sys",
+]
+
+[[package]]
 name = "xbox360-asm-rewrite"
 version = "0.1.0"
 dependencies = [
  "clap",
  "insta",
  "thiserror",
+]
+
+[[package]]
+name = "xbox360-sys"
+version = "0.1.0"
+dependencies = [
+ "rustc-std-workspace-core",
 ]
 
 [[package]]

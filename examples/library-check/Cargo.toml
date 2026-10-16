@@ -1,0 +1,17 @@
+[package]
+name = "library-check"
+version = "0.1.0"
+edition = "2024"
+
+[[bin]]
+name = "library-check"
+path = "src/main.rs"
+
+[dependencies]
+xbox360 = { path = "../../crates/xbox360", features = ["alloc"] }
+
+[profile.dev]
+panic = "abort"
+
+[profile.release]
+panic = "abort"

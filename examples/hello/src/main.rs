@@ -1,74 +1,118 @@
 #![no_std]
 #![no_main]
+use core::ffi::CStr;
 use core::panic::PanicInfo;
+use xbox360_sys::xam;
+use xbox360_sys::xam::XnCaller;
+use xbox360_sys::xboxkrnl;
+
 #[panic_handler]
-fn panic(_: &PanicInfo) -> ! { loop {} }
-
-fn dbg(m: &[u8]) { xbox_sys::DbgPrint(m.as_ptr()); }
-
-// Guest sockaddr_in: 16 bytes, big-endian family/port/addr (native on PPC).
-#[repr(C)]
-struct SockAddrIn {
-    family: u16,
-    port: u16,
-    addr: u32,
-    zero: [u8; 8],
+fn panic(_: &PanicInfo) -> ! {
+    loop {}
 }
+
+/// `text` is the `DbgPrint` format, so it must not contain `%`.
+fn dbg(text: &CStr) {
+    // SAFETY: `text` is NUL-terminated, and every caller passes a literal
+    // without `%`, so DbgPrint reads no further arguments.
+    unsafe { xboxkrnl::DbgPrint(text.as_ptr().cast()) };
+}
+
+// The loader and the thread start code call these with the console ABI, so
+// they enter through the bridge that preserves r14-r31 in full.
+xbox360_sys::bridged!(#[unsafe(no_mangle)] pub _start, main);
+xbox360_sys::bridged!(sender_entry, sender);
 
 // Worker thread: sends a UDP datagram. Receives the socket handle in r3.
 extern "C" fn sender(sock: u32) -> u32 {
-    let dst = SockAddrIn {
-        family: 2,            // AF_INET
+    let dst = xam::SockAddrIn {
+        family: xam::AddressFamily::Inet.raw() as u16,
         port: 9999,
-        addr: 0x7F00_0001,
+        address: 0x7F00_0001,
         zero: [0; 8],
     };
     let msg = b"hello from xbox 360 rust over udp";
-    let sent = xbox_sys::NetDll_sendto(
-        xbox_sys::XNCALLER_TITLE,
-        sock,
-        msg.as_ptr(),
-        msg.len() as u32,
-        0,
-        &dst as *const SockAddrIn as *const u8,
-        16,
-    );
-    if sent == 0xFFFF_FFFF {
-        dbg(b"sender: sendto failed\n\0");
+    // SAFETY: `msg` and `dst` are live for the call and their lengths are
+    // passed with them; `sock` is the socket that main keeps open until
+    // this thread ends.
+    let sent = unsafe {
+        xam::NetDll_sendto(
+            XnCaller::Title,
+            xam::Socket::from_raw(sock),
+            msg.as_ptr(),
+            msg.len() as i32,
+            xam::MessageFlags::empty(),
+            &dst as *const xam::SockAddrIn as *const u8,
+            size_of::<xam::SockAddrIn>() as i32,
+        )
+    };
+    if sent == xam::SOCKET_ERROR {
+        dbg(c"sender: sendto failed\n");
     } else {
-        dbg(b"sender: datagram sent\n\0");
+        dbg(c"sender: datagram sent\n");
     }
-    xbox_sys::ExTerminateThread(0);
-    0
+    // SAFETY: no frame of this thread owns a value that must be dropped.
+    unsafe { xboxkrnl::ExTerminateThread(0) }
 }
 
-#[unsafe(no_mangle)]
-pub extern "C" fn _start(_ctx: u32) -> u32 {
-    dbg(b"main: starting network\n\0");
-    xbox_sys::NetDll_XNetStartup(xbox_sys::XNCALLER_TITLE, core::ptr::null());
+extern "C" fn main(_ctx: u32) -> u32 {
+    dbg(c"main: starting network\n");
     let mut wsadata = [0u8; 512];
-    xbox_sys::NetDll_WSAStartup(xbox_sys::XNCALLER_TITLE, 0x0202, wsadata.as_mut_ptr());
-
-    let sock = xbox_sys::NetDll_socket(xbox_sys::XNCALLER_TITLE, 2, 2, 17);
-    if sock == 0xFFFF_FFFF {
-        dbg(b"main: socket failed\n\0");
-        return 1;
+    // SAFETY: a null parameter block selects the default settings, and
+    // `wsadata` is live local storage of the WSADATA size.
+    unsafe {
+        xam::NetDll_XNetStartup(XnCaller::Title, core::ptr::null());
+        xam::NetDll_WSAStartup(XnCaller::Title, 0x0202, wsadata.as_mut_ptr());
     }
-    dbg(b"main: socket ready, spawning sender thread\n\0");
+
+    // SAFETY: the network stack was started above; the call takes no
+    // pointers.
+    let sock = unsafe {
+        xam::NetDll_socket(
+            XnCaller::Title,
+            xam::AddressFamily::Inet,
+            xam::SocketType::Datagram,
+            xam::Protocol::Udp,
+        )
+    };
+    if sock == xam::Socket::INVALID {
+        dbg(c"main: socket failed\n");
+        // SAFETY: main runs on the title's main thread.
+        unsafe { xam::XamLoaderTerminateTitle() }
+    }
+    dbg(c"main: socket ready, spawning sender thread\n");
 
     let mut handle: u32 = 0;
-    xbox_sys::ExCreateThread(
-        &mut handle as *mut u32,
-        0,
-        core::ptr::null_mut(),
-        0,
-        sender as usize as u32,
-        sock,
-        0,
-    );
-    xbox_sys::NtWaitForSingleObjectEx(handle, 1, 0, core::ptr::null());
-    xbox_sys::NtClose(handle);
-    xbox_sys::NetDll_closesocket(xbox_sys::XNCALLER_TITLE, sock);
-    dbg(b"main: done\n\0");
-    0x1234
+    // SAFETY: `sender_entry` is a bridged entry for an
+    // `extern "C" fn(u32) -> u32`, `handle` is a live local, and a null id
+    // pointer is accepted.
+    unsafe {
+        xboxkrnl::ExCreateThread(
+            &mut handle as *mut u32,
+            0,
+            core::ptr::null_mut(),
+            0,
+            sender_entry as usize as u32,
+            sock.raw(),
+            xboxkrnl::ThreadCreationFlags::empty(),
+        )
+    };
+    let handle = xboxkrnl::Handle::from_raw(handle);
+    // SAFETY: `handle` is the thread handle created above, closed once
+    // after the wait; `sock` is closed after the thread has ended.
+    unsafe {
+        xboxkrnl::NtWaitForSingleObjectEx(
+            handle,
+            xboxkrnl::ProcessorMode::User,
+            false,
+            core::ptr::null(),
+        );
+        xboxkrnl::NtClose(handle);
+        xam::NetDll_closesocket(XnCaller::Title, sock);
+    }
+    dbg(c"main: done\n");
+    // A title must not return from its entry point: the kernel stops with
+    // fatal error 0xE.
+    // SAFETY: main runs on the title's main thread.
+    unsafe { xam::XamLoaderTerminateTitle() }
 }

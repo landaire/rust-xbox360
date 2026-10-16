@@ -37,9 +37,8 @@ r3-r10 into the caller's frame at sp+0x10..sp+0x50, including non-variadic
 kernel functions and `DbgPrint`. The SysV frames LLVM emits do not reserve that
 area, so a direct call from a small frame overwrites the caller's saved
 registers and LR. Xenia does not reproduce this. A call through an import must
-allocate a 0x50-byte frame first; openxbdm's import stubs do this. The
-`xbox-sys` and std overlay thunks are called directly and still have this
-defect.
+allocate a 0x50-byte frame first. The `xbox360-sys` import stubs do this. The std
+overlay thunks are called directly and still have this defect.
 
 ## Pipeline
 

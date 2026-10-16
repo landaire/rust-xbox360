@@ -40,9 +40,16 @@ buck2 build //examples/hello:hello //examples/stdhello:stdhello --show-output
 
 Pass `rewrite = True` to make the title smaller. The executable is then compiled as one fat LTO unit, and `xbox360-asm-rewrite` replaces the register saves and restores in each function's prologue and epilogue with calls to shared helper routines, as Microsoft's compiler does. The build fails if the relinked image differs from the one rustc links, or if a rewritable sequence remains. `examples/stdhello` uses it. The `[rewrite-report]` and `[refusals]` subtargets show what changed and what was left alone.
 
-Every title build also fails if the image holds an `lwarx`, `ldarx`, `stwcx.` or `stdcx.` outside the interrupt-protected form. The devkit kernel loader reports those as unprotected.
+Every title build also fails if the image holds an `lwarx`, `ldarx`, `stwcx.` or `stdcx.` outside the interrupt-protected form. The devkit kernel loader reports those as unprotected. `xbox360_sys::interlocked` has operations in the protected form.
 
 For projects that generate their own build files, `xbox360_executable_core`, `xbox360_executable_std` and `xex_from_assembly` are the rules behind `rewrite`.
+
+### Libraries
+
+Use std in a title when you can. For what std does not cover, or for code without std such as a system module, two crates are published on crates.io:
+
+- [`xbox360-sys`](crates/xbox360-sys): raw kernel and XAM imports, exports, entries for callers that use the console ABI, and the interlocked operations the kernel loader accepts. std builds on it.
+- [`xbox360`](crates/xbox360): safe wrappers on top of it, such as kernel events and locks, threads without std, controller input and saved-game content.
 
 ### From another Buck2 project
 
@@ -173,7 +180,8 @@ Copy the edited files into the toolchain source first, as in step 2.
 | --- | --- |
 | `crates/xex-link` | The ELF-to-XEX linker (the post-link step). |
 | `crates/xbox360-asm-rewrite` | The register save and restore rewrite, and the reservation check. |
-| `crates/xbox-sys` | Kernel and Xam import thunks for `no_std` titles. |
+| `crates/xbox360-sys` | Kernel and XAM imports, exports and console-ABI entry bridges. |
+| `crates/xbox360` | Safe wrappers over `xbox360-sys`. |
 | `targets/` | The custom rustc target specification. |
 | `toolchain/rust-std-xbox360` | The standard-library overlay. |
 | `sysroot/` | Buck2 rules for the standard library crates. |

@@ -12,7 +12,7 @@ Xenia." Each milestone ends with a run in Xenia as verification.
 - [x] `xex-link`: ELF32 PPC -> Xbox PPC PE -> XEX (via Xex2Builder).
 - [x] Title entry calls DbgPrint (xboxkrnl 0x03) then returns an exit code.
 - [x] Extend the XEX import table to reference xboxkrnl.exe DbgPrint
-      (`xbox-sys` thunks + `acceleration` Xex2Builder import support).
+      (`xbox360-sys` thunks + `acceleration` Xex2Builder import support).
 - [x] XEX verified loadable: gdb confirms image, code, string, and the
       DbgPrint import thunk patched to `sc 2` in Xenia guest memory.
 - [x] Xenia build usable for runs. Its Linux x64 backend passed guest-call

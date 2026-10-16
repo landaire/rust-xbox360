@@ -1,0 +1,17 @@
+rust_library(
+    name = "xbox360-sys",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "xbox360_sys",
+    crate_root = "src/lib.rs",
+    edition = "2024",
+    visibility = ["PUBLIC"],
+)
+
+# Host tests of the modules that compile on every target.
+rust_test(
+    name = "xbox360-sys-test",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "xbox360_sys",
+    crate_root = "src/lib.rs",
+    edition = "2024",
+)

@@ -7,5 +7,5 @@ xbox360_title(
     edition = "2024",
     link_script = "link.x",
     manifest = "xex.toml",
-    deps = ["//crates/xbox-sys:xbox-sys"],
+    deps = ["//crates/xbox360-sys:xbox360-sys"],
 )

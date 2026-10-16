@@ -1,9 +1,0 @@
-rust_library(
-    name = "xbox-sys",
-    srcs = glob(["src/**/*.rs"]),
-    crate = "xbox_sys",
-    crate_root = "src/lib.rs",
-    edition = "2024",
-    target_compatible_with = ["//platforms:xbox360"],
-    visibility = ["PUBLIC"],
-)

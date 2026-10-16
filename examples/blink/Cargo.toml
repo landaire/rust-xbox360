@@ -8,7 +8,7 @@ name = "blink"
 path = "src/main.rs"
 
 [dependencies]
-xbox-sys = { path = "../../crates/xbox-sys" }
+xbox360-sys = { path = "../../crates/xbox360-sys" }
 
 [profile.dev]
 panic = "abort"
