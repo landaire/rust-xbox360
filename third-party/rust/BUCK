@@ -5198,23 +5198,23 @@ cargo.rust_library(
 )
 
 http_archive(
-    name = "xecrypt-0.2.0.crate",
-    sha256 = "e748bb7ece8d31999d32900a120eed8f06e0a123218ac0391fd7db558ec7156e",
-    strip_prefix = "xecrypt-0.2.0",
-    urls = ["https://static.crates.io/crates/xecrypt/0.2.0/download"],
+    name = "xecrypt-0.4.0.crate",
+    sha256 = "441facba06a99ae64f9edc6937c0f505f3a56c242bf091c952b125df1326c5c4",
+    strip_prefix = "xecrypt-0.4.0",
+    urls = ["https://static.crates.io/crates/xecrypt/0.4.0/download"],
     visibility = [],
 )
 
 cargo.rust_library(
-    name = "xecrypt-0.2",
-    srcs = [":xecrypt-0.2.0.crate"],
+    name = "xecrypt-0.4",
+    srcs = [":xecrypt-0.4.0.crate"],
     crate = "xecrypt",
-    crate_root = "xecrypt-0.2.0.crate/src/lib.rs",
+    crate_root = "xecrypt-0.4.0.crate/src/lib.rs",
     edition = "2024",
     env = {
         "CARGO_BIN_NAME": "xecrypt",
         "CARGO_CRATE_NAME": "xecrypt",
-        "CARGO_MANIFEST_DIR": "xecrypt-0.2.0.crate",
+        "CARGO_MANIFEST_DIR": "xecrypt-0.4.0.crate",
         "CARGO_PKG_AUTHORS": "Lander Brandt <landerbrandt@gmail.com>",
         "CARGO_PKG_DESCRIPTION": "Xbox 360 cryptographic primitives (AES, SHA-1, RSA signature verification)",
         "CARGO_PKG_HOMEPAGE": "",
@@ -5222,9 +5222,9 @@ cargo.rust_library(
         "CARGO_PKG_README": "README.md",
         "CARGO_PKG_REPOSITORY": "https://github.com/landaire/acceleration",
         "CARGO_PKG_RUST_VERSION": "",
-        "CARGO_PKG_VERSION": "0.2.0",
+        "CARGO_PKG_VERSION": "0.4.0",
         "CARGO_PKG_VERSION_MAJOR": "0",
-        "CARGO_PKG_VERSION_MINOR": "2",
+        "CARGO_PKG_VERSION_MINOR": "4",
         "CARGO_PKG_VERSION_PATCH": "0",
         "CARGO_PKG_VERSION_PRE": "",
     },
@@ -5237,34 +5237,34 @@ cargo.rust_library(
         ":rsa-0.9",
         ":sha1-0.11",
         ":thiserror-2",
-        ":xenon_types-0.2",
+        ":xenon_types-0.4",
     ],
 )
 
 alias(
     name = "xenon_types",
-    actual = ":xenon_types-0.2",
+    actual = ":xenon_types-0.4",
     visibility = ["PUBLIC"],
 )
 
 http_archive(
-    name = "xenon_types-0.2.0.crate",
-    sha256 = "cc598cf4809e873e095e72f88074583b6a5c7a1c7b20f1246a6db8626d379693",
-    strip_prefix = "xenon_types-0.2.0",
-    urls = ["https://static.crates.io/crates/xenon_types/0.2.0/download"],
+    name = "xenon_types-0.4.0.crate",
+    sha256 = "5165d020dfa8970cf1902d71b32054994a9b4001c2c5f9ebb35b041f81f53bc4",
+    strip_prefix = "xenon_types-0.4.0",
+    urls = ["https://static.crates.io/crates/xenon_types/0.4.0/download"],
     visibility = [],
 )
 
 cargo.rust_library(
-    name = "xenon_types-0.2",
-    srcs = [":xenon_types-0.2.0.crate"],
+    name = "xenon_types-0.4",
+    srcs = [":xenon_types-0.4.0.crate"],
     crate = "xenon_types",
-    crate_root = "xenon_types-0.2.0.crate/src/lib.rs",
+    crate_root = "xenon_types-0.4.0.crate/src/lib.rs",
     edition = "2024",
     env = {
         "CARGO_BIN_NAME": "xenon_types",
         "CARGO_CRATE_NAME": "xenon_types",
-        "CARGO_MANIFEST_DIR": "xenon_types-0.2.0.crate",
+        "CARGO_MANIFEST_DIR": "xenon_types-0.4.0.crate",
         "CARGO_PKG_AUTHORS": "Lander Brandt <landerbrandt@gmail.com>",
         "CARGO_PKG_DESCRIPTION": "Common types for Xbox 360 (Xenon) file formats and protocols",
         "CARGO_PKG_HOMEPAGE": "",
@@ -5272,9 +5272,9 @@ cargo.rust_library(
         "CARGO_PKG_README": "README.md",
         "CARGO_PKG_REPOSITORY": "https://github.com/landaire/acceleration",
         "CARGO_PKG_RUST_VERSION": "",
-        "CARGO_PKG_VERSION": "0.2.0",
+        "CARGO_PKG_VERSION": "0.4.0",
         "CARGO_PKG_VERSION_MAJOR": "0",
-        "CARGO_PKG_VERSION_MINOR": "2",
+        "CARGO_PKG_VERSION_MINOR": "4",
         "CARGO_PKG_VERSION_PATCH": "0",
         "CARGO_PKG_VERSION_PRE": "",
     },
@@ -5287,38 +5287,38 @@ cargo.rust_library(
 
 alias(
     name = "xex2",
-    actual = ":xex2-0.2",
+    actual = ":xex2-0.4",
     visibility = ["PUBLIC"],
 )
 
 http_archive(
-    name = "xex2-0.2.0.crate",
-    sha256 = "dfe7aba14919c30fc8ce0b4b8c79ed4f335c111920c03278c4d4d0e6f5d9b814",
-    strip_prefix = "xex2-0.2.0",
-    urls = ["https://static.crates.io/crates/xex2/0.2.0/download"],
+    name = "xex2-0.4.0.crate",
+    sha256 = "cdac3e898642060059d786a6989039ade83d0b3c08ab19e2475f5c582961c42b",
+    strip_prefix = "xex2-0.4.0",
+    urls = ["https://static.crates.io/crates/xex2/0.4.0/download"],
     visibility = [],
 )
 
 cargo.rust_library(
-    name = "xex2-0.2",
-    srcs = [":xex2-0.2.0.crate"],
+    name = "xex2-0.4",
+    srcs = [":xex2-0.4.0.crate"],
     crate = "xex2",
-    crate_root = "xex2-0.2.0.crate/src/lib.rs",
+    crate_root = "xex2-0.4.0.crate/src/lib.rs",
     edition = "2024",
     env = {
         "CARGO_BIN_NAME": "xex2",
         "CARGO_CRATE_NAME": "xex2",
-        "CARGO_MANIFEST_DIR": "xex2-0.2.0.crate",
+        "CARGO_MANIFEST_DIR": "xex2-0.4.0.crate",
         "CARGO_PKG_AUTHORS": "Lander Brandt <landerbrandt@gmail.com>",
-        "CARGO_PKG_DESCRIPTION": "Parser and extractor for Xbox 360 XEX2 executables",
+        "CARGO_PKG_DESCRIPTION": "Parser, extractor, and rebuilder for Xbox 360 XEX2 executables",
         "CARGO_PKG_HOMEPAGE": "",
         "CARGO_PKG_NAME": "xex2",
         "CARGO_PKG_README": "README.md",
         "CARGO_PKG_REPOSITORY": "https://github.com/landaire/acceleration",
         "CARGO_PKG_RUST_VERSION": "",
-        "CARGO_PKG_VERSION": "0.2.0",
+        "CARGO_PKG_VERSION": "0.4.0",
         "CARGO_PKG_VERSION_MAJOR": "0",
-        "CARGO_PKG_VERSION_MINOR": "2",
+        "CARGO_PKG_VERSION_MINOR": "4",
         "CARGO_PKG_VERSION_PATCH": "0",
         "CARGO_PKG_VERSION_PRE": "",
     },
@@ -5331,8 +5331,8 @@ cargo.rust_library(
         ":num_enum-0.7",
         ":rootcause-0.12",
         ":sha-1-0.10",
-        ":xecrypt-0.2",
-        ":xenon_types-0.2",
+        ":xecrypt-0.4",
+        ":xenon_types-0.4",
     ],
 )
 

@@ -24,6 +24,9 @@ use xex2::opt::ModuleFlags;
 pub const DEFAULT_LOAD_ADDRESS: VirtualAddress = VirtualAddress(0x8200_0000);
 pub const DEFAULT_IMPORT_VERSION: Version = Version { major: 2, minor: 0, build: 21173, revision: 0 };
 pub const DEFAULT_IMPORT_MIN_VERSION: Version = Version { major: 2, minor: 0, build: 1861, revision: 0 };
+/// TLS slots of a title without `tls_slots`, the XDK default. Without a
+/// TLS_INFO header the kernel gives a title no slots, and std aborts.
+pub const DEFAULT_TITLE_TLS_SLOTS: u32 = 64;
 
 /// XEX metadata. `Default` is the metadata used without a manifest.
 #[derive(Debug, PartialEq)]
@@ -41,6 +44,8 @@ pub struct Manifest {
     pub encryption_target: Option<EncryptionTarget>,
     pub imports: ImportVersions,
     pub exports: Option<ExportSettings>,
+    /// Thread-local storage slots recorded in the TLS_INFO header, if any.
+    pub tls_slots: Option<u32>,
 }
 
 /// Versions recorded in every import library descriptor.
@@ -72,6 +77,7 @@ impl Default for Manifest {
             encryption_target: None,
             imports: ImportVersions { version: DEFAULT_IMPORT_VERSION, min_version: DEFAULT_IMPORT_MIN_VERSION },
             exports: None,
+            tls_slots: Some(DEFAULT_TITLE_TLS_SLOTS),
         }
     }
 }
@@ -105,6 +111,7 @@ struct RawManifest {
     encrypt: Option<RawEncryptionTarget>,
     imports: Option<RawImports>,
     exports: Option<RawExports>,
+    tls_slots: Option<u32>,
 }
 
 #[derive(Deserialize)]
@@ -192,6 +199,13 @@ impl RawManifest {
             }),
             imports,
             exports,
+            // Absent: titles get the default and other modules no header.
+            // Zero: no header, which gives the same zero slots.
+            tls_slots: match self.tls_slots {
+                Some(0) => None,
+                Some(slots) => Some(slots),
+                None => module_flags.contains(ModuleFlags::TITLE).then_some(DEFAULT_TITLE_TLS_SLOTS),
+            },
         })
     }
 }
@@ -298,6 +312,7 @@ module_flags = ["TITLE", "DLL"]
 bounding_path = '\Device\Harddisk0\Partition1\DEVKIT\FlashEx\xbdm.xex'
 compress = true
 encrypt = "retail"
+tls_slots = 32
 [imports]
 version = "2.0.17559.0"
 min_version = "2.0.1888.0"
@@ -328,8 +343,17 @@ min_version = "2.0.1861.0"
                     min_version: Version { major: 2, minor: 0, build: 1888, revision: 0 },
                 },
                 exports: Some(ExportSettings { module: &LIBRARIES[2], min_version: DEFAULT_IMPORT_MIN_VERSION }),
+                tls_slots: Some(32),
             }
         );
+    }
+
+    #[test]
+    fn tls_slots_default_to_64_for_titles_only() {
+        assert_eq!(parse("").unwrap().tls_slots, Some(DEFAULT_TITLE_TLS_SLOTS));
+        assert_eq!(parse("module_flags = [\"DLL\"]").unwrap().tls_slots, None);
+        assert_eq!(parse("module_flags = [\"DLL\"]\ntls_slots = 8").unwrap().tls_slots, Some(8));
+        assert_eq!(parse("tls_slots = 0").unwrap().tls_slots, None);
     }
 
     #[test]

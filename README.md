@@ -234,6 +234,7 @@ base_version = "0.0.0.0"    # minimum loader version, same format
 image_flags = []            # ImageFlags names or "0xHEX", e.g. ["SMALL_PAGES"]
 module_flags = ["TITLE"]    # ModuleFlags names or "0xHEX"
 compress = false            # LZX-compress the image (Normal, 64 KB window)
+tls_slots = 64              # TLS_INFO slots, 0 omits the header; default 64 with TITLE, none otherwise
 # bounding_path = '\Device\Harddisk0\Partition1\DEVKIT\FlashEx\xbdm.xex'
 # encrypt = "devkit"        # encrypt with the "devkit" or "retail" master key
 

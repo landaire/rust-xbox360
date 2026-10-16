@@ -30,6 +30,7 @@ use xex2::builder::EncryptionTarget;
 use xex2::builder::Xex2Builder;
 use xex2::imports::ImportLibrary;
 use xex2::opt::ImageFlags;
+use xex2::opt::TlsInfo;
 
 // Sections and the file are aligned to the loader page size: 4 KB with
 // SMALL_PAGES, else 64 KB.
@@ -91,6 +92,8 @@ manifest keys:
   bounding_path = \"PATH\"  device path the loaded file must resolve to
   compress = BOOL         LZX-compress the image (Normal, 64 KB window; default false)
   encrypt = \"TARGET\"      encrypt payload with the \"devkit\" or \"retail\" master key
+  tls_slots = INT         TLS slots in the TLS_INFO header; 0 omits it
+                          (default 64 for titles, none for other modules)
   [imports]
   version = \"VER\"         imported module version (default \"2.0.21173.0\")
   min_version = \"VER\"     minimum imported module version (default \"2.0.1861.0\")
@@ -262,6 +265,9 @@ fn run() -> Result<()> {
     }
     if manifest.compress {
         builder = builder.compress();
+    }
+    if let Some(slot_count) = manifest.tls_slots {
+        builder = builder.tls_info(TlsInfo { slot_count, raw_data_address: 0, data_size: 0, raw_data_size: 0 });
     }
     let xex = builder.build().map_err(|e| XexLinkError::Xex(format!("{e:?}")).into_report())?;
 

@@ -1037,9 +1037,9 @@ dependencies = [
 
 [[package]]
 name = "xecrypt"
-version = "0.2.0"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e748bb7ece8d31999d32900a120eed8f06e0a123218ac0391fd7db558ec7156e"
+checksum = "441facba06a99ae64f9edc6937c0f505f3a56c242bf091c952b125df1326c5c4"
 dependencies = [
  "aes",
  "bitflags",
@@ -1053,9 +1053,9 @@ dependencies = [
 
 [[package]]
 name = "xenon_types"
-version = "0.2.0"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cc598cf4809e873e095e72f88074583b6a5c7a1c7b20f1246a6db8626d379693"
+checksum = "5165d020dfa8970cf1902d71b32054994a9b4001c2c5f9ebb35b041f81f53bc4"
 dependencies = [
  "bitflags",
  "serde",
@@ -1078,9 +1078,9 @@ dependencies = [
 
 [[package]]
 name = "xex2"
-version = "0.2.0"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dfe7aba14919c30fc8ce0b4b8c79ed4f335c111920c03278c4d4d0e6f5d9b814"
+checksum = "cdac3e898642060059d786a6989039ade83d0b3c08ab19e2475f5c582961c42b"
 dependencies = [
  "bitflags",
  "byteorder",
