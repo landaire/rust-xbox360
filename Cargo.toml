@@ -1,4 +1,4 @@
 [workspace]
 resolver = "2"
-members = ["crates/xex-link"]
+members = ["crates/xbox360-asm-rewrite", "crates/xex-link", "third-party/rust"]
 exclude = ["examples/hello", "examples/blink", "crates/xbox-sys", "tools/xbdbg", "examples/noimp", "examples/hello2", "examples/threads", "examples/net", "examples/stdhello", "examples/tokweb"]

@@ -8,4 +8,5 @@ xbox360_title(
     link_script = "link.x",
     manifest = "xex.toml",
     std = True,
+    rewrite = True,
 )

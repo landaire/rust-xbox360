@@ -1,0 +1,35 @@
+---
+source: crates/xbox360-asm-rewrite/src/tests.rs
+expression: rewritten(&source).0
+---
+	.section	.text.late_mflr,"ax",@progbits
+	.p2align	2
+	.type	late_mflr,@function
+late_mflr:
+.Lfunc_begin0:
+	mflr 0
+	bl __xbox360_savegprlr_30_30
+	stwu 1, -16(1)
+	mr	30, 3
+	bl callee
+	mr	3, 30
+	addi 1, 1, 16
+	b __xbox360_restgprlr_30_30
+.Lfunc_end0:
+	.size	late_mflr, .Lfunc_end0-.Lfunc_begin0
+
+	.section	.text.__xbox360_gprlr,"ax",@progbits
+	.p2align	2
+	.type	__xbox360_savegprlr_30_30,@function
+__xbox360_savegprlr_30_30:
+	stw 30, -8(1)
+	stw 0, 4(1)
+	blr
+	.type	__xbox360_restgprlr_30_30,@function
+__xbox360_restgprlr_30_30:
+	lwz 30, -8(1)
+	.type	__xbox360_restlr,@function
+__xbox360_restlr:
+	lwz 0, 4(1)
+	mtlr 0
+	blr

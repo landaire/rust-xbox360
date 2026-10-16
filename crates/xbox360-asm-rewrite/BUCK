@@ -1,0 +1,44 @@
+rust_library(
+    name = "xbox360_asm_rewrite",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "xbox360_asm_rewrite",
+    crate_root = "src/lib.rs",
+    edition = "2024",
+    deps = [
+        "//third-party/rust:thiserror",
+    ],
+)
+
+rust_test(
+    name = "xbox360_asm_rewrite-test",
+    srcs = glob(["src/**/*.rs", "src/snapshots/*.snap"]),
+    crate = "xbox360_asm_rewrite",
+    crate_root = "src/lib.rs",
+    edition = "2024",
+    # insta finds the snapshots relative to the package directory.
+    env = {
+        "CARGO_MANIFEST_DIR": ".",
+        "INSTA_WORKSPACE_ROOT": ".",
+    },
+    run_env = {
+        "CARGO_MANIFEST_DIR": "crates/xbox360-asm-rewrite",
+    },
+    deps = [
+        "//third-party/rust:insta",
+        "//third-party/rust:thiserror",
+    ],
+)
+
+rust_binary(
+    name = "xbox360-asm-rewrite",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "xbox360_asm_rewrite",
+    crate_root = "src/main.rs",
+    edition = "2024",
+    deps = [
+        ":xbox360_asm_rewrite",
+        "//third-party/rust:clap",
+        "//third-party/rust:thiserror",
+    ],
+    visibility = ["PUBLIC"],
+)

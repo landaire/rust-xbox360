@@ -7,3 +7,13 @@ export_file(
     name = "assemble_rust_sysroot.py",
     visibility = ["PUBLIC"],
 )
+
+export_file(
+    name = "compare_files.py",
+    visibility = ["PUBLIC"],
+)
+
+export_file(
+    name = "write_stdout.py",
+    visibility = ["PUBLIC"],
+)

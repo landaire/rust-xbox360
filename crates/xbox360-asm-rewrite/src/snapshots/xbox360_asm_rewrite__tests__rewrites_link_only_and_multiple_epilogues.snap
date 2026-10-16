@@ -1,0 +1,32 @@
+---
+source: crates/xbox360-asm-rewrite/src/tests.rs
+expression: output
+---
+	.section	.text.two_returns,"ax",@progbits
+	.p2align	2
+	.type	two_returns,@function
+two_returns:
+.Lfunc_begin0:
+	mflr 0
+	stwu 1, -16(1)
+	stw 0, 20(1)
+	bl callee
+	cmplwi	3, 0
+	beq	0, .LBB0_2
+	li 3, 1
+	addi 1, 1, 16
+	b __xbox360_restlr
+.LBB0_2:
+	li 3, 2
+	addi 1, 1, 16
+	b __xbox360_restlr
+.Lfunc_end0:
+	.size	two_returns, .Lfunc_end0-.Lfunc_begin0
+
+	.section	.text.__xbox360_gprlr,"ax",@progbits
+	.p2align	2
+	.type	__xbox360_restlr,@function
+__xbox360_restlr:
+	lwz 0, 4(1)
+	mtlr 0
+	blr

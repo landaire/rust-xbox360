@@ -27,6 +27,10 @@ Microsoft ABI facts that constrain codegen:
 For a self-contained homebrew title we only need the register-level convention
 to match at import boundaries. `.pdata` unwind and millicode save/restore
 helpers are required for full MS compatibility but not for a title to run.
+With `rewrite`, `xbox360-asm-rewrite` gives a title shared save/restore
+helpers of its own (`__xbox360_savegprlr_K_M`, `__xbox360_restgprlr_K_M`,
+`__xbox360_restlr`) by rewriting the LTO assembly before it is assembled
+and linked.
 
 The parameter home area is required on hardware. Console callees store
 r3-r10 into the caller's frame at sp+0x10..sp+0x50, including non-variadic

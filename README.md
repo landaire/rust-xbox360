@@ -36,10 +36,13 @@ are needed:
 buck2 build //examples/hello:hello //examples/stdhello:stdhello --show-output
 ```
 
-`xbox360_title` in `buck/xex.bzl` builds a title: a Rust executable for the
-console, with or without the standard library, converted by `xex-link`
-(`//crates/xex-link:xex-link`) with the title's manifest. `buck2 run
-toolchains//:llvm-objdump -- ARGS` runs the llvm-objdump of the Rust release.
+`xbox360_title` in `buck/xex.bzl` builds a title. It compiles a Rust executable for the console, with or without the standard library, and converts it with `xex-link` (`//crates/xex-link:xex-link`) using the title's manifest. `buck2 run toolchains//:llvm-objdump -- ARGS` runs the Rust release's llvm-objdump.
+
+Pass `rewrite = True` to make the title smaller. The executable is then compiled as one fat LTO unit, and `xbox360-asm-rewrite` replaces the register saves and restores in each function's prologue and epilogue with calls to shared helper routines, as Microsoft's compiler does. The build fails if the relinked image differs from the one rustc links, or if a rewritable sequence remains. `examples/stdhello` uses it. The `[rewrite-report]` and `[refusals]` subtargets show what changed and what was left alone.
+
+Every title build also fails if the image holds an `lwarx`, `ldarx`, `stwcx.` or `stdcx.` outside the interrupt-protected form. The devkit kernel loader reports those as unprotected.
+
+For projects that generate their own build files, `xbox360_executable_core`, `xbox360_executable_std` and `xex_from_assembly` are the rules behind `rewrite`.
 
 ### From another Buck2 project
 
@@ -169,12 +172,13 @@ Copy the edited files into the toolchain source first, as in step 2.
 | Path | Contents |
 | --- | --- |
 | `crates/xex-link` | The ELF-to-XEX linker (the post-link step). |
+| `crates/xbox360-asm-rewrite` | The register save and restore rewrite, and the reservation check. |
 | `crates/xbox-sys` | Kernel and Xam import thunks for `no_std` titles. |
 | `targets/` | The custom rustc target specification. |
 | `toolchain/rust-std-xbox360` | The standard-library overlay. |
 | `sysroot/` | Buck2 rules for the standard library crates. |
 | `buck/`, `platforms/`, `toolchains/` | Buck2 rules, configurations and toolchains. |
-| `third-party/rust` | Buck2 rules for the crates.io dependencies of `xex-link` (`reindeer buckify`). |
+| `third-party/rust` | Buck2 rules for the crates.io dependencies of the host crates (`reindeer buckify`). |
 | `examples/` | Sample titles (see below). |
 | `tools/` | Helper scripts and the `xbdbg` devkit debugger. |
 | `docs/` | Reference material. |

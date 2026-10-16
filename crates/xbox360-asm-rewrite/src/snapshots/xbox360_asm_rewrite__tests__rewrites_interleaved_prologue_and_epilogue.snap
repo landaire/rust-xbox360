@@ -1,0 +1,54 @@
+---
+source: crates/xbox360-asm-rewrite/src/tests.rs
+expression: output
+---
+	.section	.text.socket_error,"ax",@progbits
+	.p2align	2
+	.type	socket_error,@function
+socket_error:
+.Lfunc_begin0:
+	mflr 0
+	bl __xbox360_savegprlr_28_30
+	stwu 1, -32(1)
+	mr	28, 3
+	li 3, 3
+	mr	29, 4
+	mr	30, 5
+	bl NetDll_WSAGetLastError
+	cmplwi	3, 10035
+	beq	0, .LBB0_2
+	mr	3, 28
+	bl disconnect
+.LBB0_2:
+	addi 1, 1, 32
+	b __xbox360_restgprlr_28_30
+.Lfunc_end0:
+	.size	socket_error, .Lfunc_end0-.Lfunc_begin0
+
+	.section	.text.__xbox360_gprlr,"ax",@progbits
+	.p2align	2
+	.type	__xbox360_savegprlr_28_30,@function
+__xbox360_savegprlr_28_30:
+	stw 28, -16(1)
+	.type	__xbox360_savegprlr_29_30,@function
+__xbox360_savegprlr_29_30:
+	stw 29, -12(1)
+	.type	__xbox360_savegprlr_30_30,@function
+__xbox360_savegprlr_30_30:
+	stw 30, -8(1)
+	stw 0, 4(1)
+	blr
+	.type	__xbox360_restgprlr_28_30,@function
+__xbox360_restgprlr_28_30:
+	lwz 28, -16(1)
+	.type	__xbox360_restgprlr_29_30,@function
+__xbox360_restgprlr_29_30:
+	lwz 29, -12(1)
+	.type	__xbox360_restgprlr_30_30,@function
+__xbox360_restgprlr_30_30:
+	lwz 30, -8(1)
+	.type	__xbox360_restlr,@function
+__xbox360_restlr:
+	lwz 0, 4(1)
+	mtlr 0
+	blr
