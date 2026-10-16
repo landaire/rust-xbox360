@@ -1,0 +1,9 @@
+load("//buck:xex.bzl", "xbox360_c_title")
+
+xbox360_c_title(
+    name = "chello",
+    srcs = ["hello.c"],
+    compiler_flags = ["-O2"],
+    link_script = "link.x",
+    manifest = "xex.toml",
+)

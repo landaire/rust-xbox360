@@ -1,6 +1,7 @@
-# Third-party crates that the workspace crates use only as dev-dependencies.
-# Reindeer generates rules and aliases only for normal dependencies, so they
-# are listed here as normal dependencies.
+# Third-party crates that the workspace crates use only as dev-dependencies,
+# and those of the examples, which are not workspace members. Reindeer
+# generates rules and aliases only for normal dependencies of workspace
+# members, so they are listed here as normal dependencies.
 #
 # This package is a workspace member only so that it shares Cargo.lock with
 # the other crates; it has no code.
@@ -15,3 +16,5 @@ path = "lib.rs"
 
 [dependencies]
 insta = "1.47"
+# The features of examples/tokweb.
+tokio = { version = "1", default-features = false, features = ["rt", "rt-multi-thread", "time", "macros"] }

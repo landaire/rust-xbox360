@@ -2930,6 +2930,40 @@ cargo.rust_library(
 )
 
 http_archive(
+    name = "pin-project-lite-0.2.17.crate",
+    sha256 = "a89322df9ebe1c1578d689c92318e070967d1042b512afbe49518723f4e6d5cd",
+    strip_prefix = "pin-project-lite-0.2.17",
+    urls = ["https://static.crates.io/crates/pin-project-lite/0.2.17/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "pin-project-lite-0.2",
+    srcs = [":pin-project-lite-0.2.17.crate"],
+    crate = "pin_project_lite",
+    crate_root = "pin-project-lite-0.2.17.crate/src/lib.rs",
+    edition = "2018",
+    env = {
+        "CARGO_BIN_NAME": "pin_project_lite",
+        "CARGO_CRATE_NAME": "pin_project_lite",
+        "CARGO_MANIFEST_DIR": "pin-project-lite-0.2.17.crate",
+        "CARGO_PKG_AUTHORS": "",
+        "CARGO_PKG_DESCRIPTION": "A lightweight version of pin-project written with declarative macros.\n",
+        "CARGO_PKG_HOMEPAGE": "",
+        "CARGO_PKG_NAME": "pin-project-lite",
+        "CARGO_PKG_README": "README.md",
+        "CARGO_PKG_REPOSITORY": "https://github.com/taiki-e/pin-project-lite",
+        "CARGO_PKG_RUST_VERSION": "1.37",
+        "CARGO_PKG_VERSION": "0.2.17",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "2",
+        "CARGO_PKG_VERSION_PATCH": "17",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    visibility = [],
+)
+
+http_archive(
     name = "pkcs1-0.7.5.crate",
     sha256 = "c8ffb9f10fa047879315e6625af03c164b16962a5368d724ed16323b68ace47f",
     strip_prefix = "pkcs1-0.7.5",
@@ -4717,6 +4751,97 @@ cargo.rust_library(
         "CARGO_PKG_VERSION_MAJOR": "2",
         "CARGO_PKG_VERSION_MINOR": "0",
         "CARGO_PKG_VERSION_PATCH": "20",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    proc_macro = True,
+    visibility = [],
+    deps = [
+        ":proc-macro2-1",
+        ":quote-1",
+        ":syn-3",
+    ],
+)
+
+alias(
+    name = "tokio",
+    actual = ":tokio-1",
+    visibility = ["PUBLIC"],
+)
+
+http_archive(
+    name = "tokio-1.53.3.crate",
+    sha256 = "ce3335fa71841cda333a58d7615b03901380ecf09d59b3296d21f8bbac0dde4e",
+    strip_prefix = "tokio-1.53.3",
+    urls = ["https://static.crates.io/crates/tokio/1.53.3/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "tokio-1",
+    srcs = [":tokio-1.53.3.crate"],
+    crate = "tokio",
+    crate_root = "tokio-1.53.3.crate/src/lib.rs",
+    edition = "2021",
+    env = {
+        "CARGO_BIN_NAME": "tokio",
+        "CARGO_CRATE_NAME": "tokio",
+        "CARGO_MANIFEST_DIR": "tokio-1.53.3.crate",
+        "CARGO_PKG_AUTHORS": "Tokio Contributors <team@tokio.rs>",
+        "CARGO_PKG_DESCRIPTION": "An event-driven, non-blocking I/O platform for writing asynchronous I/O\nbacked applications.\n",
+        "CARGO_PKG_HOMEPAGE": "https://tokio.rs",
+        "CARGO_PKG_NAME": "tokio",
+        "CARGO_PKG_README": "README.md",
+        "CARGO_PKG_REPOSITORY": "https://github.com/tokio-rs/tokio",
+        "CARGO_PKG_RUST_VERSION": "1.71",
+        "CARGO_PKG_VERSION": "1.53.3",
+        "CARGO_PKG_VERSION_MAJOR": "1",
+        "CARGO_PKG_VERSION_MINOR": "53",
+        "CARGO_PKG_VERSION_PATCH": "3",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    features = [
+        "macros",
+        "rt",
+        "rt-multi-thread",
+        "time",
+        "tokio-macros",
+    ],
+    visibility = [],
+    deps = [
+        ":pin-project-lite-0.2",
+        ":tokio-macros-2",
+    ],
+)
+
+http_archive(
+    name = "tokio-macros-2.7.2.crate",
+    sha256 = "78773a2a397f451582ce068015985c33193cf6dea8b74d2a639fe457b2f07b0e",
+    strip_prefix = "tokio-macros-2.7.2",
+    urls = ["https://static.crates.io/crates/tokio-macros/2.7.2/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "tokio-macros-2",
+    srcs = [":tokio-macros-2.7.2.crate"],
+    crate = "tokio_macros",
+    crate_root = "tokio-macros-2.7.2.crate/src/lib.rs",
+    edition = "2021",
+    env = {
+        "CARGO_BIN_NAME": "tokio_macros",
+        "CARGO_CRATE_NAME": "tokio_macros",
+        "CARGO_MANIFEST_DIR": "tokio-macros-2.7.2.crate",
+        "CARGO_PKG_AUTHORS": "Tokio Contributors <team@tokio.rs>",
+        "CARGO_PKG_DESCRIPTION": "Tokio's proc macros.\n",
+        "CARGO_PKG_HOMEPAGE": "https://tokio.rs",
+        "CARGO_PKG_NAME": "tokio-macros",
+        "CARGO_PKG_README": "README.md",
+        "CARGO_PKG_REPOSITORY": "https://github.com/tokio-rs/tokio",
+        "CARGO_PKG_RUST_VERSION": "1.71",
+        "CARGO_PKG_VERSION": "2.7.2",
+        "CARGO_PKG_VERSION_MAJOR": "2",
+        "CARGO_PKG_VERSION_MINOR": "7",
+        "CARGO_PKG_VERSION_PATCH": "2",
         "CARGO_PKG_VERSION_PRE": "",
     },
     proc_macro = True,

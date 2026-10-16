@@ -6,5 +6,4 @@ stdout
 *.pe
 /.rustsrc-backup/
 *.o
-examples/chello/chello
 /buck-out

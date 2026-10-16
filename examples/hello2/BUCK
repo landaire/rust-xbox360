@@ -1,0 +1,10 @@
+load("//buck:xex.bzl", "xbox360_title")
+
+xbox360_title(
+    name = "hello2",
+    srcs = glob(["src/**/*.rs"]),
+    crate_root = "src/main.rs",
+    edition = "2024",
+    link_script = "link.x",
+    manifest = "xex.toml",
+)

@@ -1,4 +1,4 @@
-"""Xbox 360 titles: a Rust executable converted to a XEX by xex-link.
+"""Xbox 360 titles: a Rust or C executable converted to a XEX by xex-link.
 
 `xex_core` and `xex_std` convert the image of any executable rule.
 
@@ -15,6 +15,8 @@ integrated assembler of its LLVM, and rust-lld links it with the code that
 LTO leaves out (compiler_builtins). The link mirrors the one rustc runs;
 the build fails if the mirror, applied to the object rustc linked, does
 not give rustc's image.
+
+`xbox360_c_title` compiles C sources with clang and converts the image.
 
 Every rule fails the build if the image holds a reservation that the
 kernel loader reports as unprotected.
@@ -107,6 +109,66 @@ _XEX_ATTRS = {
 xex_core = rule(impl = _xex_impl, attrs = _XEX_ATTRS | {"elf": attrs.dep()}, cfg = xbox360_core_transition)
 
 xex_std = rule(impl = _xex_impl, attrs = _XEX_ATTRS | {"elf": attrs.dep()}, cfg = xbox360_std_transition)
+
+def _xbox360_c_title_impl(ctx: AnalysisContext) -> list[Provider]:
+    python = ctx.attrs._python_bootstrap_toolchain[PythonBootstrapToolchainInfo].interpreter
+    objects = []
+    for src in ctx.attrs.srcs:
+        obj = ctx.actions.declare_output("objects", src.short_path + ".o")
+        ctx.actions.run(
+            cmd_args(
+                python,
+                ctx.attrs._run_clang,
+                "--target=powerpc-unknown-none-eabi",
+                # No C library exists for the console.
+                "-ffreestanding",
+                "-fno-builtin",
+                ctx.attrs.compiler_flags,
+                "-c",
+                src,
+                "-o",
+                obj.as_output(),
+            ),
+            category = "cc",
+            identifier = src.short_path,
+        )
+        objects.append(obj)
+
+    image = ctx.actions.declare_output("image")
+    ctx.actions.run(
+        cmd_args(
+            ctx.attrs._rust_lld[RunInfo],
+            "-flavor",
+            "gnu",
+            objects,
+            cmd_args(ctx.attrs.link_script, format = "-T{}"),
+            "--no-rosegment",
+            "-o",
+            image.as_output(),
+        ),
+        category = "link",
+    )
+
+    reservations = _check_reservations(ctx, image)
+    xex = _xex_link(ctx, image, [reservations])
+    return [DefaultInfo(default_output = xex, sub_targets = {
+        "elf": [DefaultInfo(default_output = image)],
+        "reservations": [DefaultInfo(default_output = reservations)],
+    })]
+
+# A XEX from C sources. clang from PATH compiles them for big-endian
+# PowerPC without a C library, and the Rust release's rust-lld links the
+# objects with the GNU ld script `link_script`.
+xbox360_c_title = rule(
+    impl = _xbox360_c_title_impl,
+    attrs = _XEX_ATTRS | {
+        "compiler_flags": attrs.list(attrs.string(), default = []),
+        "link_script": attrs.source(),
+        "srcs": attrs.list(attrs.source()),
+        "_run_clang": attrs.source(default = "xbox360//buck:run_clang.py"),
+        "_rust_lld": attrs.exec_dep(providers = [RunInfo], default = "toolchains//:rust-lld"),
+    },
+)
 
 def _rlib(dep: Dependency) -> Artifact:
     # Executables for the console link statically (no position-independent

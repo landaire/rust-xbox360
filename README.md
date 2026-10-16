@@ -20,7 +20,7 @@ the `xbox360` target. A title may therefore use `std::thread`, `std::net`,
   standard-library source; other versions are not supported.
 - Xenia, built separately, for verification. The helper script
   `tools/run-xenia.sh` invokes it.
-- For C titles: `clang`. The example build script obtains it through `nix`.
+- For C titles: `clang` with the PowerPC target, on the `PATH` of the Buck2 daemon. Buck2 does not download it. The build of a C title fails with a message if it is absent. Run `buck2 kill` after you change `PATH`.
 
 `xex-link` builds the XEX with the `xex2` and `xenon_types` crates of the
 [acceleration](https://github.com/landaire/acceleration) project from
@@ -33,8 +33,11 @@ the overlay applied (`sysroot/BUCK`), so no installed Rust and no overlay step
 are needed:
 
 ```
-buck2 build //examples/hello:hello //examples/stdhello:stdhello --show-output
+buck2 build //examples/... --show-output
 ```
+
+This builds the XEX of every example. `buck2 build //examples/hello:hello`
+builds one.
 
 `xbox360_title` in `buck/xex.bzl` builds a title. It compiles a Rust executable for the console, with or without the standard library, and converts it with `xex-link` (`//crates/xex-link:xex-link`) using the title's manifest. `buck2 run toolchains//:llvm-objdump -- ARGS` runs the Rust release's llvm-objdump.
 
@@ -125,10 +128,7 @@ The binary is written to `target/debug/xex-link`.
 
 ### 4. Compile and run a title without the standard library
 
-Each example is a self-contained crate that selects the target and linker script
-through its `.cargo/config.toml`. Because the target is a specification file and
-the build compiles part of the library from source, the build requires
-`RUSTC_BOOTSTRAP=1` and `-Zjson-target-spec`.
+Each Rust example except `library-check` is a self-contained crate that selects the target and linker script through its `.cargo/config.toml`. Because the target is a specification file and the build compiles part of the library from source, the build requires `RUSTC_BOOTSTRAP=1` and `-Zjson-target-spec`.
 
 Compile the `hello` example to an ELF executable:
 
@@ -186,7 +186,7 @@ Copy the edited files into the toolchain source first, as in step 2.
 | `toolchain/rust-std-xbox360` | The standard-library overlay. |
 | `sysroot/` | Buck2 rules for the standard library crates. |
 | `buck/`, `platforms/`, `toolchains/` | Buck2 rules, configurations and toolchains. |
-| `third-party/rust` | Buck2 rules for the crates.io dependencies of the host crates (`reindeer buckify`). |
+| `third-party/rust` | Buck2 rules for the crates.io dependencies of the host crates and the examples (`reindeer buckify`). |
 | `examples/` | Sample titles (see below). |
 | `tools/` | Helper scripts and the `xbdbg` devkit debugger. |
 | `docs/` | Reference material. |
@@ -204,15 +204,13 @@ timeout at the top of the script if required.
 
 ## Compiling C
 
-`xex-link` is language-agnostic: any LLVM front end that emits a big-endian
-PowerPC ELF is supported. The C example demonstrates the full path:
+`xex-link` is language-agnostic: any LLVM front end that emits a big-endian PowerPC ELF is supported. `xbox360_c_title` in `buck/xex.bzl` compiles C sources with `clang` from the Buck2 daemon's `PATH` (`--target=powerpc-unknown-none-eabi -ffreestanding -fno-builtin`), links them with the Rust release's `rust-lld`, and converts the result with `xex-link`. The C example demonstrates the full path:
 
 ```
-examples/chello/build.sh chello.xex
+buck2 build //examples/chello:chello --show-output
 ```
 
-The script compiles `hello.c` with `clang`, links it with `rust-lld`, and
-converts the result with `xex-link`.
+The host `clang` must include the PowerPC target (`clang -print-targets`). No C library exists for the console. The title declares its imports as thunks in the `.xthunks` section, as `examples/chello/hello.c` does.
 
 ## Linker options
 
@@ -257,14 +255,16 @@ multiple of the page size: 64 KB, or 4 KB with `SMALL_PAGES`.
 | --- | --- | --- |
 | `hello` | No | Networking and threads; sends a UDP datagram from a worker thread. |
 | `hello2` | No | Minimal title that calls `DbgPrint`. |
+| `blink` | No | Prints a counter with `DbgPrint` about once a second. |
 | `threads` | No | Spawns and joins a worker thread. |
 | `net` | No | Sends a UDP datagram. |
 | `noimp` | No | Title with no imports; writes to a memory heartbeat. |
+| `library-check` | No | Checks each module of the `xbox360` crate. |
 | `stdhello` | Yes | Allocation, threads, and files. |
 | `tokweb` | Yes | tokio async runtime with an HTTP request to a host server. |
 | `chello` | No | C title, built with `clang`. |
 
-Titles marked "No" build with step 4; titles marked "Yes" build with step 5.
+Every example builds with Buck2. With Cargo, the Rust titles marked "No" other than `library-check` build with step 4, and those marked "Yes" with step 5. `hello2`, `threads`, `net` and `chello` declare their own import thunks instead of using `xbox360-sys`.
 
 ## Further reading
 
