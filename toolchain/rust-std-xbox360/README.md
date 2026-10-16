@@ -44,7 +44,7 @@ window. `max-atomic-width` stays 32 so `target_has_atomic` is kept and `Arc`/
 
 ## Layout
 
-New backend files (copied verbatim into rust-src):
+New backend files, under `library/`:
 - `src/sys/pal/xbox360/{mod,common,abi}.rs` - PAL core + kernel/NetDll import thunks
 - `src/sys/alloc/xbox360.rs` - global allocator over ExAllocatePoolWithTag/ExFreePool
 - `src/sys/stdio/xbox360.rs` - stdout/stderr over DbgPrint
@@ -55,13 +55,18 @@ New backend files (copied verbatim into rust-src):
 With these, `tokio` (current-thread runtime + time + macros) compiles for the
 target; see `examples/tokweb` (async timer + HTTP GET to a host web server).
 
-`dispatch-edits.patch` - the additive `cfg(target_os = "xbox360")` arms in the
-std category dispatch files plus the `build.rs` restricted_std allowlist entry.
-`apply.sh` also injects the core atomic-helper redirects programmatically.
+`library/` also holds the complete files that carry the additive
+`cfg(target_os = "xbox360")` arms in the std category dispatch files, the
+`build.rs` restricted_std allowlist entry, and the core atomic-helper
+redirects.
 
 ## Apply
 
-    ./apply.sh            # copies files + applies the patch into the active rustc's rust-src
+Buck2 builds the standard library from the release's `rust-src` archive with
+these files in place (`sysroot/BUCK`). For Cargo, copy them over the active
+toolchain's `rust-src` from the repository root:
+
+    cp -R toolchain/rust-std-xbox360/library/. "$(rustc --print sysroot)/lib/rustlib/src/rust/library/"
 
 Requires `rustup component add rust-src` on the pinned stable toolchain. The edits
 are additive and inert for every other target.

@@ -12,18 +12,61 @@ the `xbox360` target. A title may therefore use `std::thread`, `std::net`,
 
 ## Requirements
 
-- `rustup`, the Rust toolchain installer.
-- The Rust 1.98.0 toolchain. The standard-library overlay is written against the
-  1.98 standard-library source; other versions are not supported.
-- The `rust-src` component for that toolchain.
-- The `acceleration` repository, checked out as a sibling of this repository
-  (that is, `../acceleration`). It supplies the crates that construct and sign
-  the XEX; `xex-link` depends on them by path.
+- For Buck2 builds: Buck2 and Python 3.11 or later. Buck2 downloads the Rust
+  1.98.0 release and every crate it builds, and checks each download against
+  a pinned SHA-256.
+- For Cargo builds: `rustup`, the Rust 1.98.0 toolchain, and its `rust-src`
+  component. The standard-library overlay is written against the 1.98
+  standard-library source; other versions are not supported.
 - Xenia, built separately, for verification. The helper script
   `tools/run-xenia.sh` invokes it.
 - For C titles: `clang`. The example build script obtains it through `nix`.
 
-## Getting started
+`xex-link` builds the XEX with the `xex2` and `xenon_types` crates of the
+[acceleration](https://github.com/landaire/acceleration) project from
+crates.io.
+
+## Building with Buck2
+
+Buck2 builds the standard library from the release's `rust-src` archive with
+the overlay applied (`sysroot/BUCK`), so no installed Rust and no overlay step
+are needed:
+
+```
+buck2 build //examples/hello:hello //examples/stdhello:stdhello --show-output
+```
+
+`xbox360_title` in `buck/xex.bzl` builds a title: a Rust executable for the
+console, with or without the standard library, converted by `xex-link`
+(`//crates/xex-link:xex-link`) with the title's manifest. `buck2 run
+toolchains//:llvm-objdump -- ARGS` runs the llvm-objdump of the Rust release.
+
+### From another Buck2 project
+
+A project that builds for the host and the console uses this repository as
+the `xbox360` external cell, pinned to a commit:
+
+```ini
+[cells]
+  xbox360 = rust-xbox360
+
+[external_cells]
+  xbox360 = git
+
+[external_cell_xbox360]
+  git_origin = https://github.com/landaire/rust-xbox360
+  commit_hash = <commit>
+```
+
+Its `toolchains/BUCK` calls `xbox360_toolchains()` from
+`@xbox360//buck:toolchains.bzl`, which takes the project's rustc and
+rustdoc flags for host and console crates. Console targets use
+`xbox360_title`, or the `xbox360//platforms:xbox360-core` and `-std`
+configurations through the transitions in `buck/platforms.bzl`. The project's
+`rust-toolchain.toml` should name the release in `buck/rust_release.bzl`;
+`buck/update_rust_release.py --check PATH` compares them.
+
+## Getting started with Cargo
 
 This procedure assumes no prior experience modifying the Rust toolchain. It
 proceeds from a machine with nothing installed to a running title. Commands are
@@ -46,32 +89,21 @@ root:
 rustup override set 1.98.0
 ```
 
-### 2. Obtain the acceleration dependency
+### 2. Install the standard-library overlay
 
-Check out the `acceleration` repository next to this one, so that the two
-directories are siblings:
-
-```
-git clone <acceleration-url> ../acceleration
-```
-
-`xex-link` refers to it by the relative path `../acceleration`.
-
-### 3. Install the standard-library overlay
-
-The overlay copies the Xbox 360 backend into the toolchain's standard-library
-source and applies additive dispatch edits. Apply it once (repeat it after every
-`rustup update` or `rustup component add rust-src`, which restore the pristine
-source):
+`toolchain/rust-std-xbox360/library` holds the overlay as complete files of
+the standard-library source: the Xbox 360 backend and the files with its
+dispatch edits. Copy it over the toolchain's standard-library source once
+(repeat it after every `rustup update` or `rustup component add rust-src`,
+which restore the pristine source):
 
 ```
-./toolchain/rust-std-xbox360/apply.sh
+cp -R toolchain/rust-std-xbox360/library/. "$(rustc --print sysroot)/lib/rustlib/src/rust/library/"
 ```
 
-The script edits only the `xbox360` target and is inert for all others. It
-requires the `rust-src` component from step 1.
+The edits apply only to the `xbox360` target and are inert for all others.
 
-### 4. Build the linker
+### 3. Build the linker
 
 `xex-link` is a host program that converts an ELF into a XEX:
 
@@ -81,7 +113,7 @@ cargo build -p xex-link
 
 The binary is written to `target/debug/xex-link`.
 
-### 5. Compile and run a title without the standard library
+### 4. Compile and run a title without the standard library
 
 Each example is a self-contained crate that selects the target and linker script
 through its `.cargo/config.toml`. Because the target is a specification file and
@@ -110,7 +142,7 @@ Run it under Xenia:
 ../../tools/run-xenia.sh hello.xex --gpu=null --apu=nop
 ```
 
-### 6. Compile and run a title with the standard library
+### 5. Compile and run a title with the standard library
 
 Standard-library titles additionally build the standard library from the
 overlaid source. Compile the `stdhello` example:
@@ -121,7 +153,7 @@ RUSTC_BOOTSTRAP=1 cargo build --release -Zbuild-std=std,panic_abort -Zjson-targe
 ```
 
 The first build compiles the standard library and takes several minutes;
-subsequent builds reuse the cached result. Convert and run it as in step 5.
+subsequent builds reuse the cached result. Convert and run it as in step 4.
 
 If you edit the overlay after building, delete the standard-library build cache
 before rebuilding; Cargo does not detect changes to the overlaid source:
@@ -130,8 +162,7 @@ before rebuilding; Cargo does not detect changes to the overlaid source:
 rm -rf "${CARGO_HOME:-$HOME/.cargo}/build/powerpc-unknown-xbox360"
 ```
 
-Re-run `./toolchain/rust-std-xbox360/apply.sh` to copy the edited files into the
-toolchain source first.
+Copy the edited files into the toolchain source first, as in step 2.
 
 ## Repository layout
 
@@ -140,7 +171,10 @@ toolchain source first.
 | `crates/xex-link` | The ELF-to-XEX linker (the post-link step). |
 | `crates/xbox-sys` | Kernel and Xam import thunks for `no_std` titles. |
 | `targets/` | The custom rustc target specification. |
-| `toolchain/rust-std-xbox360` | The standard-library overlay and `apply.sh`. |
+| `toolchain/rust-std-xbox360` | The standard-library overlay. |
+| `sysroot/` | Buck2 rules for the standard library crates. |
+| `buck/`, `platforms/`, `toolchains/` | Buck2 rules, configurations and toolchains. |
+| `third-party/rust` | Buck2 rules for the crates.io dependencies of `xex-link` (`reindeer buckify`). |
 | `examples/` | Sample titles (see below). |
 | `tools/` | Helper scripts and the `xbdbg` devkit debugger. |
 | `docs/` | Reference material. |
@@ -217,7 +251,7 @@ multiple of the page size: 64 KB, or 4 KB with `SMALL_PAGES`.
 | `tokweb` | Yes | tokio async runtime with an HTTP request to a host server. |
 | `chello` | No | C title, built with `clang`. |
 
-Titles marked "No" build with step 5; titles marked "Yes" build with step 6.
+Titles marked "No" build with step 4; titles marked "Yes" build with step 5.
 
 ## Further reading
 
