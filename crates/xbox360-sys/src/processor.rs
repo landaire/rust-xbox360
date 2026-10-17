@@ -101,6 +101,16 @@ pub struct WaitStatistics {
     pub system: WaitCounts,
 }
 
+impl WaitStatistics {
+    /// Wait count. The two words may come from different updates.
+    pub fn waits(&self) -> u64 {
+        let high = self.waits[0].load(Ordering::Relaxed);
+        let low = self.waits[1].load(Ordering::Relaxed);
+
+        (u64::from(high) << 32) | u64::from(low)
+    }
+}
+
 const _: () = {
     use core::mem::offset_of;
     assert!(offset_of!(WaitStatistics, flags) == 0x4);
@@ -109,15 +119,6 @@ const _: () = {
     assert!(offset_of!(WaitStatistics, system) == 0x20);
     assert!(core::mem::size_of::<WaitStatistics>() == 0x28);
 };
-
-impl WaitStatistics {
-    /// Wait count. The two words may come from different updates.
-    pub fn waits(&self) -> u64 {
-        let high = self.waits[0].load(Ordering::Relaxed);
-        let low = self.waits[1].load(Ordering::Relaxed);
-        (u64::from(high) << 32) | u64::from(low)
-    }
-}
 
 /// `KPRCB`: the processor control block at PCR +0x100 ([`Kpcr::prcb`]), up
 /// to the last field in use. The kernel changes the fields at any time.
@@ -139,6 +140,13 @@ pub struct Kprcb {
     pub dpc_active: KernelU32,
 }
 
+impl Kprcb {
+    /// Number of the hardware thread.
+    pub fn processor_number(&self) -> HardwareThread {
+        HardwareThread::from_kernel(self.processor_number.load(Ordering::Relaxed))
+    }
+}
+
 const _: () = {
     use core::mem::offset_of;
     assert!(offset_of!(Kprcb, idle_thread) == 0x8);
@@ -148,13 +156,6 @@ const _: () = {
     assert!(offset_of!(Kprcb, dpc_active) == 0x50);
     assert!(core::mem::size_of::<Kprcb>() == 0x54);
 };
-
-impl Kprcb {
-    /// Number of the hardware thread.
-    pub fn processor_number(&self) -> HardwareThread {
-        HardwareThread::from_kernel(self.processor_number.load(Ordering::Relaxed))
-    }
-}
 
 /// `KPCR`: the processor control region of a hardware thread, up to the
 /// last field in use, with the processor control block ([`Kprcb`]) at
@@ -196,21 +197,6 @@ pub struct Kpcr {
     _thread_bound: core::marker::PhantomData<*const ()>,
 }
 
-const _: () = {
-    use core::mem::offset_of;
-    assert!(offset_of!(Kpcr, irql) == 0x18);
-    assert!(offset_of!(Kpcr, unknown_019) == 0x19);
-    assert!(offset_of!(Kpcr, stack_base) == 0x70);
-    assert!(offset_of!(Kpcr, stack_limit) == 0x74);
-    assert!(offset_of!(Kpcr, prcb) == 0x100);
-    assert!(offset_of!(Kpcr, _prcb_address) == 0x2a8);
-    assert!(offset_of!(Kpcr, pix_buffers) == 0x2b0);
-    assert!(offset_of!(Kpcr, pix_flags) == 0x2c0);
-    assert!(offset_of!(Kpcr, cycles) == 0x2c8);
-    assert!(offset_of!(Kpcr, wait_statistics) == 0x2d0);
-    assert!(core::mem::size_of::<Kpcr>() == 0x2d4);
-};
-
 impl Kpcr {
     /// The control region of the processor that runs the caller at the
     /// time of the call. After the thread moves to another processor, the
@@ -221,7 +207,10 @@ impl Kpcr {
     pub fn current() -> &'static Self {
         let address: u32;
         // SAFETY: reads r13.
-        unsafe { core::arch::asm!("mr {0}, 13", out(reg) address, options(nomem, nostack, preserves_flags)) };
+        unsafe {
+            core::arch::asm!("mr {0}, 13", out(reg) address, options(nomem, nostack, preserves_flags))
+        };
+
         // SAFETY: r13 always holds the address of the control region of the
         // processor that runs this code. The kernel keeps the region mapped
         // while the thread runs, and a `&Kpcr` is not `Send`, so the
@@ -241,6 +230,7 @@ impl Kpcr {
         let current = Self::current();
         let first =
             core::ptr::from_ref(current).addr() - (current.processor_number().index() << 12);
+
         // SAFETY: the caller guarantees the layout of the regions, and
         // `number` names one of them.
         unsafe { &*core::ptr::with_exposed_provenance::<Self>(first + (number.index() << 12)) }
@@ -256,6 +246,7 @@ impl Kpcr {
         let current = Self::current();
         let first =
             core::ptr::from_ref(current).addr() - (current.processor_number().index() << 12);
+
         (0..HARDWARE_THREAD_COUNT).map(move |number| {
             // SAFETY: the caller guarantees the layout of the regions, and
             // `number` names one of them.
@@ -273,9 +264,25 @@ impl Kpcr {
     pub fn cycles(&self) -> u64 {
         let high = self.cycles[0].load(Ordering::Relaxed);
         let low = self.cycles[1].load(Ordering::Relaxed);
+
         (u64::from(high) << 32) | u64::from(low)
     }
 }
+
+const _: () = {
+    use core::mem::offset_of;
+    assert!(offset_of!(Kpcr, irql) == 0x18);
+    assert!(offset_of!(Kpcr, unknown_019) == 0x19);
+    assert!(offset_of!(Kpcr, stack_base) == 0x70);
+    assert!(offset_of!(Kpcr, stack_limit) == 0x74);
+    assert!(offset_of!(Kpcr, prcb) == 0x100);
+    assert!(offset_of!(Kpcr, _prcb_address) == 0x2a8);
+    assert!(offset_of!(Kpcr, pix_buffers) == 0x2b0);
+    assert!(offset_of!(Kpcr, pix_flags) == 0x2c0);
+    assert!(offset_of!(Kpcr, cycles) == 0x2c8);
+    assert!(offset_of!(Kpcr, wait_statistics) == 0x2d0);
+    assert!(core::mem::size_of::<Kpcr>() == 0x2d4);
+};
 
 /// Interrupt request level of the current processor (PCR +0x18). It is one
 /// load relative to r13. Through `Kpcr::current().irql`, r13 is first
@@ -285,6 +292,7 @@ pub fn current_irql() -> crate::xboxkrnl::Irql {
     let value: u8;
     // SAFETY: the processor control region in r13 is always mapped.
     unsafe { core::arch::asm!("lbz {0}, 0x18(13)", out(reg) value) };
+
     crate::xboxkrnl::Irql::new(value)
 }
 
@@ -295,6 +303,7 @@ pub fn current_thread() -> u32 {
     let value: u32;
     // SAFETY: the processor control region in r13 is always mapped.
     unsafe { core::arch::asm!("lwz {0}, 0x100(13)", out(reg) value) };
+
     value
 }
 

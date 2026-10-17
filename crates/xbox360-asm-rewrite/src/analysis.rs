@@ -43,29 +43,25 @@
 
 use std::collections::HashMap;
 
-use thiserror::Error;
-
+use crate::isa;
 use crate::isa::Access;
 use crate::isa::Control;
 use crate::isa::Effects;
 use crate::isa::Gpr;
 use crate::isa::GprSet;
-use crate::isa::{
-    self,
-};
 use crate::line::Displacement;
 use crate::line::Instruction;
 use crate::line::Line;
 use crate::line::Operand;
 
+mod error;
+
+pub use self::error::LivePath;
+pub use self::error::Refusal;
+
 /// Offset of the link register save word from the incoming stack pointer.
 const LINK_SLOT: i64 = 4;
 const WORD: i64 = 4;
-
-/// Offset of the save slot of `gpr` from the incoming stack pointer.
-pub fn save_slot(gpr: Gpr) -> i64 {
-    -WORD * (32 - i64::from(gpr.number()))
-}
 
 /// Size of a stack frame, as allocated by `stwu 1, -N(1)` and released by
 /// `addi 1, 1, N`.
@@ -88,105 +84,17 @@ pub struct SaveRange {
 }
 
 impl SaveRange {
-    pub fn from_set(set: GprSet) -> Option<SaveRange> {
+    pub fn from_set(set: GprSet) -> Option<Self> {
         let first = set.first()?;
         let last = set.last()?;
         let contiguous = u32::from(last.number() - first.number()) + 1 == set.len();
+
         (first.is_callee_saved() && contiguous && (last == Gpr::R30 || last == Gpr::R31))
-            .then_some(SaveRange { first, last })
+            .then_some(Self { first, last })
     }
 
     pub fn registers(self) -> impl Iterator<Item = Gpr> {
-        (self.first.number()..=self.last.number()).filter_map(|n| Gpr::new(i64::from(n)))
-    }
-}
-
-/// Why a path after the save helper call may observe the clobbered link
-/// register.
-#[derive(Clone, Debug, PartialEq, Eq, Error)]
-pub enum LivePath {
-    #[error("`{mnemonic}` reads the link register")]
-    Read { mnemonic: String },
-    #[error("`{mnemonic}` may access the link register")]
-    UnknownAccess { mnemonic: String },
-    #[error("branch to `{target}` leaves the function")]
-    TailBranch { target: String },
-    #[error("indirect branch")]
-    IndirectBranch,
-    #[error("`{mnemonic}` has unknown control flow")]
-    UnknownControl { mnemonic: String },
-    #[error("inline assembly")]
-    InlineAsm,
-    #[error("directive `{directive}` inside the function")]
-    Directive { directive: String },
-    #[error("control reaches the end of the function")]
-    FallsOffEnd,
-}
-
-/// Why a candidate sequence is left unchanged.
-#[derive(Clone, Debug, PartialEq, Eq, Error)]
-pub enum Refusal {
-    #[error("the function allocates a frame more than once")]
-    MultipleAllocations,
-    #[error("the allocation block does not save the link register through r0")]
-    LinkRegisterNotSaved,
-    #[error("the return block does not restore the link register through r0")]
-    LinkRegisterNotRestored,
-    #[error("registers {registers} are not a contiguous range ending at r30 or r31")]
-    NonContiguous { registers: GprSet },
-    #[error("a save slot overlaps the back chain word")]
-    SlotOverlapsBackChain,
-    #[error("{register} is written before its save")]
-    WrittenBeforeSave { register: Gpr },
-    #[error("{register} is accessed after its restore")]
-    AccessedAfterRestore { register: Gpr },
-    #[error("the stack pointer is accessed across a moved instruction")]
-    StackPointerAccessed,
-    #[error("a save slot is accessed across a moved instruction")]
-    SlotAccessed,
-    #[error("the link register is accessed across a moved instruction")]
-    LinkRegisterAccessed,
-    #[error("`{mnemonic}` has no effect model")]
-    UnknownInstruction { mnemonic: String },
-    #[error("the link register is live after the save helper call: {path}")]
-    LinkRegisterLive { path: LivePath },
-    #[error("the return block overlaps the allocation block")]
-    OverlapsPrologue,
-    #[error("the function branches to the relative address `{target}`")]
-    RelativeBranch { target: String },
-    #[error("the function has a line with several statements")]
-    MultipleStatements,
-}
-
-impl Refusal {
-    /// Category name for summaries.
-    pub fn kind(&self) -> &'static str {
-        match self {
-            Refusal::MultipleAllocations => "multiple-allocations",
-            Refusal::LinkRegisterNotSaved => "link-register-not-saved",
-            Refusal::LinkRegisterNotRestored => "link-register-not-restored",
-            Refusal::NonContiguous { .. } => "non-contiguous",
-            Refusal::SlotOverlapsBackChain => "slot-overlaps-back-chain",
-            Refusal::WrittenBeforeSave { .. } => "written-before-save",
-            Refusal::AccessedAfterRestore { .. } => "accessed-after-restore",
-            Refusal::StackPointerAccessed => "stack-pointer-accessed",
-            Refusal::SlotAccessed => "slot-accessed",
-            Refusal::LinkRegisterAccessed => "link-register-accessed",
-            Refusal::UnknownInstruction { .. } => "unknown-instruction",
-            Refusal::LinkRegisterLive { path } => match path {
-                LivePath::Read { .. } => "link-register-live/read",
-                LivePath::UnknownAccess { .. } => "link-register-live/unknown-access",
-                LivePath::TailBranch { .. } => "link-register-live/tail-branch",
-                LivePath::IndirectBranch => "link-register-live/indirect-branch",
-                LivePath::UnknownControl { .. } => "link-register-live/unknown-control",
-                LivePath::InlineAsm => "link-register-live/inline-asm",
-                LivePath::Directive { .. } => "link-register-live/directive",
-                LivePath::FallsOffEnd => "link-register-live/falls-off-end",
-            },
-            Refusal::OverlapsPrologue => "overlaps-prologue",
-            Refusal::RelativeBranch { .. } => "relative-branch",
-            Refusal::MultipleStatements => "multiple-statements",
-        }
+        (self.first.number()..=self.last.number()).filter_map(|number| Gpr::new(i64::from(number)))
     }
 }
 
@@ -222,29 +130,6 @@ pub struct FunctionAnalysis {
     pub inline_asm: bool,
 }
 
-/// Saves found after a frame allocation.
-struct PrologueCandidate {
-    allocation: usize,
-    frame: FrameSize,
-    block_start: usize,
-    /// Position of the first store of each register to its slot.
-    saves: [Option<usize>; 32],
-    saved: GprSet,
-    link_store: Option<usize>,
-}
-
-/// Restores found in a block that ends in `blr`.
-struct EpilogueCandidate {
-    ret: usize,
-    deallocation: usize,
-    frame: FrameSize,
-    /// Position of the last load of each register from its slot.
-    restores: [Option<usize>; 32],
-    restored: GprSet,
-    link_loads: Vec<usize>,
-    link_write: usize,
-}
-
 /// Body of one compiled function, between `.Lfunc_beginN:` and
 /// `.Lfunc_endN:`.
 pub struct Function<'a> {
@@ -270,7 +155,8 @@ impl<'a> Function<'a> {
                 _ => inside,
             })
             .collect();
-        Function { lines, inline_asm }
+
+        Self { lines, inline_asm }
     }
 
     fn instruction(&self, index: usize) -> Option<&Instruction<'a>> {
@@ -323,14 +209,17 @@ impl<'a> Function<'a> {
             Line::Instruction(instruction) => isa::control(instruction) == Control::Fallthrough,
             _ => false,
         };
+
         let mut start = index;
         while start > 0 && straight(&self.lines[start - 1]) {
             start -= 1;
         }
+
         let mut end = index + 1;
         while end < self.lines.len() && straight(&self.lines[end]) {
             end += 1;
         }
+
         (start, end)
     }
 
@@ -341,6 +230,7 @@ impl<'a> Function<'a> {
             .instructions()
             .filter(|(_, instruction)| is_plain_return(instruction))
             .filter_map(|(index, _)| self.analyze_epilogue(index));
+
         if let Some(refusal) = self.unresolved_control() {
             return FunctionAnalysis {
                 prologue: prologue.map(|_| Err(refusal.clone())),
@@ -348,6 +238,7 @@ impl<'a> Function<'a> {
                 inline_asm,
             };
         }
+
         let prologue_window = match &prologue {
             Some(Ok(rewrite)) => {
                 let end = rewrite
@@ -360,6 +251,7 @@ impl<'a> Function<'a> {
             }
             _ => None,
         };
+
         let epilogues = returns
             .map(|result| {
                 let rewrite = result?;
@@ -372,6 +264,7 @@ impl<'a> Function<'a> {
                 }
             })
             .collect();
+
         FunctionAnalysis {
             prologue,
             epilogues,
@@ -384,6 +277,7 @@ impl<'a> Function<'a> {
             .instructions()
             .filter_map(|(index, instruction)| Some((index, allocation(instruction)?)))
             .collect();
+
         let (allocation_index, frame) = match allocations.as_slice() {
             [] => return None,
             [single] => *single,
@@ -394,13 +288,16 @@ impl<'a> Function<'a> {
                 return saves_any.then_some(Err(Refusal::MultipleAllocations));
             }
         };
+
         let (start, end) = self.block(allocation_index);
         let mut saves: [Option<usize>; 32] = [None; 32];
         let mut link_store = None;
+
         for index in allocation_index + 1..end {
             let Some((gpr, offset)) = self.instruction(index).and_then(store_word) else {
                 continue;
             };
+
             let slot = offset - frame.0;
             if gpr == Gpr::R0 && slot == LINK_SLOT {
                 link_store.get_or_insert(index);
@@ -408,6 +305,7 @@ impl<'a> Function<'a> {
                 saves[usize::from(gpr.number())].get_or_insert(index);
             }
         }
+
         let saved: GprSet = saves
             .iter()
             .enumerate()
@@ -417,6 +315,7 @@ impl<'a> Function<'a> {
         if saved.is_empty() {
             return None;
         }
+
         Some(self.plan_prologue(PrologueCandidate {
             allocation: allocation_index,
             frame,
@@ -436,6 +335,7 @@ impl<'a> Function<'a> {
             saved,
             link_store,
         } = candidate;
+
         let range =
             SaveRange::from_set(saved).ok_or(Refusal::NonContiguous { registers: saved })?;
         // `stwu` writes the back chain at [0, 4) of the new frame after the
@@ -443,23 +343,32 @@ impl<'a> Function<'a> {
         if frame.0 + save_slot(range.first) < WORD {
             return Err(Refusal::SlotOverlapsBackChain);
         }
+
         let link_store = link_store.ok_or(Refusal::LinkRegisterNotSaved)?;
         let link_read = (block_start..link_store)
             .rev()
             .find(|index| self.instruction(*index).is_some_and(is_link_read_to_r0))
             .ok_or(Refusal::LinkRegisterNotSaved)?;
 
-        // (register, position, offset in the new frame) of each moved store.
-        let mut stores: Vec<(Gpr, usize, i64)> = range
+        let mut stores: Vec<MovedStore> = range
             .registers()
             .filter_map(|gpr| {
                 let position = saves[usize::from(gpr.number())]?;
-                Some((gpr, position, frame.0 + save_slot(gpr)))
+                Some(MovedStore {
+                    gpr,
+                    position,
+                    slot: frame.0 + save_slot(gpr),
+                })
             })
             .collect();
-        stores.push((Gpr::R0, link_store, frame.0 + LINK_SLOT));
+        stores.push(MovedStore {
+            gpr: Gpr::R0,
+            position: link_store,
+            slot: frame.0 + LINK_SLOT,
+        });
+
         let moved_link_read = (link_read > allocation_index).then_some(link_read);
-        let mut removed: Vec<usize> = stores.iter().map(|(_, position, _)| *position).collect();
+        let mut removed: Vec<usize> = stores.iter().map(|store| store.position).collect();
         removed.extend(moved_link_read);
         removed.sort_unstable();
         let window_end = removed.last().copied().unwrap_or(allocation_index);
@@ -471,44 +380,56 @@ impl<'a> Function<'a> {
                 if effects.defs.contains(Gpr::R0) {
                     return Err(Refusal::WrittenBeforeSave { register: Gpr::R0 });
                 }
+
                 if effects.link.write {
                     return Err(Refusal::LinkRegisterAccessed);
                 }
             }
         }
+
         for index in allocation_index + 1..window_end {
             if removed.binary_search(&index).is_ok() {
                 continue;
             }
+
             let Some(effects) = self.effects_at(index)? else {
                 continue;
             };
+
             if effects.defs.contains(Gpr::R1) {
                 return Err(Refusal::StackPointerAccessed);
             }
+
             if let Some(link_read) = moved_link_read
                 && index < link_read
                 && (effects.touches(Gpr::R0) || effects.link.read || effects.link.write)
             {
                 return Err(Refusal::LinkRegisterAccessed);
             }
-            for (gpr, position, slot) in &stores {
-                if index > *position {
+
+            for store in &stores {
+                if index > store.position {
                     continue;
                 }
-                if effects.defs.contains(*gpr) {
-                    return Err(Refusal::WrittenBeforeSave { register: *gpr });
+
+                if effects.defs.contains(store.gpr) {
+                    return Err(Refusal::WrittenBeforeSave {
+                        register: store.gpr,
+                    });
                 }
+
                 if effects
                     .memory
-                    .is_some_and(|memory| memory.may_overlap(Gpr::R1, *slot, WORD))
+                    .is_some_and(|memory| memory.may_overlap(Gpr::R1, store.slot, WORD))
                 {
                     return Err(Refusal::SlotAccessed);
                 }
             }
         }
+
         self.link_register_dead(allocation_index, &removed)
             .map_err(|path| Refusal::LinkRegisterLive { path })?;
+
         Ok(PrologueRewrite {
             allocation: allocation_index,
             moved_link_read,
@@ -548,17 +469,22 @@ impl<'a> Function<'a> {
                 _ => None,
             })
             .collect();
+
         let mut visited = vec![false; self.lines.len()];
         let mut pending = vec![allocation_index + 1];
+
         while let Some(mut index) = pending.pop() {
             loop {
                 let Some(line) = self.lines.get(index) else {
                     return Err(LivePath::FallsOffEnd);
                 };
+
                 if std::mem::replace(&mut visited[index], true) {
                     break;
                 }
+
                 match line {
+                    // No effect on the link register.
                     Line::Label(_) | Line::Blank => {}
                     Line::Directive(directive) => {
                         if !is_alignment(directive) {
@@ -573,6 +499,7 @@ impl<'a> Function<'a> {
                             mnemonic: (*statements).to_owned(),
                         });
                     }
+                    // Moves before the helper call, so it does not run on this path.
                     Line::Instruction(_) if skipped.binary_search(&index).is_ok() => {}
                     Line::Instruction(instruction) => {
                         let mnemonic = || instruction.mnemonic.to_owned();
@@ -583,6 +510,7 @@ impl<'a> Function<'a> {
                                         mnemonic: mnemonic(),
                                     }
                                 })?;
+
                                 if access.read {
                                     return Err(LivePath::Read {
                                         mnemonic: mnemonic(),
@@ -616,6 +544,7 @@ impl<'a> Function<'a> {
                                         target: target.to_owned(),
                                     });
                                 };
+
                                 if conditional {
                                     pending.push(index + 1);
                                 }
@@ -625,9 +554,11 @@ impl<'a> Function<'a> {
                         }
                     }
                 }
+
                 index += 1;
             }
         }
+
         Ok(())
     }
 
@@ -636,6 +567,7 @@ impl<'a> Function<'a> {
         let (deallocation, frame) = (start..ret)
             .rev()
             .find_map(|index| Some((index, deallocation(self.instruction(index)?)?)))?;
+
         // Offset from the incoming stack pointer of `offset(1)` at `index`.
         let slot_of = |index: usize, offset: i64| {
             if index < deallocation {
@@ -644,8 +576,10 @@ impl<'a> Function<'a> {
                 offset
             }
         };
+
         let mut restores: [Option<usize>; 32] = [None; 32];
         let mut link_loads = Vec::new();
+
         for index in start..ret {
             let Some((gpr, offset)) = self.instruction(index).and_then(load_word) else {
                 continue;
@@ -657,6 +591,7 @@ impl<'a> Function<'a> {
                 restores[usize::from(gpr.number())] = Some(index);
             }
         }
+
         let restored: GprSet = restores
             .iter()
             .enumerate()
@@ -669,6 +604,7 @@ impl<'a> Function<'a> {
         let Some(link_write) = link_write else {
             return (!restored.is_empty()).then_some(Err(Refusal::LinkRegisterNotRestored));
         };
+
         Some(self.plan_epilogue(EpilogueCandidate {
             ret,
             deallocation,
@@ -690,11 +626,13 @@ impl<'a> Function<'a> {
             link_loads,
             link_write,
         } = candidate;
+
         let link_load = link_loads
             .iter()
             .copied()
             .rfind(|index| *index < link_write)
             .ok_or(Refusal::LinkRegisterNotRestored)?;
+
         let range = if restored.is_empty() {
             None
         } else {
@@ -709,6 +647,7 @@ impl<'a> Function<'a> {
             Deallocation,
             LinkWrite,
         }
+
         let frame_offset = |index: usize, slot: i64| {
             // Offset relative to r1 as it is at `index`.
             if index < deallocation {
@@ -717,6 +656,7 @@ impl<'a> Function<'a> {
                 slot
             }
         };
+
         let mut moved: Vec<(usize, Moved)> = range
             .iter()
             .flat_map(|range| range.registers())
@@ -741,6 +681,7 @@ impl<'a> Function<'a> {
         moved.push((link_write, Moved::LinkWrite));
         moved.push((deallocation, Moved::Deallocation));
         moved.sort_unstable_by_key(|(position, _)| *position);
+
         let removed: Vec<usize> = moved.iter().map(|(position, _)| *position).collect();
         let first = removed[0];
 
@@ -748,21 +689,26 @@ impl<'a> Function<'a> {
             if removed.binary_search(&index).is_ok() {
                 continue;
             }
+
             let Some(effects) = self.effects_at(index)? else {
                 continue;
             };
+
             for (position, kind) in &moved {
                 if *position > index {
                     break;
                 }
+
                 match *kind {
                     Moved::Restore { gpr, slot } => {
                         if effects.touches(gpr) {
                             return Err(Refusal::AccessedAfterRestore { register: gpr });
                         }
+
                         if effects.defs.contains(Gpr::R1) {
                             return Err(Refusal::StackPointerAccessed);
                         }
+
                         if effects.memory.is_some_and(|memory| {
                             memory.access == Access::Store
                                 && memory.may_overlap(Gpr::R1, frame_offset(index, slot), WORD)
@@ -783,6 +729,7 @@ impl<'a> Function<'a> {
                 }
             }
         }
+
         Ok(EpilogueRewrite {
             ret,
             frame_size: frame,
@@ -790,6 +737,41 @@ impl<'a> Function<'a> {
             range,
         })
     }
+}
+
+/// Saves found after a frame allocation.
+struct PrologueCandidate {
+    allocation: usize,
+    frame: FrameSize,
+    block_start: usize,
+    /// Position of the first store of each register to its slot.
+    saves: [Option<usize>; 32],
+    saved: GprSet,
+    link_store: Option<usize>,
+}
+
+/// Restores found in a block that ends in `blr`.
+struct EpilogueCandidate {
+    ret: usize,
+    deallocation: usize,
+    frame: FrameSize,
+    /// Position of the last load of each register from its slot.
+    restores: [Option<usize>; 32],
+    restored: GprSet,
+    link_loads: Vec<usize>,
+    link_write: usize,
+}
+
+/// Store taken over by the save helper, with its offset in the new frame.
+struct MovedStore {
+    gpr: Gpr,
+    position: usize,
+    slot: i64,
+}
+
+/// Offset of the save slot of `gpr` from the incoming stack pointer.
+pub fn save_slot(gpr: Gpr) -> i64 {
+    -WORD * (32 - i64::from(gpr.number()))
 }
 
 fn is_alignment(directive: &str) -> bool {

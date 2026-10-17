@@ -17,19 +17,15 @@ use std::fs::File;
 use std::io::Read;
 use std::io::Seek;
 use std::io::SeekFrom;
-use std::io::{
-    self,
-};
 use std::path::Path;
 
-use thiserror::Error;
+mod error;
+
+pub use self::error::ElfError;
 
 /// `mtmsrd r13, 1`: r13 holds the processor control region address,
 /// whose external interrupt enable bit is clear.
 const MTMSRD_R13: u32 = 0x7da1_0164;
-/// `mtmsrd rS, 1` with the RS field cleared.
-const MTMSRD_ANY: u32 = 0x7c01_0164;
-const RS_FIELD: u32 = 0x1f << 21;
 const OR_R8: u32 = 0x7d08_4378;
 const NOP: u32 = 0x6000_0000;
 
@@ -46,6 +42,7 @@ impl Reservation {
         if word >> 26 != 31 {
             return None;
         }
+
         let record = word & 1 != 0;
         match (word >> 1) & 0x3ff {
             20 => Some(Reservation::Lwarx),
@@ -82,6 +79,10 @@ impl fmt::Display for Unprotected {
 
 /// Unprotected reservations in the code section loaded at `base`.
 pub fn scan(base: u32, words: &[u32]) -> Vec<Unprotected> {
+    /// `mtmsrd rS, 1` with the RS field cleared.
+    const MTMSRD_ANY: u32 = 0x7c01_0164;
+    const RS_FIELD: u32 = 0x1f << 21;
+
     let protected_load = |index: usize| {
         let before = &words[..index];
         match before {
@@ -95,11 +96,13 @@ pub fn scan(base: u32, words: &[u32]) -> Vec<Unprotected> {
             _ => false,
         }
     };
+
     let protected_store = |index: usize| {
         words
             .get(index + 1)
             .is_some_and(|next| next & !RS_FIELD == MTMSRD_ANY)
     };
+
     words
         .iter()
         .enumerate()
@@ -117,19 +120,6 @@ pub fn scan(base: u32, words: &[u32]) -> Vec<Unprotected> {
         })
         .collect()
 }
-
-#[derive(Debug, Error)]
-pub enum ElfError {
-    #[error("reading the image")]
-    Read(#[source] io::Error),
-    #[error("the image is not a 32-bit big-endian ELF file")]
-    NotElf32BigEndian,
-    #[error("section header entry size {size} is smaller than 40")]
-    SectionHeaderSize { size: u16 },
-}
-
-const SHT_NOBITS: u32 = 8;
-const SHF_EXECINSTR: u32 = 4;
 
 fn be32(bytes: &[u8], offset: usize) -> u32 {
     u32::from_be_bytes([
@@ -153,20 +143,26 @@ fn read_at(file: &mut File, offset: u64, buffer: &mut [u8]) -> Result<(), ElfErr
 /// with each section's size rounded down to whole words as the loader
 /// does.
 pub fn scan_elf(path: &Path) -> Result<Vec<Unprotected>, ElfError> {
+    const SHT_NOBITS: u32 = 8;
+    const SHF_EXECINSTR: u32 = 4;
+
     let mut file = File::open(path).map_err(ElfError::Read)?;
     let mut header = [0u8; 52];
     read_at(&mut file, 0, &mut header)?;
     if header[..4] != *b"\x7fELF" || header[4] != 1 || header[5] != 2 {
         return Err(ElfError::NotElf32BigEndian);
     }
+
     let section_offset = u64::from(be32(&header, 0x20));
     let entry_size = be16(&header, 0x2e);
     let section_count = be16(&header, 0x30);
     if entry_size < 40 {
         return Err(ElfError::SectionHeaderSize { size: entry_size });
     }
+
     let mut found = Vec::new();
     let mut entry = vec![0u8; usize::from(entry_size)];
+
     for index in 0..u64::from(section_count) {
         read_at(
             &mut file,
@@ -178,11 +174,13 @@ pub fn scan_elf(path: &Path) -> Result<Vec<Unprotected>, ElfError> {
         if kind == SHT_NOBITS || flags & SHF_EXECINSTR == 0 {
             continue;
         }
+
         let address = be32(&entry, 12);
         let offset = u64::from(be32(&entry, 16));
         let size = (be32(&entry, 20) & !3) as usize;
         let mut bytes = vec![0u8; size];
         read_at(&mut file, offset, &mut bytes)?;
+
         let (chunks, _) = bytes.as_chunks::<4>();
         let words: Vec<u32> = chunks
             .iter()
@@ -190,6 +188,7 @@ pub fn scan_elf(path: &Path) -> Result<Vec<Unprotected>, ElfError> {
             .collect();
         found.extend(scan(address, &words));
     }
+
     Ok(found)
 }
 

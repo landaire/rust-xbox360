@@ -1,5 +1,16 @@
 //! Kernel status codes, Win32 error codes and result values.
 
+mod error;
+
+pub use self::error::KernelError;
+pub use self::error::NotAFailure;
+pub use self::error::UnlistedStatus;
+
+/// HRESULT severity bit: set for a failure.
+const HRESULT_SEVERITY_ERROR: u32 = 0x8000_0000;
+/// HRESULT bit that marks a value converted from an NT status.
+const HRESULT_NT_STATUS: u32 = 0x1000_0000;
+
 /// A kernel status code as the kernel ABI and wire formats carry it.
 #[repr(transparent)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -70,126 +81,6 @@ value_enum! {
         Error = 3,
     }
 }
-
-/// Generates [`KernelError`] with one variant per listed status.
-macro_rules! kernel_errors {
-    ($($(#[$meta:meta])* $name:ident = $value:literal,)*) => {
-        /// A failed kernel call. A status without a variant keeps its value
-        /// for exact passthrough. A later version may name more statuses, so
-        /// match a status by its value with [`KernelError::status`] when it
-        /// has no variant here.
-        #[non_exhaustive]
-        #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-        pub enum KernelError {
-            $($(#[$meta])* $name,)*
-            Unlisted(UnlistedStatus),
-        }
-
-        impl KernelError {
-            /// The error for a failure status, `None` for a success or
-            /// informational status.
-            pub const fn from_status(status: NtStatus) -> Option<Self> {
-                if status.is_success() {
-                    return None;
-                }
-                Some(match status.0 {
-                    $($value => Self::$name,)*
-                    _ => Self::Unlisted(UnlistedStatus(status)),
-                })
-            }
-
-            pub const fn status(self) -> NtStatus {
-                match self {
-                    $(Self::$name => NtStatus($value),)*
-                    Self::Unlisted(UnlistedStatus(status)) => status,
-                }
-            }
-        }
-    };
-}
-
-kernel_errors! {
-    BufferOverflow = 0x8000_0005,
-    NoMoreFiles = 0x8000_0006,
-    NoMoreEntries = 0x8000_001a,
-    Unsuccessful = 0xc000_0001,
-    NotImplemented = 0xc000_0002,
-    AccessViolation = 0xc000_0005,
-    InvalidHandle = 0xc000_0008,
-    InvalidParameter = 0xc000_000d,
-    NoSuchDevice = 0xc000_000e,
-    NoSuchFile = 0xc000_000f,
-    InvalidDeviceRequest = 0xc000_0010,
-    EndOfFile = 0xc000_0011,
-    NoMediaInDevice = 0xc000_0013,
-    /// A completion routine keeps the request: the I/O manager stops
-    /// completing it.
-    MoreProcessingRequired = 0xc000_0016,
-    NoMemory = 0xc000_0017,
-    AccessDenied = 0xc000_0022,
-    BufferTooSmall = 0xc000_0023,
-    ObjectNameInvalid = 0xc000_0033,
-    ObjectNameNotFound = 0xc000_0034,
-    ObjectNameCollision = 0xc000_0035,
-    ObjectPathInvalid = 0xc000_0039,
-    ObjectPathNotFound = 0xc000_003a,
-    CrcError = 0xc000_003f,
-    SectionTooBig = 0xc000_0040,
-    DiskFull = 0xc000_007f,
-    InsufficientResources = 0xc000_009a,
-    DeviceNotConnected = 0xc000_009d,
-    FileIsADirectory = 0xc000_00ba,
-    DeviceDoesNotExist = 0xc000_00c0,
-    NotSameDevice = 0xc000_00d4,
-    DirectoryNotEmpty = 0xc000_0101,
-    NotADirectory = 0xc000_0103,
-    CannotDelete = 0xc000_0121,
-    OrdinalNotFound = 0xc000_0138,
-    UnrecognizedVolume = 0xc000_014f,
-    MappedAlignment = 0xc000_0220,
-    EntryPointNotFound = 0xc000_0263,
-    DeviceRemoved = 0xc000_02b6,
-}
-
-/// A failure status without a [`KernelError`] variant. Only
-/// [`KernelError::from_status`] creates it, so equal errors have equal
-/// variants.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct UnlistedStatus(NtStatus);
-
-/// A success or informational status, which is not a [`KernelError`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct NotAFailure(pub NtStatus);
-
-impl core::fmt::Display for NotAFailure {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "kernel status {:#010x} is not a failure", self.0.0)
-    }
-}
-
-impl core::error::Error for NotAFailure {}
-
-impl TryFrom<NtStatus> for KernelError {
-    type Error = NotAFailure;
-
-    fn try_from(status: NtStatus) -> Result<Self, NotAFailure> {
-        Self::from_status(status).ok_or(NotAFailure(status))
-    }
-}
-
-impl From<KernelError> for NtStatus {
-    fn from(error: KernelError) -> Self {
-        error.status()
-    }
-}
-
-impl core::fmt::Display for KernelError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "kernel status {:#010x}", self.status().0)
-    }
-}
-
-impl core::error::Error for KernelError {}
 
 /// A Win32 error code, as the kernel's status translation, the last-error
 /// value and XAM report it.
@@ -336,6 +227,7 @@ impl Hresult {
     /// pass unchanged.
     pub const fn from_win32(error: Win32Error) -> Self {
         let code = error.code();
+
         if (code as i32) <= 0 {
             Self(code)
         } else {
@@ -374,10 +266,19 @@ impl Hresult {
     }
 }
 
-/// HRESULT severity bit: set for a failure.
-const HRESULT_SEVERITY_ERROR: u32 = 0x8000_0000;
-/// HRESULT bit that marks a value converted from an NT status.
-const HRESULT_NT_STATUS: u32 = 0x1000_0000;
+/// A kernel status as a result: the status with the NT bit set.
+impl From<KernelError> for Hresult {
+    fn from(error: KernelError) -> Self {
+        Self::from_nt(error.status())
+    }
+}
+
+/// A Win32 error as a result, as [`Hresult::from_win32`] converts it.
+impl From<Win32Error> for Hresult {
+    fn from(error: Win32Error) -> Self {
+        Self::from_win32(error)
+    }
+}
 
 /// The facility field of an [`Hresult`]: bits 16 to 28 of the value. Bit
 /// 28 is the NT bit, so a facility at or above 0x1000 marks a converted
@@ -396,6 +297,7 @@ impl Facility {
     /// If `value` does not fit the 13-bit field.
     pub const fn new(value: u16) -> Self {
         assert!(value <= Self::MASK, "facility exceeds 13 bits");
+
         Self(value)
     }
 
@@ -404,56 +306,9 @@ impl Facility {
     }
 }
 
-/// A kernel status as a result: the status with the NT bit set.
-impl From<KernelError> for Hresult {
-    fn from(error: KernelError) -> Self {
-        Self::from_nt(error.status())
-    }
-}
-
-/// A Win32 error as a result, as [`Hresult::from_win32`] converts it.
-impl From<Win32Error> for Hresult {
-    fn from(error: Win32Error) -> Self {
-        Self::from_win32(error)
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    extern crate std;
-
     use super::*;
-    use std::string::ToString;
-
-    #[test]
-    fn listed_status_maps_to_its_variant() {
-        assert_eq!(
-            KernelError::try_from(NtStatus(0xc000_0034)),
-            Ok(KernelError::ObjectNameNotFound)
-        );
-        assert_eq!(
-            NtStatus::from(KernelError::AccessDenied),
-            NtStatus(0xc000_0022)
-        );
-    }
-
-    #[test]
-    fn unlisted_status_passes_through() {
-        let error = KernelError::from_status(NtStatus(0xc000_9999)).unwrap();
-        assert!(matches!(error, KernelError::Unlisted(_)));
-        assert_eq!(error.status(), NtStatus(0xc000_9999));
-        assert_eq!(error.to_string(), "kernel status 0xc0009999");
-    }
-
-    #[test]
-    fn success_is_not_an_error() {
-        assert_eq!(KernelError::from_status(NtStatus::SUCCESS), None);
-        assert_eq!(KernelError::from_status(NtStatus::TIMEOUT), None);
-        assert_eq!(
-            KernelError::try_from(NtStatus::SUCCESS),
-            Err(NotAFailure(NtStatus::SUCCESS))
-        );
-    }
 
     #[test]
     fn success_and_informational_statuses_are_ok() {

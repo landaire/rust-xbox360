@@ -8,30 +8,17 @@ use std::collections::BTreeMap;
 use std::fmt;
 use std::io::BufRead;
 use std::io::Write;
-use std::io::{
-    self,
-};
-
-use thiserror::Error;
 
 use crate::analysis::Function;
 use crate::analysis::FunctionAnalysis;
 use crate::analysis::Refusal;
+use crate::helpers;
 use crate::helpers::HelperUse;
-use crate::helpers::{
-    self,
-};
 use crate::line::Line;
 
-#[derive(Debug, Error)]
-pub enum Error {
-    #[error("reading the assembly input")]
-    Read(#[source] io::Error),
-    #[error("writing the assembly output")]
-    Write(#[source] io::Error),
-    #[error("function `{name}` has no `{end_label}:` label")]
-    UnterminatedFunction { name: String, end_label: String },
-}
+mod error;
+
+pub use self::error::Error;
 
 /// Rewritten and refused sites of one kind.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -69,15 +56,18 @@ impl fmt::Display for Report {
             "functions: {} ({} with inline assembly)",
             self.functions, self.functions_with_inline_asm
         )?;
+
         for (name, counts) in [
             ("prologues", &self.prologues),
             ("epilogues", &self.epilogues),
         ] {
             writeln!(f, "{name}: {} rewritten", counts.rewritten)?;
+
             for (kind, count) in &counts.refused {
                 writeln!(f, "  refused {kind}: {count}")?;
             }
         }
+
         let net = self.removed_instructions as i64
             - self.added_instructions as i64
             - self.helper_instructions as i64;
@@ -92,13 +82,6 @@ impl fmt::Display for Report {
     }
 }
 
-/// Function region being collected.
-struct OpenFunction {
-    name: String,
-    end_label: String,
-    lines: Vec<String>,
-}
-
 /// Side outputs of [`rewrite`].
 pub struct Listings<S, R> {
     /// `name<TAB>inline-asm|plain` per compiled function, for
@@ -106,6 +89,21 @@ pub struct Listings<S, R> {
     pub scope: S,
     /// `name<TAB>prologue|epilogue<TAB>reason` per refused site.
     pub refusals: R,
+}
+
+/// Function region being collected.
+struct OpenFunction {
+    name: String,
+    end_label: String,
+    lines: Vec<String>,
+}
+
+/// Replacement text for one line.
+#[derive(Clone, Debug, Default)]
+struct Edit {
+    before: Vec<String>,
+    replacement: Option<Vec<String>>,
+    removed: bool,
 }
 
 /// Rewrites `input` into `output`.
@@ -118,6 +116,7 @@ pub fn rewrite(
     let mut helpers = HelperUse::default();
     let mut symbol: Option<String> = None;
     let mut open: Option<OpenFunction> = None;
+
     for line in input.lines() {
         let line = line.map_err(Error::Read)?;
         if let Some(function) = &mut open {
@@ -134,8 +133,10 @@ pub fn rewrite(
             } else {
                 function.lines.push(line);
             }
+
             continue;
         }
+
         match Line::parse(&line) {
             Line::Label(label) => {
                 if let Some(suffix) = label.strip_prefix(".Lfunc_begin") {
@@ -148,31 +149,29 @@ pub fn rewrite(
                     symbol = Some(label.to_owned());
                 }
             }
+            // Labels may be followed by blank lines before `.Lfunc_begin`.
             Line::Blank => {}
             _ => symbol = None,
         }
+
         writeln!(output, "{line}").map_err(Error::Write)?;
     }
+
     if let Some(function) = open {
         return Err(Error::UnterminatedFunction {
             name: function.name,
             end_label: function.end_label,
         });
     }
+
     helpers.emit(&mut output).map_err(Error::Write)?;
     report.helper_instructions = helpers.instruction_count();
+
     output.flush().map_err(Error::Write)?;
     listings.scope.flush().map_err(Error::Write)?;
     listings.refusals.flush().map_err(Error::Write)?;
-    Ok(report)
-}
 
-/// Replacement text for one line.
-#[derive(Clone, Debug, Default)]
-struct Edit {
-    before: Vec<String>,
-    replacement: Option<Vec<String>>,
-    removed: bool,
+    Ok(report)
 }
 
 fn emit_function(
@@ -190,14 +189,17 @@ fn emit_function(
             .collect(),
     );
     let analysis = parsed.analyze();
+
     report.functions += 1;
     report.functions_with_inline_asm += usize::from(analysis.inline_asm);
+
     let kind = if analysis.inline_asm {
         "inline-asm"
     } else {
         "plain"
     };
     writeln!(listings.scope, "{}\t{kind}", function.name).map_err(Error::Write)?;
+
     let prologue = analysis
         .prologue
         .iter()
@@ -206,6 +208,7 @@ fn emit_function(
         .epilogues
         .iter()
         .map(|result| ("epilogue", result.as_ref().err()));
+
     for (site, refusal) in prologue.chain(epilogues) {
         if let Some(refusal) = refusal {
             writeln!(listings.refusals, "{}\t{site}\t{refusal}", function.name)
@@ -214,10 +217,12 @@ fn emit_function(
     }
 
     let edits = plan_edits(&analysis, function.lines.len(), report, helpers);
+
     for (line, edit) in function.lines.iter().zip(&edits) {
         for text in &edit.before {
             writeln!(output, "{text}").map_err(Error::Write)?;
         }
+
         if let Some(replacement) = &edit.replacement {
             for text in replacement {
                 writeln!(output, "{text}").map_err(Error::Write)?;
@@ -226,6 +231,7 @@ fn emit_function(
             writeln!(output, "{line}").map_err(Error::Write)?;
         }
     }
+
     Ok(())
 }
 
@@ -236,29 +242,39 @@ fn plan_edits(
     helpers: &mut HelperUse,
 ) -> Vec<Edit> {
     let mut edits = vec![Edit::default(); line_count];
+
     if let Some(prologue) = &analysis.prologue {
         report.prologues.record(prologue);
+
         if let Ok(prologue) = prologue {
             let mut inserted = Vec::new();
+
             if prologue.moved_link_read.is_some() {
                 inserted.push("\tmflr 0".to_owned());
             }
+
             inserted.push(format!("\tbl {}", helpers::save_name(prologue.range)));
+
             report.added_instructions += inserted.len();
             report.removed_instructions += prologue.removed.len();
             edits[prologue.allocation].before = inserted;
+
             for index in &prologue.removed {
                 edits[*index].removed = true;
             }
+
             helpers.record_save(prologue.range);
         }
     }
+
     for epilogue in &analysis.epilogues {
         report.epilogues.record(epilogue);
         let Ok(epilogue) = epilogue else { continue };
+
         for index in &epilogue.removed {
             edits[*index].removed = true;
         }
+
         edits[epilogue.ret].replacement = Some(vec![
             format!("\taddi 1, 1, {}", epilogue.frame_size.bytes()),
             format!("\tb {}", helpers::restore_name(epilogue.range)),
@@ -267,5 +283,6 @@ fn plan_edits(
         report.removed_instructions += epilogue.removed.len() + 1;
         report.added_instructions += 2;
     }
+
     edits
 }

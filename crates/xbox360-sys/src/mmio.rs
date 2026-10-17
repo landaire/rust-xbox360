@@ -14,18 +14,6 @@
 
 use core::cell::UnsafeCell;
 
-/// Order the preceding device accesses before the following ones.
-#[inline(always)]
-fn eieio() {
-    // SAFETY: `eieio` has no effect other than ordering; without `nomem`
-    // the compiler also keeps memory accesses on their side of it.
-    unsafe { core::arch::asm!("eieio", options(nostack, preserves_flags)) };
-}
-
-mod sealed {
-    pub trait Sealed {}
-}
-
 /// The value of a [`Register`]: a type that one load or store instruction
 /// accesses. A `u64` is accessed with one `ld` or `std`, which the 32-bit
 /// code of the target does not emit for a plain access.
@@ -90,9 +78,12 @@ pub struct Register<T: RegisterValue>(UnsafeCell<T>);
 
 // SAFETY: every access is a single load or store of a register, which the
 // device serializes.
-unsafe impl<T: RegisterValue> Sync for Register<T> {}
+unsafe impl<T> Sync for Register<T> where T: RegisterValue {}
 
-impl<T: RegisterValue> Register<T> {
+impl<T> Register<T>
+where
+    T: RegisterValue,
+{
     pub fn read(&self) -> T {
         // SAFETY: the register is mapped device memory for as long as
         // `self` is borrowed, aligned to its size.
@@ -158,10 +149,6 @@ pub struct GpuRegisters([Register<u32>; 0x1_0000]);
 impl GpuRegisters {
     pub const ADDRESS: usize = 0x7fc8_0000;
 
-    const STATUS: usize = 0x5d0;
-    const DISPLAY_GRAPHICS_CONTROL: usize = 0x1841;
-    const DISPLAY_PRIMARY_SURFACE: usize = 0x1844;
-
     pub fn get() -> &'static Self {
         // SAFETY: the console kernel maps the GPU registers at this address
         // in every process, and the window is only reached through
@@ -175,7 +162,10 @@ impl GpuRegisters {
     }
 
     pub fn status(&self) -> &Register<GpuStatus> {
-        let register: *const Register<u32> = &self.0[Self::STATUS];
+        const STATUS: usize = 0x5d0;
+
+        let register: *const Register<u32> = &self.0[STATUS];
+
         // SAFETY: `GpuStatus` is a transparent `u32`, so the register has
         // the same layout and every value is valid.
         unsafe { &*register.cast() }
@@ -183,13 +173,17 @@ impl GpuRegisters {
 
     /// `D1GRPH_CONTROL` of the display controller.
     pub fn display_graphics_control(&self) -> &Register<u32> {
-        &self.0[Self::DISPLAY_GRAPHICS_CONTROL]
+        const DISPLAY_GRAPHICS_CONTROL: usize = 0x1841;
+
+        &self.0[DISPLAY_GRAPHICS_CONTROL]
     }
 
     /// `D1GRPH_PRIMARY_SURFACE_ADDRESS`: the front buffer of the display
     /// controller.
     pub fn display_primary_surface(&self) -> &Register<u32> {
-        &self.0[Self::DISPLAY_PRIMARY_SURFACE]
+        const DISPLAY_PRIMARY_SURFACE: usize = 0x1844;
+
+        &self.0[DISPLAY_PRIMARY_SURFACE]
     }
 }
 
@@ -311,3 +305,15 @@ const _: () = {
     assert!(core::mem::offset_of!(SataRegisters, scontrol) == 0x18);
     assert!(core::mem::offset_of!(SataRegisters, hotplug) == 0x1c);
 };
+
+mod sealed {
+    pub trait Sealed {}
+}
+
+/// Order the preceding device accesses before the following ones.
+#[inline(always)]
+fn eieio() {
+    // SAFETY: `eieio` has no effect other than ordering; without `nomem`
+    // the compiler also keeps memory accesses on their side of it.
+    unsafe { core::arch::asm!("eieio", options(nostack, preserves_flags)) };
+}

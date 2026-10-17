@@ -39,10 +39,13 @@ impl DebugOutput {
         if self.length == 0 {
             return;
         }
+
         self.buffer[self.length] = 0;
+
         // SAFETY: the format is a NUL-terminated "%s" and the buffer is
         // NUL-terminated at `length`.
         unsafe { dbg_print_string(c"%s".as_ptr().cast(), self.buffer.as_ptr()) };
+
         self.length = 0;
     }
 }
@@ -62,6 +65,7 @@ impl fmt::Write for DebugOutput {
             self.buffer[self.length] = byte;
             self.length += 1;
         }
+
         Ok(())
     }
 }
@@ -75,6 +79,7 @@ impl Drop for DebugOutput {
 #[doc(hidden)]
 pub fn print_arguments(arguments: fmt::Arguments<'_>) {
     let mut output = DebugOutput::new();
+
     // `DebugOutput` never fails; an error comes from a `Display` impl and
     // ends the message where it occurred.
     let _ = fmt::write(&mut output, arguments);

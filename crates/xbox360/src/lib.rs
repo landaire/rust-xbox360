@@ -23,9 +23,6 @@
 #[cfg(all(feature = "alloc", any(target_os = "xbox360", xbox360_docs)))]
 extern crate alloc;
 
-/// The raw bindings this crate is built on.
-pub use xbox360_sys as sys;
-
 pub mod status;
 
 #[cfg(any(target_os = "xbox360", xbox360_docs))]
@@ -34,6 +31,8 @@ pub mod atomic;
 pub mod console;
 #[cfg(any(target_os = "xbox360", xbox360_docs))]
 pub mod debug;
+#[cfg(any(target_os = "xbox360", xbox360_docs))]
+mod error;
 #[cfg(any(target_os = "xbox360", xbox360_docs))]
 pub mod module;
 #[cfg(any(target_os = "xbox360", xbox360_docs))]
@@ -48,3 +47,6 @@ pub mod time;
 pub mod title;
 #[cfg(any(target_os = "xbox360", xbox360_docs))]
 pub mod xam;
+
+/// The raw bindings this crate is built on.
+pub use xbox360_sys as sys;

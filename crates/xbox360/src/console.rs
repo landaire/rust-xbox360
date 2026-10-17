@@ -1,38 +1,13 @@
 //! Kernel versions, hardware flags and firmware requests.
 
+use core::sync::atomic::Ordering;
+
 use xbox360_sys::xboxkrnl;
-
-pub use xbox360_sys::xboxkrnl::KernelVersion;
-
-/// Stop on a data import that the loader left unresolved. One shared copy
-/// keeps the panic code out of the callers.
-#[cold]
-#[inline(never)]
-pub(crate) fn unresolved_import(name: &str) -> ! {
-    panic!("the loader did not resolve {name}")
-}
-
-/// Version of the running kernel (`XboxKrnlVersion`).
-///
-/// # Panics
-///
-/// If the loader did not resolve the import.
-pub fn kernel_version() -> KernelVersion {
-    match xboxkrnl::XboxKrnlVersion.get() {
-        Some(version) => *version,
-        None => unresolved_import("XboxKrnlVersion"),
-    }
-}
-
-/// Version of the base kernel (`XboxKrnlBaseVersion`). `None` when the
-/// loader left the import unresolved, as Xenia does.
-pub fn base_kernel_version() -> Option<KernelVersion> {
-    xboxkrnl::XboxKrnlBaseVersion.get().copied()
-}
 
 pub use xbox360_sys::xboxkrnl::FirmwareRequest;
 pub use xbox360_sys::xboxkrnl::HardwareFlags;
 pub use xbox360_sys::xboxkrnl::HardwareGeneration;
+pub use xbox360_sys::xboxkrnl::KernelVersion;
 
 /// Kind of console.
 ///
@@ -56,6 +31,24 @@ impl ConsoleType {
     }
 }
 
+/// Version of the running kernel (`XboxKrnlVersion`).
+///
+/// # Panics
+///
+/// If the loader did not resolve the import.
+pub fn kernel_version() -> KernelVersion {
+    match xboxkrnl::XboxKrnlVersion.get() {
+        Some(version) => *version,
+        None => unresolved_import("XboxKrnlVersion"),
+    }
+}
+
+/// Version of the base kernel (`XboxKrnlBaseVersion`). `None` when the
+/// loader left the import unresolved, as Xenia does.
+pub fn base_kernel_version() -> Option<KernelVersion> {
+    xboxkrnl::XboxKrnlBaseVersion.get().copied()
+}
+
 /// The hardware flags of the console.
 ///
 /// # Panics
@@ -63,9 +56,7 @@ impl ConsoleType {
 /// If the loader did not resolve `XboxHardwareInfo`.
 pub fn hardware_flags() -> HardwareFlags {
     match xboxkrnl::XboxHardwareInfo.get() {
-        Some(info) => HardwareFlags::from_bits_retain(
-            info.flags.load(core::sync::atomic::Ordering::Relaxed),
-        ),
+        Some(info) => HardwareFlags::from_bits_retain(info.flags.load(Ordering::Relaxed)),
         None => unresolved_import("XboxHardwareInfo"),
     }
 }
@@ -75,6 +66,15 @@ pub fn return_to_firmware(request: FirmwareRequest) -> ! {
     // SAFETY: FirmwareRequest admits only the routines the kernel accepts;
     // the call takes no pointers.
     unsafe { xboxkrnl::HalReturnToFirmware(request) };
+
     // HalReturnToFirmware does not return.
     crate::thread::park()
+}
+
+/// Stop on a data import that the loader left unresolved. One shared copy
+/// keeps the panic code out of the callers.
+#[cold]
+#[inline(never)]
+pub(crate) fn unresolved_import(name: &str) -> ! {
+    panic!("the loader did not resolve {name}")
 }

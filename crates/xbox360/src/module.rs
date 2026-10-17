@@ -9,6 +9,17 @@ use xbox360_sys::xboxkrnl;
 use crate::status::KernelError;
 use crate::status::NtStatus;
 
+pub use xbox360_sys::Ordinal;
+pub use xbox360_sys::xboxkrnl::ImageFlags;
+pub use xbox360_sys::xboxkrnl::ImageVersion;
+
+/// `STATUS_DLL_NOT_FOUND`, for a lookup that reports success without a
+/// handle.
+const DLL_NOT_FOUND: KernelError = match KernelError::from_status(NtStatus(0xc000_0135)) {
+    Some(error) => error,
+    None => panic!("STATUS_DLL_NOT_FOUND is a failure status"),
+};
+
 /// Loader handle of a module that stays loaded for `'a`: its data table
 /// entry.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -29,13 +40,11 @@ impl<'a> ModuleHandle<'a> {
         // module that stays loaded for `'a`.
         unsafe {
             &*core::ptr::with_exposed_provenance::<xboxkrnl::LdrDataTableEntry>(
-                self.handle.get() as usize,
+                self.handle.get() as usize
             )
         }
     }
 }
-
-pub use xbox360_sys::Ordinal;
 
 /// Address of an export: a function entry or a data item.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -77,57 +86,6 @@ impl SystemModule {
     }
 }
 
-/// `STATUS_DLL_NOT_FOUND`, for a lookup that reports success without a
-/// handle.
-const DLL_NOT_FOUND: KernelError = match KernelError::from_status(NtStatus(0xc000_0135)) {
-    Some(error) => error,
-    None => panic!("STATUS_DLL_NOT_FOUND is a failure status"),
-};
-
-/// Handle of the loaded module named `name`.
-///
-/// # Safety
-///
-/// The module must stay loaded for as long as the handle is used. Use
-/// [`SystemModule::handle`] for modules that are never unloaded, and
-/// [`LoadedImage::handle`] for modules this title loads.
-pub unsafe fn module_handle(name: &CStr) -> Result<ModuleHandle<'static>, KernelError> {
-    let mut handle = 0u32;
-    // SAFETY: `name` is NUL-terminated and `handle` is live local storage.
-    unsafe { xboxkrnl::XexGetModuleHandle(name.as_ptr().cast(), &mut handle) }.result()?;
-    // Xenia reports a missing module with a Win32 code, which reads as a
-    // success status, and a zero handle.
-    let handle = NonZeroU32::new(handle).ok_or(DLL_NOT_FOUND)?;
-    Ok(ModuleHandle {
-        handle,
-        _module: PhantomData,
-    })
-}
-
-/// Address of the export `ordinal` of `module`. An address equal to the
-/// image base (`dll_base`) of the module counts as absent.
-pub fn resolve_export(
-    module: ModuleHandle<'_>,
-    ordinal: Ordinal,
-) -> Result<ExportAddress, KernelError> {
-    let mut address = 0u32;
-    // SAFETY: the handle names a module loaded for its lifetime and
-    // `address` is live local storage.
-    unsafe {
-        xboxkrnl::XexGetProcedureAddress(module.raw(), u32::from(ordinal.get()), &mut address)
-    }
-    .result()?;
-    let absent = module.entry().dll_base;
-    if address == absent {
-        Err(KernelError::EntryPointNotFound)
-    } else {
-        Ok(ExportAddress(address))
-    }
-}
-
-pub use xbox360_sys::xboxkrnl::ImageFlags;
-pub use xbox360_sys::xboxkrnl::ImageVersion;
-
 /// A module that [`load_image`] loaded. Unloads it on drop.
 #[derive(Debug)]
 pub struct LoadedImage(NonZeroU32);
@@ -144,6 +102,7 @@ impl LoadedImage {
     pub fn unload(self) -> Result<(), KernelError> {
         let handle = self.0;
         core::mem::forget(self);
+
         // SAFETY: the handle holds one load reference, which `forget` keeps
         // Drop from releasing again.
         unsafe { xboxkrnl::XexUnloadImage(handle.get()) }.result()
@@ -154,6 +113,52 @@ impl Drop for LoadedImage {
     fn drop(&mut self) {
         // SAFETY: the handle holds one load reference, released only here.
         unsafe { xboxkrnl::XexUnloadImage(self.0.get()) };
+    }
+}
+
+/// Handle of the loaded module named `name`.
+///
+/// # Safety
+///
+/// The module must stay loaded for as long as the handle is used. Use
+/// [`SystemModule::handle`] for modules that are never unloaded, and
+/// [`LoadedImage::handle`] for modules this title loads.
+pub unsafe fn module_handle(name: &CStr) -> Result<ModuleHandle<'static>, KernelError> {
+    let mut handle = 0u32;
+
+    // SAFETY: `name` is NUL-terminated and `handle` is live local storage.
+    unsafe { xboxkrnl::XexGetModuleHandle(name.as_ptr().cast(), &mut handle) }.result()?;
+
+    // Xenia reports a missing module with a Win32 code, which reads as a
+    // success status, and a zero handle.
+    let handle = NonZeroU32::new(handle).ok_or(DLL_NOT_FOUND)?;
+
+    Ok(ModuleHandle {
+        handle,
+        _module: PhantomData,
+    })
+}
+
+/// Address of the export `ordinal` of `module`. An address equal to the
+/// image base (`dll_base`) of the module counts as absent.
+pub fn resolve_export(
+    module: ModuleHandle<'_>,
+    ordinal: Ordinal,
+) -> Result<ExportAddress, KernelError> {
+    let mut address = 0u32;
+
+    // SAFETY: the handle names a module loaded for its lifetime and
+    // `address` is live local storage.
+    unsafe {
+        xboxkrnl::XexGetProcedureAddress(module.raw(), u32::from(ordinal.get()), &mut address)
+    }
+    .result()?;
+
+    let absent = module.entry().dll_base;
+    if address == absent {
+        Err(KernelError::EntryPointNotFound)
+    } else {
+        Ok(ExportAddress(address))
     }
 }
 
@@ -172,10 +177,13 @@ pub unsafe fn load_image(
 ) -> Result<LoadedImage, KernelError> {
     let version = minimum_version.unwrap_or(ImageVersion::ANY);
     let mut handle = 0u32;
+
     // SAFETY: `path` is NUL-terminated, `handle` is live local storage, and
     // the caller trusts the image's startup code.
     unsafe { xboxkrnl::XexLoadImage(path.as_ptr().cast(), flags, version, &mut handle) }
         .result()?;
+
     let handle = NonZeroU32::new(handle).ok_or(DLL_NOT_FOUND)?;
+
     Ok(LoadedImage(handle))
 }

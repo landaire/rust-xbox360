@@ -29,14 +29,7 @@ use crate::sync::WaitError;
 use crate::sync::WaitOutcome;
 use crate::sync::wait_outcome;
 use crate::sync::wait_signaled;
-
-/// `ExCreateThread` stack size that selects the executable's default.
-const DEFAULT_STACK_SIZE: u32 = 0;
-/// `ExCreateThread` `xapi_thread_startup`: enter the start routine
-/// directly with the context in r3.
-const NO_XAPI_STARTUP: u32 = 0;
-/// `ExCreateThread` creation flags that start the thread at once.
-const START_AT_ONCE: ThreadCreationFlags = ThreadCreationFlags::empty();
+use crate::time::relative_interval;
 
 pub use crate::time::sleep;
 
@@ -58,36 +51,6 @@ impl ThreadEntry {
     fn address(self) -> u32 {
         self.0 as usize as u32
     }
-}
-
-/// Define a [`ThreadEntry`] constant that runs `function`, an
-/// `extern "C" fn(u32) -> u32`, and ends the thread with its result.
-///
-/// ```ignore
-/// extern "C" fn worker(argument: u32) -> u32 {
-///     argument + 1
-/// }
-///
-/// xbox360::thread_entry!(WORKER = worker);
-///
-/// let thread = xbox360::thread::spawn_entry(WORKER, 41)?;
-/// thread.join()?;
-/// ```
-#[macro_export]
-macro_rules! thread_entry {
-    ($(#[$meta:meta])* $vis:vis $name:ident = $function:path) => {
-        $(#[$meta])*
-        $vis const $name: $crate::thread::ThreadEntry = {
-            extern "C" fn run(argument: u32) -> u32 {
-                let function: extern "C" fn(u32) -> u32 = $function;
-                function(argument)
-            }
-            $crate::sys::bridged!(entry, run);
-            // SAFETY: `entry` runs `run`, an `extern "C" fn(u32) -> u32`,
-            // behind the bridge.
-            unsafe { $crate::thread::ThreadEntry::from_bridged(entry) }
-        };
-    };
 }
 
 /// Kernel thread id.
@@ -139,7 +102,9 @@ impl<'a> ThreadObject<'a> {
 
     /// Process type that `KeGetCurrentProcessType` reports for the thread.
     pub fn current_process_type(self) -> ProcessType {
-        ProcessType(u32::from(self.0.current_process_type.load(Ordering::Relaxed)))
+        ProcessType(u32::from(
+            self.0.current_process_type.load(Ordering::Relaxed),
+        ))
     }
 
     /// Hardware thread the thread runs or last ran on.
@@ -167,6 +132,144 @@ impl core::hash::Hash for ThreadObject<'_> {
         core::ptr::hash(self.0, state);
     }
 }
+
+/// Options for a new thread.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct Builder {
+    stack_size: Option<NonZeroU32>,
+}
+
+impl Builder {
+    pub const fn new() -> Self {
+        Self { stack_size: None }
+    }
+
+    /// Stack size in bytes. Without it the kernel uses the stack size of
+    /// the executable's header.
+    pub const fn stack_size(self, bytes: NonZeroU32) -> Self {
+        Self {
+            stack_size: Some(bytes),
+        }
+    }
+
+    fn create(self, start: u32, context: u32) -> Result<JoinHandle, KernelError> {
+        // `ExCreateThread` stack size that selects the executable's default.
+        const DEFAULT_STACK_SIZE: u32 = 0;
+        // `ExCreateThread` `xapi_thread_startup`: enter the start routine
+        // directly with the context in r3.
+        const NO_XAPI_STARTUP: u32 = 0;
+        // `ExCreateThread` creation flags that start the thread at once.
+        const START_AT_ONCE: ThreadCreationFlags = ThreadCreationFlags::empty();
+
+        let stack_size = self.stack_size.map_or(DEFAULT_STACK_SIZE, NonZeroU32::get);
+        let mut handle = 0u32;
+        let mut id = 0u32;
+
+        // SAFETY: `start` is a bridged entry for an `extern "C" fn(u32) ->
+        // u32` (the `ThreadEntry` contract or `boxed_entry`), and `handle`
+        // and `id` are live locals.
+        unsafe {
+            xboxkrnl::ExCreateThread(
+                &mut handle,
+                stack_size,
+                &mut id,
+                NO_XAPI_STARTUP,
+                start,
+                context,
+                START_AT_ONCE,
+            )
+        }
+        .result()?;
+
+        // Without RETURN_THREAD_OBJECT the slot holds a handle.
+        Ok(JoinHandle {
+            handle: Handle::from_raw(handle),
+            id: ThreadId(id),
+        })
+    }
+
+    /// Start a thread that runs `entry` with `argument`.
+    pub fn spawn_entry(self, entry: ThreadEntry, argument: u32) -> Result<JoinHandle, KernelError> {
+        self.create(entry.address(), argument)
+    }
+
+    /// Start a thread that runs `function`. Its exit code is 0.
+    #[cfg(feature = "alloc")]
+    pub fn spawn<F>(self, function: F) -> Result<JoinHandle, KernelError>
+    where
+        F: FnOnce() + Send + 'static,
+    {
+        let closure: alloc::boxed::Box<BoxedClosure> =
+            alloc::boxed::Box::new(alloc::boxed::Box::new(function));
+        let context = alloc::boxed::Box::into_raw(closure);
+
+        let result = self.create(
+            boxed_entry as *const () as usize as u32,
+            context as usize as u32,
+        );
+
+        if result.is_err() {
+            // SAFETY: the thread was not created, so this is the only owner.
+            drop(unsafe { alloc::boxed::Box::from_raw(context) });
+        }
+
+        result
+    }
+}
+
+/// A started thread. Dropping it closes the handle and leaves the thread
+/// running.
+#[derive(Debug)]
+pub struct JoinHandle {
+    handle: Handle,
+    id: ThreadId,
+}
+
+impl JoinHandle {
+    pub const fn id(&self) -> ThreadId {
+        self.id
+    }
+
+    /// Wait for the thread to end or `timeout` to elapse.
+    pub fn wait_timeout(&self, timeout: Duration) -> Result<WaitOutcome, WaitError> {
+        let interval = relative_interval(timeout);
+
+        // SAFETY: `self` owns the open thread handle; `interval` is a live
+        // local.
+        wait_outcome(unsafe {
+            xboxkrnl::NtWaitForSingleObjectEx(
+                self.handle,
+                ProcessorMode::User,
+                NOT_ALERTABLE,
+                &interval,
+            )
+        })
+    }
+
+    /// Wait for the thread to end and close the handle.
+    pub fn join(self) -> Result<(), WaitError> {
+        // SAFETY: `self` owns the open thread handle; a null timeout waits
+        // without limit.
+        wait_signaled(unsafe {
+            xboxkrnl::NtWaitForSingleObjectEx(
+                self.handle,
+                ProcessorMode::User,
+                NOT_ALERTABLE,
+                core::ptr::null(),
+            )
+        })
+    }
+}
+
+impl Drop for JoinHandle {
+    fn drop(&mut self) {
+        // SAFETY: `self` owns the handle and closes it once.
+        unsafe { xboxkrnl::NtClose(self.handle) };
+    }
+}
+
+#[cfg(feature = "alloc")]
+type BoxedClosure = alloc::boxed::Box<dyn FnOnce() + Send + 'static>;
 
 /// Id of the calling thread (`GetCurrentThreadId`, which Xenia does not
 /// implement).
@@ -208,92 +311,6 @@ pub(crate) fn park() -> ! {
     }
 }
 
-/// Options for a new thread.
-#[derive(Debug, Clone, Copy, Default)]
-pub struct Builder {
-    stack_size: Option<NonZeroU32>,
-}
-
-impl Builder {
-    pub const fn new() -> Self {
-        Self { stack_size: None }
-    }
-
-    /// Stack size in bytes. Without it the kernel uses the stack size of
-    /// the executable's header.
-    pub const fn stack_size(self, bytes: NonZeroU32) -> Self {
-        Self {
-            stack_size: Some(bytes),
-        }
-    }
-
-    fn create(self, start: u32, context: u32) -> Result<JoinHandle, KernelError> {
-        let stack_size = self.stack_size.map_or(DEFAULT_STACK_SIZE, NonZeroU32::get);
-        let mut handle = 0u32;
-        let mut id = 0u32;
-        // SAFETY: `start` is a bridged entry for an `extern "C" fn(u32) ->
-        // u32` (the `ThreadEntry` contract or `boxed_entry`), and `handle`
-        // and `id` are live locals.
-        unsafe {
-            xboxkrnl::ExCreateThread(
-                &mut handle,
-                stack_size,
-                &mut id,
-                NO_XAPI_STARTUP,
-                start,
-                context,
-                START_AT_ONCE,
-            )
-        }
-        .result()?;
-        // Without RETURN_THREAD_OBJECT the slot holds a handle.
-        Ok(JoinHandle {
-            handle: Handle::from_raw(handle),
-            id: ThreadId(id),
-        })
-    }
-
-    /// Start a thread that runs `entry` with `argument`.
-    pub fn spawn_entry(self, entry: ThreadEntry, argument: u32) -> Result<JoinHandle, KernelError> {
-        self.create(entry.address(), argument)
-    }
-
-    /// Start a thread that runs `function`. Its exit code is 0.
-    #[cfg(feature = "alloc")]
-    pub fn spawn<F>(self, function: F) -> Result<JoinHandle, KernelError>
-    where
-        F: FnOnce() + Send + 'static,
-    {
-        let closure: alloc::boxed::Box<BoxedClosure> =
-            alloc::boxed::Box::new(alloc::boxed::Box::new(function));
-        let context = alloc::boxed::Box::into_raw(closure);
-        let result = self.create(
-            boxed_entry as *const () as usize as u32,
-            context as usize as u32,
-        );
-        if result.is_err() {
-            // SAFETY: the thread was not created, so this is the only owner.
-            drop(unsafe { alloc::boxed::Box::from_raw(context) });
-        }
-        result
-    }
-}
-
-#[cfg(feature = "alloc")]
-type BoxedClosure = alloc::boxed::Box<dyn FnOnce() + Send + 'static>;
-
-#[cfg(feature = "alloc")]
-extern "C" fn boxed_main(context: u32) -> u32 {
-    // SAFETY: `Builder::spawn` passes a leaked `Box<BoxedClosure>` that only
-    // this thread uses.
-    let closure = unsafe { alloc::boxed::Box::from_raw(context as usize as *mut BoxedClosure) };
-    closure();
-    0
-}
-
-#[cfg(feature = "alloc")]
-xbox360_sys::bridged!(boxed_entry, boxed_main);
-
 /// Start a thread that runs `entry` with `argument`.
 pub fn spawn_entry(entry: ThreadEntry, argument: u32) -> Result<JoinHandle, KernelError> {
     Builder::new().spawn_entry(entry, argument)
@@ -308,52 +325,45 @@ where
     Builder::new().spawn(function)
 }
 
-/// A started thread. Dropping it closes the handle and leaves the thread
-/// running.
-#[derive(Debug)]
-pub struct JoinHandle {
-    handle: Handle,
-    id: ThreadId,
+#[cfg(feature = "alloc")]
+extern "C" fn boxed_main(context: u32) -> u32 {
+    // SAFETY: `Builder::spawn` passes a leaked `Box<BoxedClosure>` that only
+    // this thread uses.
+    let closure = unsafe { alloc::boxed::Box::from_raw(context as usize as *mut BoxedClosure) };
+    closure();
+
+    0
 }
 
-impl JoinHandle {
-    pub const fn id(&self) -> ThreadId {
-        self.id
-    }
+#[cfg(feature = "alloc")]
+xbox360_sys::bridged!(boxed_entry, boxed_main);
 
-    /// Wait for the thread to end or `timeout` to elapse.
-    pub fn wait_timeout(&self, timeout: Duration) -> Result<WaitOutcome, WaitError> {
-        let interval = crate::time::relative_interval(timeout);
-        // SAFETY: `self` owns the open thread handle; `interval` is a live
-        // local.
-        wait_outcome(unsafe {
-            xboxkrnl::NtWaitForSingleObjectEx(
-                self.handle,
-                ProcessorMode::User,
-                NOT_ALERTABLE,
-                &interval,
-            )
-        })
-    }
-
-    /// Wait for the thread to end and close the handle.
-    pub fn join(self) -> Result<(), WaitError> {
-        // SAFETY: `self` owns the open thread handle; a null timeout waits
-        // without limit.
-        wait_signaled(unsafe {
-            xboxkrnl::NtWaitForSingleObjectEx(
-                self.handle,
-                ProcessorMode::User,
-                NOT_ALERTABLE,
-                core::ptr::null(),
-            )
-        })
-    }
-}
-
-impl Drop for JoinHandle {
-    fn drop(&mut self) {
-        // SAFETY: `self` owns the handle and closes it once.
-        unsafe { xboxkrnl::NtClose(self.handle) };
-    }
+/// Define a [`ThreadEntry`] constant that runs `function`, an
+/// `extern "C" fn(u32) -> u32`, and ends the thread with its result.
+///
+/// ```ignore
+/// extern "C" fn worker(argument: u32) -> u32 {
+///     argument + 1
+/// }
+///
+/// xbox360::thread_entry!(WORKER = worker);
+///
+/// let thread = xbox360::thread::spawn_entry(WORKER, 41)?;
+/// thread.join()?;
+/// ```
+#[macro_export]
+macro_rules! thread_entry {
+    ($(#[$meta:meta])* $vis:vis $name:ident = $function:path) => {
+        $(#[$meta])*
+        $vis const $name: $crate::thread::ThreadEntry = {
+            extern "C" fn run(argument: u32) -> u32 {
+                let function: extern "C" fn(u32) -> u32 = $function;
+                function(argument)
+            }
+            $crate::sys::bridged!(entry, run);
+            // SAFETY: `entry` runs `run`, an `extern "C" fn(u32) -> u32`,
+            // behind the bridge.
+            unsafe { $crate::thread::ThreadEntry::from_bridged(entry) }
+        };
+    };
 }

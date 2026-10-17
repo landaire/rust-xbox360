@@ -1,16 +1,11 @@
 //! XEX metadata read from a TOML manifest.
 
-use crate::ExportingModule;
-use crate::LIBRARIES;
-use crate::error::Location;
-use crate::error::ManifestError;
-use crate::error::ManifestErrorKind;
-use crate::error::ManifestKey;
-use crate::error::VersionError;
-use crate::page_size;
+mod error;
+
+use std::path::Path;
+
 use bitflags::Flags;
 use serde::Deserialize;
-use std::path::Path;
 use toml::Spanned;
 use xenon_types::MediaId;
 use xenon_types::TitleId;
@@ -21,9 +16,29 @@ use xex2::builder::EncryptionTarget;
 use xex2::opt::ImageFlags;
 use xex2::opt::ModuleFlags;
 
+use crate::imports::ExportingModule;
+use crate::imports::LIBRARIES;
+use crate::layout::page_size;
+use crate::manifest::error::Location;
+use crate::manifest::error::ManifestErrorKind;
+use crate::manifest::error::ManifestKey;
+use crate::manifest::error::VersionError;
+
+pub use self::error::ManifestError;
+
 pub const DEFAULT_LOAD_ADDRESS: VirtualAddress = VirtualAddress(0x8200_0000);
-pub const DEFAULT_IMPORT_VERSION: Version = Version { major: 2, minor: 0, build: 21173, revision: 0 };
-pub const DEFAULT_IMPORT_MIN_VERSION: Version = Version { major: 2, minor: 0, build: 1861, revision: 0 };
+pub const DEFAULT_IMPORT_VERSION: Version = Version {
+    major: 2,
+    minor: 0,
+    build: 21173,
+    revision: 0,
+};
+pub const DEFAULT_IMPORT_MIN_VERSION: Version = Version {
+    major: 2,
+    minor: 0,
+    build: 1861,
+    revision: 0,
+};
 /// TLS slots of a title without `tls_slots`, the XDK default. Without a
 /// TLS_INFO header the kernel gives a title no slots, and std aborts.
 pub const DEFAULT_TITLE_TLS_SLOTS: u32 = 64;
@@ -75,7 +90,10 @@ impl Default for Manifest {
             bounding_path: None,
             compress: false,
             encryption_target: None,
-            imports: ImportVersions { version: DEFAULT_IMPORT_VERSION, min_version: DEFAULT_IMPORT_MIN_VERSION },
+            imports: ImportVersions {
+                version: DEFAULT_IMPORT_VERSION,
+                min_version: DEFAULT_IMPORT_MIN_VERSION,
+            },
             exports: None,
             tls_slots: Some(DEFAULT_TITLE_TLS_SLOTS),
         }
@@ -85,13 +103,18 @@ impl Default for Manifest {
 impl Manifest {
     /// Parse and validate manifest `text`; `path` is recorded in errors.
     pub fn parse(path: &Path, text: &str) -> Result<Self, ManifestError> {
-        let fail = |kind| ManifestError { path: path.to_path_buf(), kind };
+        let fail = |kind| ManifestError {
+            path: path.to_path_buf(),
+            kind,
+        };
+
         let raw: RawManifest = toml::from_str(text).map_err(|error| {
             fail(ManifestErrorKind::Parse {
                 location: error.span().map(|span| Location::at(text, span.start)),
                 message: error.message().to_string(),
             })
         })?;
+
         raw.resolve(text).map_err(fail)
     }
 }
@@ -112,6 +135,104 @@ struct RawManifest {
     imports: Option<RawImports>,
     exports: Option<RawExports>,
     tls_slots: Option<u32>,
+}
+
+impl RawManifest {
+    // Absent keys take the values used without a manifest.
+    fn resolve(self, text: &str) -> Result<Manifest, ManifestErrorKind> {
+        let defaults = Manifest::default();
+
+        let image_flags = match self.image_flags {
+            Some(names) => flags(text, ManifestKey::ImageFlags, names)?,
+            None => defaults.image_flags,
+        };
+        let module_flags = match self.module_flags {
+            Some(names) => flags(text, ManifestKey::ModuleFlags, names)?,
+            None => defaults.module_flags,
+        };
+
+        let load_address = match self.load_address {
+            Some(address) => {
+                let align = page_size(image_flags);
+                if address.get_ref().0 % align != 0 {
+                    return Err(ManifestErrorKind::UnalignedLoadAddress {
+                        address: address.get_ref().0,
+                        align,
+                        location: Location::at(text, address.span().start),
+                    });
+                }
+
+                address.into_inner()
+            }
+            None => defaults.load_address,
+        };
+
+        let bounding_path = self
+            .bounding_path
+            .map(|value| {
+                BoundingPath::new(value.get_ref().as_str()).map_err(|_| {
+                    ManifestErrorKind::InvalidBoundingPath {
+                        location: Location::at(text, value.span().start),
+                        value: value.into_inner(),
+                    }
+                })
+            })
+            .transpose()?;
+
+        let imports = match self.imports {
+            Some(imports) => ImportVersions {
+                version: version(
+                    text,
+                    ManifestKey::ImportsVersion,
+                    imports.version,
+                    defaults.imports.version,
+                )?,
+                min_version: version(
+                    text,
+                    ManifestKey::ImportsMinVersion,
+                    imports.min_version,
+                    defaults.imports.min_version,
+                )?,
+            },
+            None => defaults.imports,
+        };
+        let exports = self
+            .exports
+            .map(|exports| exports.resolve(text))
+            .transpose()?;
+
+        Ok(Manifest {
+            title_id: self.title_id.unwrap_or(defaults.title_id),
+            media_id: self.media_id.unwrap_or(defaults.media_id),
+            load_address,
+            version: version(text, ManifestKey::Version, self.version, defaults.version)?,
+            base_version: version(
+                text,
+                ManifestKey::BaseVersion,
+                self.base_version,
+                defaults.base_version,
+            )?,
+            image_flags,
+            module_flags,
+            bounding_path,
+            compress: self.compress.unwrap_or(defaults.compress),
+            encryption_target: self.encrypt.map(|target| match target {
+                RawEncryptionTarget::Devkit => EncryptionTarget::Devkit,
+                RawEncryptionTarget::Retail => EncryptionTarget::Retail,
+            }),
+            imports,
+            exports,
+            // Absent: titles get the default and other modules no header.
+            // Zero: no header, which gives the same zero slots.
+            tls_slots: match self.tls_slots {
+                Some(0) => None,
+                Some(slots) => Some(slots),
+                None => module_flags
+                    .contains(ModuleFlags::TITLE)
+                    .then_some(DEFAULT_TITLE_TLS_SLOTS),
+            },
+        })
+    }
 }
 
 #[derive(Deserialize)]
@@ -135,91 +256,26 @@ struct RawExports {
     min_version: Option<Spanned<String>>,
 }
 
-impl RawManifest {
-    // Absent keys take the values used without a manifest.
-    fn resolve(self, text: &str) -> Result<Manifest, ManifestErrorKind> {
-        let defaults = Manifest::default();
-        let image_flags = match self.image_flags {
-            Some(names) => flags(text, ManifestKey::ImageFlags, names)?,
-            None => defaults.image_flags,
-        };
-        let module_flags = match self.module_flags {
-            Some(names) => flags(text, ManifestKey::ModuleFlags, names)?,
-            None => defaults.module_flags,
-        };
-        let load_address = match self.load_address {
-            Some(address) => {
-                let align = page_size(image_flags);
-                if address.get_ref().0 % align != 0 {
-                    return Err(ManifestErrorKind::UnalignedLoadAddress {
-                        address: address.get_ref().0,
-                        align,
-                        location: Location::at(text, address.span().start),
-                    });
-                }
-                address.into_inner()
-            }
-            None => defaults.load_address,
-        };
-        let bounding_path = self
-            .bounding_path
-            .map(|value| {
-                BoundingPath::new(value.get_ref().as_str()).map_err(|_| ManifestErrorKind::InvalidBoundingPath {
-                    location: Location::at(text, value.span().start),
-                    value: value.into_inner(),
-                })
-            })
-            .transpose()?;
-        let imports = match self.imports {
-            Some(imports) => ImportVersions {
-                version: version(text, ManifestKey::ImportsVersion, imports.version, defaults.imports.version)?,
-                min_version: version(
-                    text,
-                    ManifestKey::ImportsMinVersion,
-                    imports.min_version,
-                    defaults.imports.min_version,
-                )?,
-            },
-            None => defaults.imports,
-        };
-        let exports = self.exports.map(|exports| exports.resolve(text)).transpose()?;
-        Ok(Manifest {
-            title_id: self.title_id.unwrap_or(defaults.title_id),
-            media_id: self.media_id.unwrap_or(defaults.media_id),
-            load_address,
-            version: version(text, ManifestKey::Version, self.version, defaults.version)?,
-            base_version: version(text, ManifestKey::BaseVersion, self.base_version, defaults.base_version)?,
-            image_flags,
-            module_flags,
-            bounding_path,
-            compress: self.compress.unwrap_or(defaults.compress),
-            encryption_target: self.encrypt.map(|target| match target {
-                RawEncryptionTarget::Devkit => EncryptionTarget::Devkit,
-                RawEncryptionTarget::Retail => EncryptionTarget::Retail,
-            }),
-            imports,
-            exports,
-            // Absent: titles get the default and other modules no header.
-            // Zero: no header, which gives the same zero slots.
-            tls_slots: match self.tls_slots {
-                Some(0) => None,
-                Some(slots) => Some(slots),
-                None => module_flags.contains(ModuleFlags::TITLE).then_some(DEFAULT_TITLE_TLS_SLOTS),
-            },
-        })
-    }
-}
-
 impl RawExports {
     fn resolve(self, text: &str) -> Result<ExportSettings, ManifestErrorKind> {
-        let module = LIBRARIES.iter().find(|module| module.name == self.module.get_ref()).ok_or_else(|| {
-            ManifestErrorKind::UnknownExportModule {
+        let module = LIBRARIES
+            .iter()
+            .find(|module| module.name == self.module.get_ref())
+            .ok_or_else(|| ManifestErrorKind::UnknownExportModule {
                 location: Location::at(text, self.module.span().start),
                 name: self.module.get_ref().clone(),
-            }
-        })?;
-        let min_version = version(text, ManifestKey::ExportsMinVersion, self.min_version, DEFAULT_IMPORT_MIN_VERSION)?;
-        Ok(ExportSettings { module, min_version })
+            })?;
+        let min_version = version(
+            text,
+            ManifestKey::ExportsMinVersion,
+            self.min_version,
+            DEFAULT_IMPORT_MIN_VERSION,
+        )?;
+
+        Ok(ExportSettings {
+            module,
+            min_version,
+        })
     }
 }
 
@@ -232,6 +288,7 @@ fn version(
     let Some(value) = value else {
         return Ok(default);
     };
+
     parse_version(value.get_ref()).map_err(|reason| ManifestErrorKind::InvalidVersion {
         key,
         location: Location::at(text, value.span().start),
@@ -243,14 +300,23 @@ fn version(
 /// Parse a version as dotted `major.minor.build.revision`, or a packed `0xHEX`.
 fn parse_version(value: &str) -> Result<Version, VersionError> {
     if !value.contains('.') {
-        let digits = value.strip_prefix("0x").or_else(|| value.strip_prefix("0X")).unwrap_or(value);
-        return u32::from_str_radix(digits, 16).map(Version::from).map_err(VersionError::Packed);
+        let digits = value
+            .strip_prefix("0x")
+            .or_else(|| value.strip_prefix("0X"))
+            .unwrap_or(value);
+        return u32::from_str_radix(digits, 16)
+            .map(Version::from)
+            .map_err(VersionError::Packed);
     }
+
     let mut parts = [0u16; 4];
     for (index, field) in value.split('.').enumerate() {
         let part = parts.get_mut(index).ok_or(VersionError::TooManyFields)?;
-        *part = field.parse::<u16>().map_err(|error| VersionError::Field { index, error })?;
+        *part = field
+            .parse::<u16>()
+            .map_err(|error| VersionError::Field { index, error })?;
     }
+
     // Version packs as major:4, minor:4, build:16, revision:8. Reject fields
     // that would overflow their width and silently corrupt neighbors.
     let [major, minor, build, revision] = parts;
@@ -263,25 +329,35 @@ fn parse_version(value: &str) -> Result<Version, VersionError> {
     if revision > 0xFF {
         return Err(VersionError::RevisionRange);
     }
-    Ok(Version { major, minor, build, revision })
+
+    Ok(Version {
+        major,
+        minor,
+        build,
+        revision,
+    })
 }
 
 /// Union of flag names or packed `0xHEX` values.
-fn flags<F: Flags<Bits = u32>>(
+fn flags<F>(
     text: &str,
     key: ManifestKey,
     names: Vec<Spanned<String>>,
-) -> Result<F, ManifestErrorKind> {
+) -> Result<F, ManifestErrorKind>
+where
+    F: Flags<Bits = u32>,
+{
     names.into_iter().try_fold(F::empty(), |flags, name| {
         let flag = match name.get_ref().strip_prefix("0x") {
             Some(hex) => u32::from_str_radix(hex, 16).ok().map(F::from_bits_retain),
             None => F::from_name(name.get_ref()),
         };
-        flag.map(|flag| flags.union(flag)).ok_or_else(|| ManifestErrorKind::InvalidFlag {
-            key,
-            location: Location::at(text, name.span().start),
-            name: name.into_inner(),
-        })
+        flag.map(|flag| flags.union(flag))
+            .ok_or_else(|| ManifestErrorKind::InvalidFlag {
+                key,
+                location: Location::at(text, name.span().start),
+                name: name.into_inner(),
+            })
     })
 }
 
@@ -329,20 +405,44 @@ min_version = "2.0.1861.0"
                 title_id: TitleId(0x4845_4C4F),
                 media_id: MediaId(0x1234_5678),
                 load_address: VirtualAddress(0x91F0_0000),
-                version: Version { major: 2, minor: 0, build: 21256, revision: 0 },
-                base_version: Version { major: 2, minor: 0, build: 0, revision: 0 },
+                version: Version {
+                    major: 2,
+                    minor: 0,
+                    build: 21256,
+                    revision: 0
+                },
+                base_version: Version {
+                    major: 2,
+                    minor: 0,
+                    build: 0,
+                    revision: 0
+                },
                 image_flags: ImageFlags::SMALL_PAGES | ImageFlags::from_bits_retain(0x4000_0000),
                 module_flags: ModuleFlags::TITLE | ModuleFlags::DLL,
                 bounding_path: Some(
-                    BoundingPath::new(r"\Device\Harddisk0\Partition1\DEVKIT\FlashEx\xbdm.xex").unwrap()
+                    BoundingPath::new(r"\Device\Harddisk0\Partition1\DEVKIT\FlashEx\xbdm.xex")
+                        .unwrap()
                 ),
                 compress: true,
                 encryption_target: Some(EncryptionTarget::Retail),
                 imports: ImportVersions {
-                    version: Version { major: 2, minor: 0, build: 17559, revision: 0 },
-                    min_version: Version { major: 2, minor: 0, build: 1888, revision: 0 },
+                    version: Version {
+                        major: 2,
+                        minor: 0,
+                        build: 17559,
+                        revision: 0
+                    },
+                    min_version: Version {
+                        major: 2,
+                        minor: 0,
+                        build: 1888,
+                        revision: 0
+                    },
                 },
-                exports: Some(ExportSettings { module: &LIBRARIES[2], min_version: DEFAULT_IMPORT_MIN_VERSION }),
+                exports: Some(ExportSettings {
+                    module: &LIBRARIES[2],
+                    min_version: DEFAULT_IMPORT_MIN_VERSION
+                }),
                 tls_slots: Some(32),
             }
         );
@@ -352,7 +452,12 @@ min_version = "2.0.1861.0"
     fn tls_slots_default_to_64_for_titles_only() {
         assert_eq!(parse("").unwrap().tls_slots, Some(DEFAULT_TITLE_TLS_SLOTS));
         assert_eq!(parse("module_flags = [\"DLL\"]").unwrap().tls_slots, None);
-        assert_eq!(parse("module_flags = [\"DLL\"]\ntls_slots = 8").unwrap().tls_slots, Some(8));
+        assert_eq!(
+            parse("module_flags = [\"DLL\"]\ntls_slots = 8")
+                .unwrap()
+                .tls_slots,
+            Some(8)
+        );
         assert_eq!(parse("tls_slots = 0").unwrap().tls_slots, None);
     }
 
@@ -368,7 +473,11 @@ min_version = "2.0.1861.0"
         let cases = [
             (
                 "load_address = 0x82001000",
-                ManifestErrorKind::UnalignedLoadAddress { address: 0x8200_1000, align: 0x1_0000, location: at(1, 16) },
+                ManifestErrorKind::UnalignedLoadAddress {
+                    address: 0x8200_1000,
+                    align: 0x1_0000,
+                    location: at(1, 16),
+                },
             ),
             (
                 "module_flags = [\"TITLE\", \"GAME\"]",
@@ -398,11 +507,17 @@ min_version = "2.0.1861.0"
             ),
             (
                 "[exports]\nmodule = \"xboxkrnl.xex\"",
-                ManifestErrorKind::UnknownExportModule { name: "xboxkrnl.xex".to_string(), location: at(2, 10) },
+                ManifestErrorKind::UnknownExportModule {
+                    name: "xboxkrnl.xex".to_string(),
+                    location: at(2, 10),
+                },
             ),
             (
                 "bounding_path = \"\"",
-                ManifestErrorKind::InvalidBoundingPath { value: String::new(), location: at(1, 17) },
+                ManifestErrorKind::InvalidBoundingPath {
+                    value: String::new(),
+                    location: at(1, 17),
+                },
             ),
         ];
         for (text, expected) in cases {
@@ -414,14 +529,19 @@ min_version = "2.0.1861.0"
     fn schema_errors_report_their_location() {
         let cases = [
             ("title_id = 1\ntitle = 2", at(2, 1)),
-            ("[imports]\nversion = \"2.0.0.0\"\nmax_version = \"2.0.0.0\"", at(3, 1)),
+            (
+                "[imports]\nversion = \"2.0.0.0\"\nmax_version = \"2.0.0.0\"",
+                at(3, 1),
+            ),
             ("encrypt = \"xbox\"", at(1, 11)),
             ("title_id = 0x100000000", at(1, 12)),
             ("[exports]\nmin_version = \"2.0.0.0\"", at(1, 1)),
         ];
         for (text, expected) in cases {
             match parse(text).unwrap_err() {
-                ManifestErrorKind::Parse { location, .. } => assert_eq!(location, Some(expected), "{text}"),
+                ManifestErrorKind::Parse { location, .. } => {
+                    assert_eq!(location, Some(expected), "{text}")
+                }
                 other => panic!("{text}: expected a parse error, got {other:?}"),
             }
         }

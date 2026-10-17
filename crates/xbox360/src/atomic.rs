@@ -49,6 +49,7 @@ impl Interlocked32 for AtomicU32 {
     fn compare_exchange_release(&self, current: u32, new: u32) -> Result<u32, u32> {
         // SAFETY: the reference makes the word valid and 4-byte aligned.
         let observed = unsafe { interlocked::compare_exchange32(self.as_ptr(), current, new) };
+
         if observed == current {
             Ok(observed)
         } else {
@@ -108,6 +109,7 @@ impl AtomicU64 {
         fence(Ordering::SeqCst);
         let value = self.load_relaxed();
         fence(Ordering::SeqCst);
+
         value
     }
 
@@ -137,6 +139,7 @@ impl AtomicU64 {
         fence(Ordering::SeqCst);
         let result = self.compare_exchange_release(current, new);
         fence(Ordering::SeqCst);
+
         result
     }
 
@@ -147,6 +150,7 @@ impl AtomicU64 {
     pub fn compare_exchange_release(&self, current: u64, new: u64) -> Result<u64, u64> {
         // SAFETY: the value is valid and 8-byte aligned.
         let observed = unsafe { interlocked::compare_exchange64(self.value.get(), current, new) };
+
         if observed == current {
             Ok(observed)
         } else {
@@ -158,6 +162,7 @@ impl AtomicU64 {
     /// previous value.
     fn fetch_update(&self, update: impl Fn(u64) -> u64) -> u64 {
         let mut current = self.load();
+
         loop {
             match self.compare_exchange(current, update(current)) {
                 Ok(previous) => return previous,

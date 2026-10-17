@@ -13,13 +13,6 @@ use xbox360_sys::xboxkrnl::ProcessType;
 /// `XamLoaderLaunchTitle` flags for a plain launch.
 const NO_LAUNCH_FLAGS: u32 = 0;
 
-fn assert_title_process() {
-    assert!(
-        xboxkrnl::KeGetCurrentProcessType() == ProcessType::TITLE,
-        "the title loader was called from a thread outside the title process"
-    );
-}
-
 /// End the running title (`XamLoaderTerminateTitle`).
 ///
 /// # Panics
@@ -27,6 +20,7 @@ fn assert_title_process() {
 /// Panics when the calling thread does not belong to the title process.
 pub fn terminate() -> ! {
     assert_title_process();
+
     // SAFETY: the calling thread belongs to the title process (checked above).
     unsafe { xam::XamLoaderTerminateTitle() }
 }
@@ -38,6 +32,7 @@ pub fn terminate() -> ! {
 /// Panics when the calling thread does not belong to the title process.
 pub fn return_to_dashboard() -> ! {
     assert_title_process();
+
     // SAFETY: the calling thread belongs to the title process (checked above).
     // A null path selects the dashboard.
     unsafe { xam::XamLoaderLaunchTitle(core::ptr::null(), NO_LAUNCH_FLAGS) }
@@ -51,7 +46,15 @@ pub fn return_to_dashboard() -> ! {
 /// Panics when the calling thread does not belong to the title process.
 pub fn launch(path: &CStr) -> ! {
     assert_title_process();
+
     // SAFETY: the calling thread belongs to the title process (checked above),
     // and `path` is a NUL-terminated string that outlives the call.
     unsafe { xam::XamLoaderLaunchTitle(path.as_ptr().cast(), NO_LAUNCH_FLAGS) }
+}
+
+fn assert_title_process() {
+    assert!(
+        xboxkrnl::KeGetCurrentProcessType() == ProcessType::TITLE,
+        "the title loader was called from a thread outside the title process"
+    );
 }

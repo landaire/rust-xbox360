@@ -54,78 +54,6 @@ static ALLOCATOR: PoolAllocator = PoolAllocator::new(TAG);
 
 const TAG: PoolTag = PoolTag::new(*b"LChk");
 
-#[panic_handler]
-fn panic(info: &PanicInfo) -> ! {
-    dbg_println!("FAIL panic: {info}");
-    title::terminate()
-}
-
-xbox360::sys::bridged!(#[unsafe(no_mangle)] pub _start, main);
-
-extern "C" fn main(_context: u32) -> u32 {
-    let xenia = running_under_xenia();
-    if xenia {
-        dbg_println!("INFO running under Xenia");
-    }
-    check("status", check_status());
-    check("event", check_event());
-    check(
-        "event_move",
-        unless_xenia(
-            xenia,
-            "Xenia keeps event state outside guest memory",
-            check_event_move,
-        ),
-    );
-    check("critical_section", check_critical_section());
-    check("spin_lock", check_spin_lock());
-    check(
-        "spin_lock_irql",
-        unless_xenia(xenia, NO_PCR_IRQL, check_spin_lock_irql),
-    );
-    check(
-        "irql",
-        unless_xenia(xenia, "KfRaiseIrql is not provided", check_irql),
-    );
-    check("interrupts", check_interrupts());
-    check("atomic_u64", check_atomic());
-    check("module", check_module());
-    check("thread", check_thread());
-    check(
-        "thread_closure",
-        unless_xenia(xenia, NO_POOL, check_thread_closure),
-    );
-    check("debug", check_debug());
-    check("time", check_time());
-    check("pool", unless_xenia(xenia, NO_POOL, check_pool));
-    check("console", check_console());
-    check("console_base_version", check_base_version());
-    check("input", check_input());
-    check("content", check_content());
-    check(
-        "message_box",
-        Outcome::Skip("XAM has no call that cancels a message box"),
-    );
-    dbg_println!("DONE");
-    title::terminate()
-}
-
-const NO_POOL: &str = "ExAllocatePoolWithTag is not provided";
-const NO_PCR_IRQL: &str = "Xenia does not keep the IRQL in the processor control region";
-
-/// Xenia does not provide `XboxKrnlBaseVersion`.
-fn running_under_xenia() -> bool {
-    console::base_kernel_version().is_none()
-}
-
-fn unless_xenia(xenia: bool, reason: &'static str, check: fn() -> Outcome) -> Outcome {
-    if xenia {
-        Outcome::Skip(reason)
-    } else {
-        check()
-    }
-}
-
 /// Failure text in a fixed buffer, cut at its capacity.
 struct Detail {
     bytes: [u8; 160],
@@ -175,6 +103,65 @@ enum Outcome {
     Skip(&'static str),
 }
 
+/// Writes `count` copies of `byte`.
+struct Repeat {
+    byte: char,
+    count: u32,
+}
+
+impl fmt::Display for Repeat {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        (0..self.count).try_for_each(|_| f.write_char(self.byte))
+    }
+}
+
+/// A u64 as two 32-bit hexadecimal halves.
+struct Hex64(u64);
+
+impl fmt::Display for Hex64 {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:#010x}_{:08x}", (self.0 >> 32) as u32, self.0 as u32)
+    }
+}
+
+/// A kernel version with each part formatted as u32.
+struct Version(console::KernelVersion);
+
+impl fmt::Display for Version {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let version = self.0;
+        write!(
+            f,
+            "{}.{}.{}.{}",
+            u32::from(version.major),
+            u32::from(version.minor),
+            u32::from(version.build),
+            u32::from(version.qfe)
+        )
+    }
+}
+
+#[panic_handler]
+fn panic(info: &PanicInfo) -> ! {
+    dbg_println!("FAIL panic: {info}");
+    title::terminate()
+}
+
+xbox360::sys::bridged!(#[unsafe(no_mangle)] pub _start, main);
+
+/// Xenia does not provide `XboxKrnlBaseVersion`.
+fn running_under_xenia() -> bool {
+    console::base_kernel_version().is_none()
+}
+
+fn unless_xenia(xenia: bool, reason: &'static str, check: fn() -> Outcome) -> Outcome {
+    if xenia {
+        Outcome::Skip(reason)
+    } else {
+        check()
+    }
+}
+
 fn check(name: &str, outcome: Outcome) {
     match outcome {
         Outcome::Pass => dbg_println!("PASS {name}"),
@@ -204,6 +191,7 @@ fn check_status() -> Outcome {
         KernelError::from_status(NtStatus(0xc000_0034)) == Some(KernelError::ObjectNameNotFound),
         "0xc0000034 is not ObjectNameNotFound"
     );
+
     let Some(unlisted) = KernelError::from_status(NtStatus(0xc000_7777)) else {
         fail!("0xc0007777 is not a failure");
     };
@@ -211,6 +199,7 @@ fn check_status() -> Outcome {
         unlisted.status() == NtStatus(0xc000_7777),
         "unlisted status changed: {unlisted:?}"
     );
+
     ensure!(
         Hresult::from(KernelError::NoMemory) == Hresult(0xd000_0017),
         "NoMemory result is {:?}",
@@ -221,11 +210,13 @@ fn check_status() -> Outcome {
         "INVALID_PARAMETER result is {:?}",
         Hresult::from(Win32Error::INVALID_PARAMETER)
     );
+
     let saved = xbox360::status::last_error();
     xbox360::status::set_last_error(KernelError::NoSuchFile);
     let translated = xbox360::status::last_error();
     xbox360::status::set_last_error_value(saved);
     let restored = xbox360::status::last_error();
+
     ensure!(
         translated.map(Win32Error::code) == Some(2),
         "STATUS_NO_SUCH_FILE became last error {translated:?}, expected 2"
@@ -234,6 +225,7 @@ fn check_status() -> Outcome {
         restored == saved,
         "last error {restored:?} after restoring {saved:?}"
     );
+
     Outcome::Pass
 }
 
@@ -254,17 +246,20 @@ fn check_event() -> Outcome {
         outcome == Ok(WaitOutcome::TimedOut),
         "unsignaled wait gave {outcome:?}"
     );
+
     event.set();
     let outcome = event.wait_timeout(Duration::ZERO);
     ensure!(
         outcome == Ok(WaitOutcome::Signaled),
         "signaled wait gave {outcome:?}"
     );
+
     let outcome = event.wait();
     ensure!(
         outcome == Ok(()),
         "notification event did not stay signaled: {outcome:?}"
     );
+
     event.reset();
     let outcome = event.wait_timeout(Duration::ZERO);
     ensure!(
@@ -279,6 +274,7 @@ fn check_event() -> Outcome {
         outcome == Ok(WaitOutcome::Signaled),
         "set synchronization event gave {outcome:?}"
     );
+
     let outcome = synchronization.wait_timeout(Duration::ZERO);
     ensure!(
         outcome == Ok(WaitOutcome::TimedOut),
@@ -289,6 +285,7 @@ fn check_event() -> Outcome {
         Ok(setter) => setter,
         Err(error) => fail!("spawn failed: {error}"),
     };
+
     let outcome = SIGNAL.wait_timeout(Duration::from_secs(2));
     let joined = setter.join();
     ensure!(
@@ -296,6 +293,7 @@ fn check_event() -> Outcome {
         "event set by another thread gave {outcome:?}"
     );
     ensure!(joined.is_ok(), "join failed: {joined:?}");
+
     Outcome::Pass
 }
 
@@ -307,17 +305,20 @@ fn check_event_move() -> Outcome {
     let moved = core::hint::black_box([event]);
     let second = moved[0].as_ptr() as usize;
     ensure!(first != second, "the event stayed at {first:#010x}");
+
     let outcome = moved[0].wait_timeout(Duration::ZERO);
     ensure!(
         outcome == Ok(WaitOutcome::Signaled),
         "moved event lost its state: {outcome:?}"
     );
+
     moved[0].set();
     let outcome = moved[0].wait_timeout(Duration::ZERO);
     ensure!(
         outcome == Ok(WaitOutcome::Signaled),
         "moved event was not set again: {outcome:?}"
     );
+
     Outcome::Pass
 }
 
@@ -370,31 +371,37 @@ xbox360::thread_entry!(SECTION_TRY_LOCK = section_try_lock);
 
 fn check_critical_section() -> Outcome {
     {
-        let outer = SECTION.lock();
-        let inner = SECTION.lock();
-        inner.set(0);
-        drop(inner);
+        let _outer = SECTION.lock();
+        {
+            let inner = SECTION.lock();
+            inner.set(0);
+        }
+
         let probe = match thread::spawn_entry(SECTION_TRY_LOCK, 0) {
             Ok(probe) => probe,
             Err(error) => fail!("spawn failed: {error}"),
         };
         let joined = probe.join();
         ensure!(joined.is_ok(), "join failed: {joined:?}");
-        drop(outer);
     }
+
     let done = PROBE_DONE.load(Ordering::Acquire);
     let entered = PROBE_ENTERED.load(Ordering::Acquire);
+
     ensure!(done, "the probe thread did not run");
     ensure!(!entered, "another thread entered a held section");
+
     if let Outcome::Fail(detail) = run_pair(SECTION_WORKER) {
         return Outcome::Fail(detail);
     }
+
     let total = SECTION.lock().get();
     ensure!(
         total == 2 * SECTION_ROUNDS,
         "counter is {total}, expected {}",
         2 * SECTION_ROUNDS
     );
+
     Outcome::Pass
 }
 
@@ -414,20 +421,24 @@ fn check_spin_lock() -> Outcome {
     if let Outcome::Fail(detail) = run_pair(SPIN_WORKER) {
         return Outcome::Fail(detail);
     }
+
     let total = *SPIN.lock();
     ensure!(
         total == 2 * SPIN_ROUNDS,
         "counter is {total}, expected {}",
         2 * SPIN_ROUNDS
     );
+
     Outcome::Pass
 }
 
 fn check_spin_lock_irql() -> Outcome {
-    let guard = SPIN.lock();
-    let held = sync::current_irql();
-    drop(guard);
+    let held = {
+        let _guard = SPIN.lock();
+        sync::current_irql()
+    };
     let after = sync::current_irql();
+
     ensure!(
         held == Irql::DISPATCH,
         "IRQL while holding the lock is {}",
@@ -438,6 +449,7 @@ fn check_spin_lock_irql() -> Outcome {
         "IRQL after the lock is {}",
         u32::from(after.level())
     );
+
     Outcome::Pass
 }
 
@@ -448,10 +460,12 @@ fn check_irql() -> Outcome {
         "title runs at IRQL {}",
         u32::from(before.level())
     );
+
     {
         let guard = IrqlGuard::raise(Irql::DISPATCH);
         let raised = sync::current_irql();
         let lower = IrqlGuard::raise(Irql::APC).is_none();
+
         ensure!(guard.is_some(), "raising to DISPATCH was refused");
         ensure!(
             raised == Irql::DISPATCH,
@@ -460,12 +474,14 @@ fn check_irql() -> Outcome {
         );
         ensure!(lower, "lowering through raise was accepted");
     }
+
     let after = sync::current_irql();
     ensure!(
         after == Irql::PASSIVE,
         "IRQL after the guard is {}",
         u32::from(after.level())
     );
+
     Outcome::Pass
 }
 
@@ -484,6 +500,7 @@ fn check_interrupts() -> Outcome {
         machine_state()
     };
     let after = machine_state();
+
     ensure!(
         before & 0x8000 != 0,
         "interrupts were disabled at the start (MSR {before:#010x})"
@@ -496,6 +513,7 @@ fn check_interrupts() -> Outcome {
         after & 0x8000 != 0,
         "interrupts stayed disabled after the guard (MSR {after:#010x})"
     );
+
     Outcome::Pass
 }
 
@@ -540,15 +558,18 @@ fn check_atomic() -> Outcome {
         local.compare_exchange(7, 9) == Ok(7),
         "compare_exchange failed on a match"
     );
+
     local.store(u64::MAX);
     ensure!(
         local.load() == u64::MAX,
         "store then load gave {}",
         Hex64(local.load())
     );
+
     if let Outcome::Fail(detail) = run_pair(ATOMIC_WORKER) {
         return Outcome::Fail(detail);
     }
+
     let expected = 2 * ATOMIC_ROUNDS * ATOMIC_STEP;
     let total = WIDE.load();
     ensure!(
@@ -557,6 +578,7 @@ fn check_atomic() -> Outcome {
         Hex64(total),
         Hex64(expected)
     );
+
     Outcome::Pass
 }
 
@@ -565,6 +587,7 @@ fn check_module() -> Outcome {
         Ok(kernel) => kernel,
         Err(error) => fail!("handle of xboxkrnl.exe: {error}"),
     };
+
     let Some(ordinal) = module::Ordinal::new(0xad) else {
         fail!("ordinal 0xad rejected");
     };
@@ -572,6 +595,7 @@ fn check_module() -> Outcome {
         Ok(bundle) => bundle,
         Err(error) => fail!("resolve_export(KeTimeStampBundle): {error}"),
     };
+
     let Some(imported) = xbox360::sys::xboxkrnl::KeTimeStampBundle.get() else {
         fail!("KeTimeStampBundle is not resolved");
     };
@@ -581,6 +605,7 @@ fn check_module() -> Outcome {
         "KeTimeStampBundle resolves to {:#010x}, the import is {imported:#010x}",
         bundle.raw()
     );
+
     let Some(debug_print) = module::Ordinal::new(0x003) else {
         fail!("ordinal 3 rejected");
     };
@@ -589,11 +614,13 @@ fn check_module() -> Outcome {
         matches!(resolved, Ok(address) if address.raw() != 0),
         "resolve_export(DbgPrint): {resolved:?}"
     );
+
     dbg_println!(
         "INFO module: xboxkrnl.exe {:#010x}, DbgPrint {:x?}",
         kernel.raw(),
         resolved
     );
+
     Outcome::Pass
 }
 
@@ -613,21 +640,26 @@ fn check_thread() -> Outcome {
         Ok(worker) => worker,
         Err(error) => fail!("spawn_entry: {error}"),
     };
+
     let outcome = worker.wait_timeout(Duration::from_secs(2));
     ensure!(
         outcome == Ok(WaitOutcome::Signaled),
         "wait gave {outcome:?}"
     );
+
     let joined = worker.join();
     ensure!(joined.is_ok(), "join failed: {joined:?}");
+
     let result = THREAD_RESULT.load(Ordering::Acquire);
     ensure!(result == 42, "entry thread stored {result}, expected 42");
+
     let object = THREAD_OBJECT.load(Ordering::Relaxed);
     let own = thread::current_object().raw();
     ensure!(
         object != 0 && object != own,
         "thread object {object:#x} (own {own:#x})"
     );
+
     Outcome::Pass
 }
 
@@ -636,11 +668,13 @@ fn check_thread_closure() -> Outcome {
         Event::new(EventType::Notification, false),
         AtomicU32::new(0),
     ));
-    let remote = shared.clone();
+    let remote = alloc::sync::Arc::clone(&shared);
     let factor = 6u32;
+
     let Some(stack) = core::num::NonZeroU32::new(64 * 1024) else {
         fail!("stack size rejected");
     };
+
     let closure = thread::Builder::new().stack_size(stack).spawn(move || {
         remote.1.store(7 * factor, Ordering::Release);
         remote.0.set();
@@ -649,6 +683,7 @@ fn check_thread_closure() -> Outcome {
         Ok(closure) => closure,
         Err(error) => fail!("spawn: {error}"),
     };
+
     let signaled = shared.0.wait_timeout(Duration::from_secs(2));
     let joined = closure.join();
     ensure!(
@@ -656,21 +691,11 @@ fn check_thread_closure() -> Outcome {
         "closure thread did not signal: {signaled:?}"
     );
     ensure!(joined.is_ok(), "join failed: {joined:?}");
+
     let stored = shared.1.load(Ordering::Acquire);
     ensure!(stored == 42, "closure stored {stored}, expected 42");
+
     Outcome::Pass
-}
-
-/// Writes `count` copies of `byte`.
-struct Repeat {
-    byte: char,
-    count: u32,
-}
-
-impl fmt::Display for Repeat {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        (0..self.count).try_for_each(|_| f.write_char(self.byte))
-    }
 }
 
 fn check_debug() -> Outcome {
@@ -681,6 +706,7 @@ fn check_debug() -> Outcome {
         "text",
         "pad"
     );
+
     // Longer than one DbgPrint piece.
     let long = Repeat {
         byte: 'x',
@@ -690,6 +716,7 @@ fn check_debug() -> Outcome {
     let written = writeln!(output, "INFO debug long: {long}");
     drop(output);
     ensure!(written.is_ok(), "formatting failed");
+
     Outcome::Pass
 }
 
@@ -697,6 +724,7 @@ fn check_time() -> Outcome {
     let frequency = time::TimebaseFrequency::query();
     let tick_before = time::TickCount::now();
     let system_before = time::FileTime::now();
+
     let mut previous = time::Timebase::now();
     for _ in 0..1000 {
         let now = time::Timebase::now();
@@ -708,12 +736,14 @@ fn check_time() -> Outcome {
         );
         previous = now;
     }
+
     let requested = Duration::from_millis(50);
     let sleep_start = time::Timebase::now();
     time::sleep(requested);
     let slept = time::Timebase::now().duration_since(sleep_start, frequency);
     let system_elapsed = time::FileTime::now().duration_since(system_before);
     let ticks = time::TickCount::now().wrapping_duration_since(tick_before);
+
     dbg_println!(
         "INFO time: frequency {} Hz, slept {} us, system time advanced {:?} us, tick count advanced {} us",
         frequency.hertz(),
@@ -721,6 +751,7 @@ fn check_time() -> Outcome {
         system_elapsed.map(micros),
         micros(ticks)
     );
+
     // The time base and the sleep come from different clocks; allow 1 ms
     // for rounding between them.
     ensure!(
@@ -743,6 +774,7 @@ fn check_time() -> Outcome {
         "tick count advanced {} us",
         micros(ticks)
     );
+
     Outcome::Pass
 }
 
@@ -757,12 +789,14 @@ fn check_pool() -> Outcome {
         // freed once.
         unsafe { xbox360::sys::xboxkrnl::ExFreePool(block) };
     }
+
     dbg_println!("INFO pool: blocks aligned to at least {lowest_alignment} bytes");
     ensure!(
         lowest_alignment as usize >= xbox360::pool::POOL_ALIGNMENT,
         "pool block aligned to {lowest_alignment}, below {}",
         xbox360::pool::POOL_ALIGNMENT
     );
+
     for align in [4usize, 8, 16, 32, 64] {
         for size in [1usize, 13, 256, 4096] {
             let Ok(layout) = Layout::from_size_align(size, align) else {
@@ -778,6 +812,7 @@ fn check_pool() -> Outcome {
                 (block as usize).is_multiple_of(align),
                 "block {block:p} is not aligned to {align}"
             );
+
             // SAFETY: the block holds `size` bytes.
             let intact = unsafe {
                 core::ptr::write_bytes(block, 0xa5, size);
@@ -787,17 +822,20 @@ fn check_pool() -> Outcome {
             };
             // SAFETY: allocated above with the same layout.
             unsafe { ALLOCATOR.dealloc(block, layout) };
+
             ensure!(
                 intact,
                 "block of {size} bytes aligned to {align} did not keep its contents"
             );
         }
     }
+
     let values: Vec<u32> = (0..1000).collect();
     ensure!(
         values.iter().sum::<u32>() == 499_500,
         "vector contents changed"
     );
+
     Outcome::Pass
 }
 
@@ -812,11 +850,13 @@ fn check_console() -> Outcome {
         u32::from(flags.generation().get()),
         flags.contains(console::HardwareFlags::HARD_DISK)
     );
+
     ensure!(
         version.major == 2,
         "kernel major version is {}",
         u32::from(version.major)
     );
+
     Outcome::Pass
 }
 
@@ -824,8 +864,10 @@ fn check_base_version() -> Outcome {
     let Some(base) = console::base_kernel_version() else {
         return Outcome::Skip("XboxKrnlBaseVersion is not provided");
     };
+
     let running = console::kernel_version();
     dbg_println!("INFO console: base kernel {}", Version(base));
+
     ensure!(
         base.major == 2,
         "base kernel major version is {}",
@@ -837,6 +879,7 @@ fn check_base_version() -> Outcome {
         Version(base),
         Version(running)
     );
+
     Outcome::Pass
 }
 
@@ -857,8 +900,10 @@ fn check_input() -> Outcome {
                 u32::from(capabilities.device_type.raw()),
                 u32::from(capabilities.flags.bits())
             );
+
             let vibration = xam::input::set_vibration(user, xam::input::Vibration::default());
             ensure!(vibration.is_ok(), "set_vibration: {vibration:?}");
+
             Outcome::Pass
         }
         (state, capabilities) => fail!(
@@ -877,6 +922,7 @@ fn check_content() -> Outcome {
     if signin.kind() == Some(xam::user::SigninKind::NotSignedIn) {
         return Outcome::Skip("saved games need a signed-in user in slot 0");
     }
+
     // Device 1 is the hard disk under Xenia.
     let data = match content::ContentData::new(
         content::ContentDevice::new(1),
@@ -887,6 +933,7 @@ fn check_content() -> Outcome {
         Ok(data) => data,
         Err(error) => fail!("content data: {error}"),
     };
+
     let root = match content::create(
         user,
         c"lcheck",
@@ -896,46 +943,77 @@ fn check_content() -> Outcome {
         Ok(root) => root,
         Err(error) => fail!("create ({signin:?}): {error}"),
     };
+
     dbg_println!(
         "INFO content: {:?} as {:?}",
         root.disposition(),
         root.name()
     );
+
     let closed = root.close();
     ensure!(closed.is_ok(), "close: {closed:?}");
+
     let deleted = content::delete(user, &data);
     ensure!(deleted.is_ok(), "delete: {deleted:?}");
+
     Outcome::Pass
-}
-
-/// A u64 as two 32-bit hexadecimal halves.
-struct Hex64(u64);
-
-impl fmt::Display for Hex64 {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:#010x}_{:08x}", (self.0 >> 32) as u32, self.0 as u32)
-    }
-}
-
-/// A kernel version with each part formatted as u32.
-struct Version(console::KernelVersion);
-
-impl fmt::Display for Version {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let version = self.0;
-        write!(
-            f,
-            "{}.{}.{}.{}",
-            u32::from(version.major),
-            u32::from(version.minor),
-            u32::from(version.build),
-            u32::from(version.qfe)
-        )
-    }
 }
 
 fn micros(duration: Duration) -> u32 {
     (duration.as_secs() as u32)
         .saturating_mul(1_000_000)
         .saturating_add(duration.subsec_micros())
+}
+
+extern "C" fn main(_context: u32) -> u32 {
+    const NO_POOL: &str = "ExAllocatePoolWithTag is not provided";
+    const NO_PCR_IRQL: &str = "Xenia does not keep the IRQL in the processor control region";
+
+    let xenia = running_under_xenia();
+    if xenia {
+        dbg_println!("INFO running under Xenia");
+    }
+
+    check("status", check_status());
+    check("event", check_event());
+    check(
+        "event_move",
+        unless_xenia(
+            xenia,
+            "Xenia keeps event state outside guest memory",
+            check_event_move,
+        ),
+    );
+    check("critical_section", check_critical_section());
+    check("spin_lock", check_spin_lock());
+    check(
+        "spin_lock_irql",
+        unless_xenia(xenia, NO_PCR_IRQL, check_spin_lock_irql),
+    );
+    check(
+        "irql",
+        unless_xenia(xenia, "KfRaiseIrql is not provided", check_irql),
+    );
+    check("interrupts", check_interrupts());
+    check("atomic_u64", check_atomic());
+    check("module", check_module());
+    check("thread", check_thread());
+    check(
+        "thread_closure",
+        unless_xenia(xenia, NO_POOL, check_thread_closure),
+    );
+    check("debug", check_debug());
+    check("time", check_time());
+    check("pool", unless_xenia(xenia, NO_POOL, check_pool));
+    check("console", check_console());
+    check("console_base_version", check_base_version());
+    check("input", check_input());
+    check("content", check_content());
+    check(
+        "message_box",
+        Outcome::Skip("XAM has no call that cancels a message box"),
+    );
+
+    dbg_println!("DONE");
+    title::terminate()
 }

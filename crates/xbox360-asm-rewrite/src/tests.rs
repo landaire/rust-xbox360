@@ -4,10 +4,8 @@ use crate::analysis::Function;
 use crate::analysis::FunctionAnalysis;
 use crate::analysis::LivePath;
 use crate::analysis::Refusal;
+use crate::audit;
 use crate::audit::ScopeKind;
-use crate::audit::{
-    self,
-};
 use crate::isa::Gpr;
 use crate::isa::GprSet;
 use crate::line::Line;

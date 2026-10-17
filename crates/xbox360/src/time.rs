@@ -4,29 +4,13 @@
 //! `std::time::SystemTime` and `std::thread::sleep`.
 
 use core::num::NonZeroU32;
+use core::sync::atomic::Ordering;
 use core::time::Duration;
 
 use xbox360_sys::xboxkrnl;
 
 use crate::sync::NOT_ALERTABLE;
 use crate::sync::ProcessorMode;
-
-/// A kernel interval for `duration` from now, as the waits of the kernel
-/// take it: negative 100 ns units, rounded up so the wait is never shorter
-/// than `duration`. Durations beyond the range (about 29,000 years) wait
-/// the longest interval. For a constant duration the interval is computed
-/// at compile time.
-pub const fn relative_interval(duration: Duration) -> i64 {
-    let nanos = duration.subsec_nanos().div_ceil(100) as u64;
-    let intervals = match duration.as_secs().checked_mul(10_000_000) {
-        Some(intervals) => intervals.checked_add(nanos),
-        None => None,
-    };
-    match intervals {
-        Some(intervals) if intervals <= i64::MAX as u64 => -(intervals as i64),
-        _ => -i64::MAX,
-    }
-}
 
 /// A reading of the 64-bit time base register.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -37,7 +21,9 @@ impl Timebase {
     /// processor.
     pub fn now() -> Self {
         loop {
-            let (upper, lower, check): (u32, u32, u32);
+            let upper: u32;
+            let lower: u32;
+            let check: u32;
             // SAFETY: reads the time base registers; no memory access.
             unsafe {
                 core::arch::asm!(
@@ -50,6 +36,7 @@ impl Timebase {
                     options(nomem, nostack, preserves_flags),
                 );
             }
+
             if upper == check {
                 return Self((u64::from(upper) << 32) | u64::from(lower));
             }
@@ -65,6 +52,7 @@ impl Timebase {
         let ticks = self.0.saturating_sub(earlier.0);
         let hertz = u64::from(frequency.hertz().get());
         let nanoseconds = (ticks % hertz) * 1_000_000_000 / hertz;
+
         Duration::new(ticks / hertz, nanoseconds as u32)
     }
 }
@@ -98,12 +86,13 @@ pub struct FileTime(u64);
 
 impl FileTime {
     /// 100 ns intervals in one second.
-    pub const INTERVALS_PER_SECOND: u64 = 10_000_000;
+    const INTERVALS_PER_SECOND: u64 = 10_000_000;
 
     pub fn now() -> Self {
         let mut time = 0u64;
         // SAFETY: `time` is a live local u64.
         unsafe { xboxkrnl::KeQuerySystemTime(&mut time) };
+
         Self(time)
     }
 
@@ -119,9 +108,10 @@ impl FileTime {
     /// after a change of the system time.
     pub fn duration_since(self, earlier: Self) -> Option<Duration> {
         let intervals = self.0.checked_sub(earlier.0)?;
+
         Some(Duration::new(
-            intervals / 10_000_000,
-            ((intervals % 10_000_000) * 100) as u32,
+            intervals / Self::INTERVALS_PER_SECOND,
+            ((intervals % Self::INTERVALS_PER_SECOND) * 100) as u32,
         ))
     }
 }
@@ -137,7 +127,7 @@ impl TickCount {
     /// If the loader did not resolve `KeTimeStampBundle`.
     pub fn now() -> Self {
         match xboxkrnl::KeTimeStampBundle.get() {
-            Some(bundle) => Self(bundle.tick_count.load(core::sync::atomic::Ordering::Relaxed)),
+            Some(bundle) => Self(bundle.tick_count.load(Ordering::Relaxed)),
             None => crate::console::unresolved_import("KeTimeStampBundle"),
         }
     }
@@ -153,9 +143,32 @@ impl TickCount {
     }
 }
 
+/// A kernel interval for `duration` from now, as the waits of the kernel
+/// take it: negative 100 ns units, rounded up so the wait is never shorter
+/// than `duration`. Durations beyond the range (about 29,000 years) wait
+/// the longest interval. For a constant duration the interval is computed
+/// at compile time.
+pub const fn relative_interval(duration: Duration) -> i64 {
+    let subsecond_intervals = duration.subsec_nanos().div_ceil(100) as u64;
+
+    let intervals = match duration
+        .as_secs()
+        .checked_mul(FileTime::INTERVALS_PER_SECOND)
+    {
+        Some(intervals) => intervals.checked_add(subsecond_intervals),
+        None => None,
+    };
+
+    match intervals {
+        Some(intervals) if intervals <= i64::MAX as u64 => -(intervals as i64),
+        _ => -i64::MAX,
+    }
+}
+
 /// Suspend the calling thread for at least `duration`.
 pub fn sleep(duration: Duration) {
     let interval = relative_interval(duration);
+
     // SAFETY: `interval` is a live local.
     unsafe { xboxkrnl::KeDelayExecutionThread(ProcessorMode::User, NOT_ALERTABLE, &interval) };
 }

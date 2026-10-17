@@ -97,6 +97,7 @@ impl ImageNtHeaders {
         let table = (&raw const self.optional_header)
             .cast::<u8>()
             .wrapping_add(usize::from(self.file_header.size_of_optional_header.get()));
+
         // SAFETY: guaranteed by the caller.
         unsafe {
             core::slice::from_raw_parts(

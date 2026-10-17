@@ -12,40 +12,15 @@
 //! - `__xbox360_restlr`: the link register part of the restore chain
 //!   ending at r30.
 
+use std::io;
 use std::io::Write;
-use std::io::{
-    self,
-};
 
 use crate::analysis::SaveRange;
 use crate::analysis::save_slot;
 use crate::isa::Gpr;
 
-pub fn save_name(range: SaveRange) -> String {
-    format!(
-        "__xbox360_savegprlr_{}_{}",
-        range.first.number(),
-        range.last.number()
-    )
-}
-
-pub fn restore_name(range: Option<SaveRange>) -> String {
-    match range {
-        Some(range) => format!(
-            "__xbox360_restgprlr_{}_{}",
-            range.first.number(),
-            range.last.number()
-        ),
-        None => "__xbox360_restlr".to_owned(),
-    }
-}
-
 /// Chains ending at r30 and r31.
 const CHAIN_ENDS: [Gpr; 2] = [Gpr::R30, Gpr::R31];
-
-fn chain_index(last: Gpr) -> usize {
-    usize::from(last == Gpr::R31)
-}
 
 /// Lowest entry point of each chain that rewritten code references.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -78,6 +53,7 @@ impl HelperUse {
                 usize::from(end.number() - first.number()) + 1 + tail
             })
         };
+
         let saves: usize = CHAIN_ENDS
             .iter()
             .zip(self.save_from)
@@ -88,18 +64,22 @@ impl HelperUse {
             None if self.restore_link_only => 3,
             None => 0,
         };
+
         saves + restore_r30 + chain(self.restore_from[1], Gpr::R31, 3)
     }
 
     pub fn emit(&self, out: &mut impl Write) -> io::Result<()> {
-        if *self == HelperUse::default() {
+        if *self == Self::default() {
             return Ok(());
         }
+
         writeln!(out)?;
         writeln!(out, "\t.section\t.text.__xbox360_gprlr,\"ax\",@progbits")?;
         writeln!(out, "\t.p2align\t2")?;
+
         for (end, from) in CHAIN_ENDS.iter().zip(self.save_from) {
             let Some(first) = from else { continue };
+
             for gpr in registers(first, *end) {
                 entry(
                     out,
@@ -110,9 +90,11 @@ impl HelperUse {
                 )?;
                 writeln!(out, "\tstw {}, {}(1)", gpr.number(), save_slot(gpr))?;
             }
+
             writeln!(out, "\tstw 0, 4(1)")?;
             writeln!(out, "\tblr")?;
         }
+
         if let Some(first) = self.restore_from[0] {
             for gpr in registers(first, Gpr::R30) {
                 entry(
@@ -125,10 +107,12 @@ impl HelperUse {
                 writeln!(out, "\tlwz {}, {}(1)", gpr.number(), save_slot(gpr))?;
             }
         }
+
         if self.restore_from[0].is_some() || self.restore_link_only {
             entry(out, &restore_name(None))?;
             restore_link(out)?;
         }
+
         if let Some(first) = self.restore_from[1] {
             for gpr in registers(first, Gpr::R31) {
                 entry(
@@ -140,10 +124,35 @@ impl HelperUse {
                 )?;
                 writeln!(out, "\tlwz {}, {}(1)", gpr.number(), save_slot(gpr))?;
             }
+
             restore_link(out)?;
         }
+
         Ok(())
     }
+}
+
+pub fn save_name(range: SaveRange) -> String {
+    format!(
+        "__xbox360_savegprlr_{}_{}",
+        range.first.number(),
+        range.last.number()
+    )
+}
+
+pub fn restore_name(range: Option<SaveRange>) -> String {
+    match range {
+        Some(range) => format!(
+            "__xbox360_restgprlr_{}_{}",
+            range.first.number(),
+            range.last.number()
+        ),
+        None => "__xbox360_restlr".to_owned(),
+    }
+}
+
+fn chain_index(last: Gpr) -> usize {
+    usize::from(last == Gpr::R31)
 }
 
 fn registers(first: Gpr, last: Gpr) -> impl Iterator<Item = Gpr> {

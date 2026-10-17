@@ -11,6 +11,13 @@ use crate::line::Displacement;
 use crate::line::Instruction;
 use crate::line::Operand;
 
+use self::Access::Load;
+use self::Access::Store;
+use self::Role::Def;
+use self::Role::DefUse;
+use self::Role::Other;
+use self::Role::Use;
+
 /// General-purpose register number.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Gpr(u8);
@@ -23,8 +30,11 @@ impl Gpr {
     /// First callee-saved register in the SVR4 and Xbox 360 ABIs.
     pub const FIRST_CALLEE_SAVED: Gpr = Gpr(14);
 
-    pub fn new(number: i64) -> Option<Gpr> {
-        u8::try_from(number).ok().filter(|n| *n < 32).map(Gpr)
+    pub fn new(number: i64) -> Option<Self> {
+        u8::try_from(number)
+            .ok()
+            .filter(|number| *number < 32)
+            .map(Self)
     }
 
     pub fn number(self) -> u8 {
@@ -59,7 +69,9 @@ impl GprSet {
     }
 
     pub fn iter(self) -> impl Iterator<Item = Gpr> {
-        (0..32u8).filter(move |n| self.0 & (1 << n) != 0).map(Gpr)
+        (0..32u8)
+            .filter(move |number| self.0 & (1 << number) != 0)
+            .map(Gpr)
     }
 
     pub fn first(self) -> Option<Gpr> {
@@ -77,10 +89,12 @@ impl GprSet {
 
 impl FromIterator<Gpr> for GprSet {
     fn from_iter<I: IntoIterator<Item = Gpr>>(iter: I) -> Self {
-        let mut set = GprSet::default();
+        let mut set = Self::default();
+
         for gpr in iter {
             set.insert(gpr);
         }
+
         set
     }
 }
@@ -91,8 +105,10 @@ impl fmt::Display for GprSet {
             if index > 0 {
                 f.write_str(",")?;
             }
+
             write!(f, "{gpr}")?;
         }
+
         Ok(())
     }
 }
@@ -154,6 +170,31 @@ impl Effects {
     }
 }
 
+/// Control transfer of an instruction.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Control<'a> {
+    Fallthrough,
+    /// Direct branch; the target is a label or symbol expression.
+    Jump {
+        target: &'a str,
+        conditional: bool,
+    },
+    /// Branch that writes the link register and returns to the next
+    /// instruction.
+    Call,
+    /// Branch to the link register.
+    Return {
+        conditional: bool,
+    },
+    /// Branch to the count register.
+    IndirectJump {
+        conditional: bool,
+    },
+    /// Unconditional trap.
+    Trap,
+    Unknown,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Role {
     Def,
@@ -187,12 +228,12 @@ enum Role {
     IndexedIndex,
 }
 
-use Access::Load;
-use Access::Store;
-use Role::Def;
-use Role::DefUse;
-use Role::Other;
-use Role::Use;
+/// Indexed base register waiting for the index operand.
+struct PendingIndex {
+    access: Access,
+    size: i64,
+    base: Gpr,
+}
 
 fn roles(mnemonic: &str, operand_count: usize) -> Option<Vec<Role>> {
     let mem = |access, size| Role::Memory { access, size };
@@ -269,6 +310,7 @@ fn roles(mnemonic: &str, operand_count: usize) -> Option<Vec<Role>> {
         "stfdx" => vec![Other, indexed(Store, 8), Role::IndexedIndex],
         _ => return None,
     };
+
     (roles.len() == operand_count).then_some(roles)
 }
 
@@ -276,6 +318,7 @@ fn roles(mnemonic: &str, operand_count: usize) -> Option<Vec<Role>> {
 /// a model and for control transfers.
 pub fn effects(instruction: &Instruction<'_>) -> Option<Effects> {
     let roles = roles(instruction.mnemonic, instruction.operands.len())?;
+
     let mut effects = Effects {
         defs: GprSet::default(),
         uses: GprSet::default(),
@@ -285,15 +328,20 @@ pub fn effects(instruction: &Instruction<'_>) -> Option<Effects> {
         },
         memory: None,
     };
-    let mut pending_index: Option<(Access, i64, Gpr)> = None;
+
+    let mut pending_index: Option<PendingIndex> = None;
+
     for (role, operand) in roles.iter().zip(&instruction.operands) {
         match (*role, *operand) {
+            // Immediates, condition fields, and FPRs have no GPR effect.
             (Other, _) => {}
             (Def | Use | DefUse, Operand::Integer(number)) => {
                 let gpr = Gpr::new(number)?;
+
                 if matches!(role, Def | DefUse) {
                     effects.defs.insert(gpr);
                 }
+
                 if matches!(role, Use | DefUse) {
                     effects.uses.insert(gpr);
                 }
@@ -304,6 +352,7 @@ pub fn effects(instruction: &Instruction<'_>) -> Option<Effects> {
             ) => {
                 let base = Gpr::new(base)?;
                 effects.uses.insert(base);
+
                 let (access, size) = match *role {
                     Role::Memory { access, size } => (access, size),
                     Role::MemoryUpdate { access, size } => {
@@ -312,10 +361,12 @@ pub fn effects(instruction: &Instruction<'_>) -> Option<Effects> {
                     }
                     _ => continue,
                 };
+
                 let offset = match displacement {
                     Displacement::Integer(value) => Some(value),
                     Displacement::Expression(_) => None,
                 };
+
                 effects.memory = Some(MemoryAccess {
                     access,
                     address: Address::Displacement { base, offset },
@@ -331,56 +382,37 @@ pub fn effects(instruction: &Instruction<'_>) -> Option<Effects> {
                 if matches!(role, Role::IndexedBaseUpdate { .. }) {
                     effects.defs.insert(base);
                 }
-                pending_index = Some((access, size, base));
+
+                pending_index = Some(PendingIndex { access, size, base });
             }
             (Role::IndexedIndex, Operand::Integer(number)) => {
                 let index = Gpr::new(number)?;
                 effects.uses.insert(index);
-                let (access, size, base) = pending_index.take()?;
+
+                let pending = pending_index.take()?;
                 effects.memory = Some(MemoryAccess {
-                    access,
-                    address: Address::Indexed { base, index },
-                    size,
+                    access: pending.access,
+                    address: Address::Indexed {
+                        base: pending.base,
+                        index,
+                    },
+                    size: pending.size,
                 });
             }
             _ => return None,
         }
     }
+
     Some(effects)
 }
 
-/// Control transfer of an instruction.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Control<'a> {
-    Fallthrough,
-    /// Direct branch; the target is a label or symbol expression.
-    Jump {
-        target: &'a str,
-        conditional: bool,
-    },
-    /// Branch that writes the link register and returns to the next
-    /// instruction.
-    Call,
-    /// Branch to the link register.
-    Return {
-        conditional: bool,
-    },
-    /// Branch to the count register.
-    IndirectJump {
-        conditional: bool,
-    },
-    /// Unconditional trap.
-    Trap,
-    Unknown,
-}
-
-/// Condition prefixes of extended branch mnemonics, longest first.
-const BRANCH_CONDITIONS: [&str; 20] = [
-    "dnzt", "dnzf", "dzt", "dzf", "dnz", "dz", "lt", "le", "eq", "ge", "gt", "nl", "ne", "ng",
-    "so", "ns", "un", "nu", "t", "f",
-];
-
 pub fn control<'a>(instruction: &Instruction<'a>) -> Control<'a> {
+    /// Condition prefixes of extended branch mnemonics, longest first.
+    const BRANCH_CONDITIONS: [&str; 20] = [
+        "dnzt", "dnzf", "dzt", "dzf", "dnz", "dz", "lt", "le", "eq", "ge", "gt", "nl", "ne", "ng",
+        "so", "ns", "un", "nu", "t", "f",
+    ];
+
     let mnemonic = instruction.mnemonic.trim_end_matches(['+', '-']);
     let target = || match instruction.operands.last() {
         Some(Operand::Expression(target)) => Some(*target),
@@ -393,6 +425,7 @@ pub fn control<'a>(instruction: &Instruction<'a>) -> Control<'a> {
         },
         None => Control::Unknown,
     };
+
     let Some(rest) = mnemonic.strip_prefix('b') else {
         return match mnemonic {
             "trap" => Control::Trap,
@@ -400,6 +433,7 @@ pub fn control<'a>(instruction: &Instruction<'a>) -> Control<'a> {
             _ => Control::Fallthrough,
         };
     };
+
     match rest {
         "" | "a" => jump(false),
         "l" | "la" | "ctrl" => Control::Call,
@@ -409,9 +443,13 @@ pub fn control<'a>(instruction: &Instruction<'a>) -> Control<'a> {
         "clr" => Control::Return { conditional: true },
         "cctr" => Control::IndirectJump { conditional: true },
         _ => {
-            let Some(condition) = BRANCH_CONDITIONS.iter().find(|c| rest.starts_with(**c)) else {
+            let Some(condition) = BRANCH_CONDITIONS
+                .iter()
+                .find(|prefix| rest.starts_with(**prefix))
+            else {
                 return Control::Unknown;
             };
+
             match &rest[condition.len()..] {
                 "" | "a" => jump(true),
                 "lr" => Control::Return { conditional: true },
@@ -422,11 +460,11 @@ pub fn control<'a>(instruction: &Instruction<'a>) -> Control<'a> {
     }
 }
 
-/// Link register special purpose register number.
-const SPR_LR: i64 = 8;
-
 /// Link register access of a non-branch instruction; `None` when unknown.
 pub fn link_access(instruction: &Instruction<'_>) -> Option<LinkAccess> {
+    /// Link register special purpose register number.
+    const SPR_LR: i64 = 8;
+
     match instruction.mnemonic {
         "mflr" => Some(LinkAccess {
             read: true,

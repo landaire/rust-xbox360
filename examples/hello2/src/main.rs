@@ -1,10 +1,7 @@
 #![no_std]
 #![no_main]
+
 use core::panic::PanicInfo;
-#[panic_handler]
-fn panic(_: &PanicInfo) -> ! {
-    loop {}
-}
 
 // A single import thunk for DbgPrint (xboxkrnl.exe ordinal 3). xex-link rewrites
 // this 16-byte record into a jump stub through the IAT. Record encodes
@@ -21,13 +18,18 @@ pub extern "C" fn DbgPrint(_fmt: *const u8) -> u32 {
     )
 }
 
+#[panic_handler]
+fn panic(_: &PanicInfo) -> ! {
+    loop {}
+}
+
 fn spin() {
-    let mut i: u32 = 0;
-    while i < 40_000_000 {
+    let mut count: u32 = 0;
+    while count < 40_000_000 {
         unsafe {
-            core::ptr::read_volatile(&i);
+            core::ptr::read_volatile(&count);
         }
-        i = i.wrapping_add(1);
+        count = count.wrapping_add(1);
     }
 }
 

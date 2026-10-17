@@ -16,10 +16,67 @@ pub enum Line<'a> {
     Blank,
 }
 
+impl<'a> Line<'a> {
+    pub fn parse(raw: &'a str) -> Self {
+        let text = raw.trim_end();
+        let trimmed = text.trim_start();
+        if trimmed.is_empty() {
+            return Self::Blank;
+        }
+
+        if let Some(comment) = trimmed.strip_prefix('#') {
+            return match comment.trim() {
+                "APP" => Self::InlineAsmStart,
+                "NO_APP" => Self::InlineAsmEnd,
+                _ => Self::Blank,
+            };
+        }
+
+        let indented = trimmed.len() != text.len();
+        if trimmed.starts_with('.') && indented {
+            return Self::Directive(trimmed);
+        }
+
+        let code = strip_comment(trimmed);
+        if let Some(label) = code.strip_suffix(':')
+            && !label.contains(char::is_whitespace)
+        {
+            return Self::Label(label);
+        }
+
+        if !indented {
+            return Self::Directive(code);
+        }
+
+        if code.contains(';') {
+            return Self::Statements(code);
+        }
+
+        Self::Instruction(Instruction::parse(code))
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Instruction<'a> {
     pub mnemonic: &'a str,
     pub operands: Vec<Operand<'a>>,
+}
+
+impl<'a> Instruction<'a> {
+    pub fn parse(code: &'a str) -> Self {
+        let (mnemonic, rest) = match code.find(char::is_whitespace) {
+            Some(split) => (&code[..split], code[split..].trim()),
+            None => (code, ""),
+        };
+
+        let operands = if rest.is_empty() {
+            Vec::new()
+        } else {
+            split_operands(rest).map(Operand::parse).collect()
+        };
+
+        Self { mnemonic, operands }
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -34,66 +91,12 @@ pub enum Operand<'a> {
     Expression(&'a str),
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Displacement<'a> {
-    Integer(i64),
-    Expression(&'a str),
-}
-
-impl<'a> Line<'a> {
-    pub fn parse(raw: &'a str) -> Self {
-        let text = raw.trim_end();
-        let trimmed = text.trim_start();
-        if trimmed.is_empty() {
-            return Line::Blank;
-        }
-        if let Some(comment) = trimmed.strip_prefix('#') {
-            return match comment.trim() {
-                "APP" => Line::InlineAsmStart,
-                "NO_APP" => Line::InlineAsmEnd,
-                _ => Line::Blank,
-            };
-        }
-        let indented = trimmed.len() != text.len();
-        if trimmed.starts_with('.') && indented {
-            return Line::Directive(trimmed);
-        }
-        let code = strip_comment(trimmed);
-        if let Some(label) = code.strip_suffix(':')
-            && !label.contains(char::is_whitespace)
-        {
-            return Line::Label(label);
-        }
-        if !indented {
-            return Line::Directive(code);
-        }
-        if code.contains(';') {
-            return Line::Statements(code);
-        }
-        Line::Instruction(Instruction::parse(code))
-    }
-}
-
-impl<'a> Instruction<'a> {
-    pub fn parse(code: &'a str) -> Self {
-        let (mnemonic, rest) = match code.find(char::is_whitespace) {
-            Some(split) => (&code[..split], code[split..].trim()),
-            None => (code, ""),
-        };
-        let operands = if rest.is_empty() {
-            Vec::new()
-        } else {
-            split_operands(rest).map(Operand::parse).collect()
-        };
-        Instruction { mnemonic, operands }
-    }
-}
-
 impl<'a> Operand<'a> {
     pub fn parse(text: &'a str) -> Self {
         if let Some(value) = parse_integer(text) {
-            return Operand::Integer(value);
+            return Self::Integer(value);
         }
+
         if let Some(inner) = text.strip_suffix(')')
             && let Some(open) = inner.rfind('(')
             && let Some(base) = parse_integer(&inner[open + 1..])
@@ -104,11 +107,19 @@ impl<'a> Operand<'a> {
                     Some(value) => Displacement::Integer(value),
                     None => Displacement::Expression(displacement),
                 };
-                return Operand::Memory { displacement, base };
+
+                return Self::Memory { displacement, base };
             }
         }
-        Operand::Expression(text)
+
+        Self::Expression(text)
     }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Displacement<'a> {
+    Integer(i64),
+    Expression(&'a str),
 }
 
 fn strip_comment(code: &str) -> &str {
@@ -123,6 +134,7 @@ fn split_operands(text: &str) -> impl Iterator<Item = &str> {
     let mut depth = 0i32;
     let mut start = 0;
     let mut pieces = Vec::new();
+
     for (index, character) in text.char_indices() {
         match character {
             '(' => depth += 1,
@@ -131,9 +143,11 @@ fn split_operands(text: &str) -> impl Iterator<Item = &str> {
                 pieces.push(text[start..index].trim());
                 start = index + 1;
             }
+            // Part of the current operand.
             _ => {}
         }
     }
+
     pieces.push(text[start..].trim());
     pieces.into_iter()
 }
@@ -143,16 +157,18 @@ pub fn parse_integer(text: &str) -> Option<i64> {
         Some(rest) => (true, rest),
         None => (false, text),
     };
+
     let magnitude = match digits.strip_prefix("0x") {
-        Some(hex) if !hex.is_empty() && hex.bytes().all(|b| b.is_ascii_hexdigit()) => {
+        Some(hex) if !hex.is_empty() && hex.bytes().all(|byte| byte.is_ascii_hexdigit()) => {
             i64::from_str_radix(hex, 16).ok()?
         }
         Some(_) => return None,
-        None if !digits.is_empty() && digits.bytes().all(|b| b.is_ascii_digit()) => {
+        None if !digits.is_empty() && digits.bytes().all(|byte| byte.is_ascii_digit()) => {
             digits.parse().ok()?
         }
         None => return None,
     };
+
     Some(if negative { -magnitude } else { magnitude })
 }
 

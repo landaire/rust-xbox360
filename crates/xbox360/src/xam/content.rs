@@ -45,6 +45,7 @@ impl ContentRoot<'_> {
     pub fn close(self) -> Result<(), Win32Error> {
         let root = self.root;
         core::mem::forget(self);
+
         // SAFETY: `root` is NUL-terminated and names the drive that `create`
         // mapped; `forget` keeps Drop from closing it again.
         unsafe { xam::XamContentClose(root.as_ptr().cast(), core::ptr::null_mut()) }.result()
@@ -69,6 +70,7 @@ pub fn create<'a>(
 ) -> Result<ContentRoot<'a>, Win32Error> {
     let mut taken = Disposition::default();
     let mut license_mask = 0u32;
+
     // SAFETY: `root` is NUL-terminated, `data` is a live `XCONTENT_DATA`,
     // the outputs are live locals, and a null overlapped block completes
     // the call before it returns.
@@ -84,6 +86,7 @@ pub fn create<'a>(
         )
     }
     .result()?;
+
     Ok(ContentRoot {
         root,
         disposition: taken,

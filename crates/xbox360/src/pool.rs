@@ -15,18 +15,11 @@ use core::alloc::Layout;
 
 use xbox360_sys::xboxkrnl;
 
+pub use xbox360_sys::xboxkrnl::PoolTag;
+
 /// Alignment of every pool block. Larger alignments are served by
 /// allocating more and aligning inside the block.
 pub const POOL_ALIGNMENT: usize = 8;
-
-pub use xbox360_sys::xboxkrnl::PoolTag;
-
-/// Allocate `size` bytes of pool. Null on failure.
-fn allocate(size: usize, tag: PoolTag) -> *mut u8 {
-    // SAFETY: the call takes no pointers; failure returns 0, which is null.
-    // usize is 32 bits on this target.
-    unsafe { xboxkrnl::ExAllocatePoolWithTag(size as u32, tag) as usize as *mut u8 }
-}
 
 /// `GlobalAlloc` over `ExAllocatePoolWithTag` and `ExFreePool`.
 #[derive(Debug, Clone, Copy)]
@@ -52,18 +45,22 @@ unsafe impl GlobalAlloc for PoolAllocator {
         if layout.align() <= POOL_ALIGNMENT {
             return allocate(layout.size(), self.tag);
         }
+
         let Some(request) = layout.size().checked_add(layout.align()) else {
             return core::ptr::null_mut();
         };
+
         let base = allocate(request, self.tag);
         if base.is_null() {
             return base;
         }
+
         // `base` is a multiple of POOL_ALIGNMENT and the alignment is
         // larger, so the aligned address is at least POOL_ALIGNMENT bytes
         // past `base` and the block holds `size` bytes after it.
         let aligned = (base as usize + layout.align()) & !(layout.align() - 1);
         let offset = aligned - base as usize;
+
         // SAFETY: `aligned` lies within the block, at least one word past
         // its start.
         unsafe {
@@ -80,8 +77,16 @@ unsafe impl GlobalAlloc for PoolAllocator {
             // SAFETY: alloc stored the pool address in the word below.
             unsafe { pointer.cast::<usize>().sub(1).read() }
         };
+
         // SAFETY: `base` is the pool address that alloc obtained for this
         // block, and GlobalAlloc callers free each block once.
         unsafe { xboxkrnl::ExFreePool(base as u32) };
     }
+}
+
+/// Allocate `size` bytes of pool. Null on failure.
+fn allocate(size: usize, tag: PoolTag) -> *mut u8 {
+    // SAFETY: the call takes no pointers; failure returns 0, which is null.
+    // usize is 32 bits on this target.
+    unsafe { xboxkrnl::ExAllocatePoolWithTag(size as u32, tag) as usize as *mut u8 }
 }
