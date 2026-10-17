@@ -52,10 +52,14 @@ static DONE: Kevent = Kevent::new();
 unsafe { xboxkrnl::KeInitializeEvent(DONE.as_ptr(), EventType::Notification, false) };
 ```
 
-Read a data import, such as `XboxHardwareInfo`, through its address:
+Read a data import, such as `XboxHardwareInfo`, through its typed view. `get` returns `None` when the loader did not resolve the import, as Xenia does for exports it lacks:
 
 ```rust,ignore
-let address = xbox360_sys::xboxkrnl::XboxHardwareInfo.address();
+use core::sync::atomic::Ordering;
+
+if let Some(info) = xbox360_sys::xboxkrnl::XboxHardwareInfo.get() {
+    let flags = info.flags.load(Ordering::Relaxed);
+}
 ```
 
 Declare an import that the crate does not have, or a different signature for one it has, with the same macro the crate uses. Write `pub safe` instead of `pub` only when the export cannot break memory safety. Write `-> !` when the export does not return:
@@ -82,7 +86,7 @@ xbox360_sys::export!(1, worker);
 
 Pass `worker_entry`, not `worker`, to `ExCreateThread` with `xapi_thread_startup` 0. When `worker` returns, the kernel ends the thread with the returned value as its exit code.
 
-The crate needs [xex-link](https://github.com/landaire/rust-xbox360) to turn the import and export records into the XEX import and export tables. Imports, `processor`, `interlocked` and `entry_bridge` exist only for `target_os = "xbox360"`. On other targets the crate has only the types, the constants and `status`, so host code can share them.
+The crate needs [xex-link](https://github.com/landaire/rust-xbox360) to turn the import and export records into the XEX import and export tables. Imports, the functions of `processor`, `interlocked` and `entry_bridge` exist only for `target_os = "xbox360"`. On other targets the crate has the types, the constants, the structure layouts and `status`, so host code can share them.
 
 ## Why the stubs exist
 

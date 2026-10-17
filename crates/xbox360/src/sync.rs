@@ -137,10 +137,11 @@ impl Event {
         anchor_at(&self.anchor, header as usize as u32, || {
             let list = header.wrapping_add(2) as usize as u32;
             // SAFETY: no other thread uses the event while the anchor is
-            // busy; the signal state is kept.
+            // busy, and the kernel sees the header only after the anchor
+            // store that publishes it; the signal state is kept.
             unsafe {
-                header.add(2).write_volatile(list);
-                header.add(3).write_volatile(list);
+                header.add(2).write(list);
+                header.add(3).write(list);
             }
         });
         header.cast()

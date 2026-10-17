@@ -19,10 +19,11 @@
 //! a callback) enters through [`entry_bridge`], which [`bridged!`] and
 //! [`export!`] arrange.
 //!
-//! Types, constants and [`status`] compile on every target, so host code
-//! can share them. Imports, [`processor`], [`interlocked`] and the entry
-//! bridge exist only for `target_os = "xbox360"`. Documentation builds
-//! them on another PowerPC target with `--cfg xbox360_docs`.
+//! Types, constants, structure layouts and [`status`] compile on every
+//! target, so host code can share them. Imports, the functions of
+//! [`processor`], [`interlocked`] and the entry bridge exist only for
+//! `target_os = "xbox360"`. Documentation builds them on another PowerPC
+//! target with `--cfg xbox360_docs`.
 //!
 //! Every type in an import signature is 32 bits wide or narrower and passes
 //! like the C integer of its width: enums are `#[repr(u32)]` (or the C
@@ -47,6 +48,24 @@
 /// Define a bit flag newtype over `$bits` with a constant for every named
 /// bit, set operations, `|`, `&`, `!`, and a `Debug` form that lists the
 /// named bits and prints the other bits in hex. `Default` is the empty set.
+///
+/// ```ignore
+/// xbox360_sys::flags! {
+///     /// Options of a request.
+///     pub struct RequestFlags(u32) {
+///         /// Wait for completion.
+///         WAIT = 0x4,
+///         SPIN = 0x10,
+///     }
+/// }
+///
+/// let flags = RequestFlags::WAIT | RequestFlags::from_bits_retain(0x100);
+/// assert!(flags.contains(RequestFlags::WAIT));
+/// ```
+///
+/// The type is `#[repr(transparent)]` over `$bits`, so it can be a field of
+/// a `#[repr(C)]` structure or an argument of an import.
+#[macro_export]
 macro_rules! flags {
     (
         $(#[$meta:meta])*
@@ -56,7 +75,14 @@ macro_rules! flags {
     ) => {
         $(#[$meta])*
         #[repr(transparent)]
-        #[derive(Clone, Copy, Default, PartialEq, Eq, Hash)]
+        #[derive(
+            ::core::clone::Clone,
+            ::core::marker::Copy,
+            ::core::default::Default,
+            ::core::cmp::PartialEq,
+            ::core::cmp::Eq,
+            ::core::hash::Hash,
+        )]
         pub struct $name($bits);
 
         impl $name {
@@ -80,8 +106,12 @@ macro_rules! flags {
             }
 
             /// `None` if `bits` has a bit without a name.
-            pub const fn from_bits(bits: $bits) -> Option<Self> {
-                if bits & !Self::NAMED == 0 { Some(Self(bits)) } else { None }
+            pub const fn from_bits(bits: $bits) -> ::core::option::Option<Self> {
+                if bits & !Self::NAMED == 0 {
+                    ::core::option::Option::Some(Self(bits))
+                } else {
+                    ::core::option::Option::None
+                }
             }
 
             /// `bits` including bits without a name, for values passed on
@@ -127,7 +157,10 @@ macro_rules! flags {
         impl ::core::fmt::Debug for $name {
             fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
                 f.write_str(::core::concat!(::core::stringify!($name), "("))?;
+                // A type without named bits never reassigns these.
+                #[allow(unused_mut)]
                 let mut remaining = self.0;
+                #[allow(unused_mut)]
                 let mut separator = "";
                 $(
                     if Self::$flag.0 != 0 && self.contains(Self::$flag) && remaining & Self::$flag.0 != 0 {
@@ -185,7 +218,21 @@ macro_rules! flags {
 }
 
 /// Define a fieldless enum with the given representation and values, with
-/// `raw`, `from_raw` and `TryFrom` of the representation.
+/// `raw`, `from_raw` and `TryFrom` of the representation. `TryFrom` fails
+/// with [`UnknownValue`] for a value without a variant.
+///
+/// ```ignore
+/// xbox360_sys::value_enum! {
+///     /// Why the loader calls a module entry point.
+///     pub enum EntryReason: u32 {
+///         Detach = 0,
+///         Attach = 1,
+///     }
+/// }
+///
+/// assert_eq!(EntryReason::from_raw(1), Some(EntryReason::Attach));
+/// ```
+#[macro_export]
 macro_rules! value_enum {
     (
         $(#[$meta:meta])*
@@ -195,7 +242,14 @@ macro_rules! value_enum {
     ) => {
         $(#[$meta])*
         #[repr($repr)]
-        #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+        #[derive(
+            ::core::fmt::Debug,
+            ::core::clone::Clone,
+            ::core::marker::Copy,
+            ::core::cmp::PartialEq,
+            ::core::cmp::Eq,
+            ::core::hash::Hash,
+        )]
         pub enum $name {
             $($(#[$variant_meta])* $variant = $value,)*
         }
@@ -206,18 +260,20 @@ macro_rules! value_enum {
             }
 
             /// `None` for a value without a variant.
-            pub const fn from_raw(value: $repr) -> Option<Self> {
+            pub const fn from_raw(value: $repr) -> ::core::option::Option<Self> {
                 $(if value == $value {
-                    return Some(Self::$variant);
+                    return ::core::option::Option::Some(Self::$variant);
                 })*
-                None
+                ::core::option::Option::None
             }
         }
 
         impl ::core::convert::TryFrom<$repr> for $name {
             type Error = $crate::UnknownValue<$repr>;
 
-            fn try_from(value: $repr) -> Result<Self, $crate::UnknownValue<$repr>> {
+            fn try_from(
+                value: $repr,
+            ) -> ::core::result::Result<Self, $crate::UnknownValue<$repr>> {
                 Self::from_raw(value).ok_or($crate::UnknownValue { value })
             }
         }
@@ -245,10 +301,10 @@ pub mod status;
 pub mod xam;
 pub mod xboxkrnl;
 
+pub mod processor;
+
 #[cfg(any(target_os = "xbox360", xbox360_docs))]
 pub mod interlocked;
-#[cfg(any(target_os = "xbox360", xbox360_docs))]
-pub mod processor;
 
 /// A value that no variant of the enum it was converted to has.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -269,6 +325,24 @@ pub mod lib_index {
     pub const XBOXKRNL: u32 = 0;
     pub const XAM: u32 = 1;
     pub const XBDM: u32 = 2;
+}
+
+/// An export ordinal, as `XexGetProcedureAddress` takes it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct Ordinal(core::num::NonZeroU16);
+
+impl Ordinal {
+    /// `None` for 0, which no export has.
+    pub const fn new(ordinal: u16) -> Option<Self> {
+        match core::num::NonZeroU16::new(ordinal) {
+            Some(ordinal) => Some(Self(ordinal)),
+            None => None,
+        }
+    }
+
+    pub const fn get(self) -> u16 {
+        self.0.get()
+    }
 }
 
 /// Define an import: a stub with the signature callers use, and the thunk it
@@ -488,22 +562,65 @@ macro_rules! __on_console {
 }
 
 /// A data import slot. Before any code of the module runs, the loader
-/// replaces the import record in the slot with the address of the export.
-/// Safe code can only read it.
+/// replaces the import record in the slot with the address of the export,
+/// a `T` that the kernel keeps for the life of the system. Safe code can
+/// only read the slot.
 #[repr(transparent)]
-#[derive(Debug)]
-pub struct ImportedVariable(core::sync::atomic::AtomicU32);
+pub struct ImportedVariable<T: 'static> {
+    address: core::sync::atomic::AtomicU32,
+    _export: core::marker::PhantomData<&'static T>,
+}
 
-impl ImportedVariable {
-    /// The address of the export. A loader that does not resolve the import
-    /// leaves another value: Xenia stores 0xDxxxBEEF.
-    pub fn address(&self) -> u32 {
-        self.0.load(core::sync::atomic::Ordering::Relaxed)
+impl<T: Sync + 'static> ImportedVariable<T> {
+    /// The export. `None` when the loader left the import unresolved:
+    /// Xenia stores 0xDxxxBEEF in the slots of exports it does not provide,
+    /// 0xF00DF00D for an ordinal it does not list, and 0xDEADC0DE for a
+    /// function export imported as a variable.
+    pub fn get(&self) -> Option<&'static T> {
+        let address = resolved_address(self.address.load(core::sync::atomic::Ordering::Relaxed))?;
+        // SAFETY: the loader stored the address of the export, a `T` that
+        // the kernel keeps for the life of the system.
+        Some(unsafe { &*core::ptr::with_exposed_provenance::<T>(address as usize) })
+    }
+
+    /// The export, without the check of [`ImportedVariable::get`]. For code
+    /// that checks the import once, for example at module start, and then
+    /// reads it often.
+    ///
+    /// # Safety
+    ///
+    /// The loader must have resolved the import: [`ImportedVariable::get`]
+    /// returns `Some` for it. On the console kernel the loader resolves
+    /// every import it accepts.
+    #[inline]
+    pub unsafe fn get_unchecked(&self) -> &'static T {
+        let address = self.address.load(core::sync::atomic::Ordering::Relaxed);
+        // SAFETY: the caller guarantees that the loader stored the address
+        // of the export, a `T` that the kernel keeps for the life of the
+        // system.
+        unsafe { &*core::ptr::with_exposed_provenance::<T>(address as usize) }
     }
 }
 
-/// Declare a data import: an [`ImportedVariable`] slot that the loader
-/// replaces with the address of the export.
+impl<T: 'static> core::fmt::Debug for ImportedVariable<T> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let address = self.address.load(core::sync::atomic::Ordering::Relaxed);
+        write!(f, "ImportedVariable({address:#010x})")
+    }
+}
+
+/// `address` unless it is a value Xenia leaves in the slot of a data import
+/// it does not resolve.
+const fn resolved_address(address: u32) -> Option<u32> {
+    if address & 0xf000_ffff == 0xd000_beef || address == 0xf00d_f00d || address == 0xdead_c0de {
+        None
+    } else {
+        Some(address)
+    }
+}
+
+/// Declare a data import `$name: $type`: an [`ImportedVariable`] slot that
+/// the loader replaces with the address of the export.
 ///
 /// The slot is defined in assembly and reached through an `extern` static,
 /// so LLVM cannot treat a slot that no code writes as a constant and fold
@@ -518,10 +635,33 @@ impl ImportedVariable {
 /// linker keeps one. In one assembly unit, such as a fat LTO module, only
 /// the first declaration defines it.
 ///
+/// The static is `unsafe` to read. With `safe` after the visibility, as in
+/// an `unsafe extern` block, it is safe to read, and [`ImportedVariable`]
+/// then hands out the export as a `&'static $type` without `unsafe`.
+/// Declare an import `safe` only when `$type` describes the export as the
+/// kernel keeps it: a valid value for every bit pattern the kernel stores,
+/// and an atomic for every field that the kernel or another processor
+/// changes.
+///
+/// ```ignore
+/// xbox360_sys::import_variable!(
+///     /// Version of the running kernel.
+///     pub safe XboxKrnlVersion: xbox360_sys::xboxkrnl::KernelVersion,
+///     lib = xbox360_sys::lib_index::XBOXKRNL,
+///     ordinal = 0x158
+/// );
+/// ```
+///
 /// As with [`import_thunk!`], the slot exists only on the console target.
 #[macro_export]
 macro_rules! import_variable {
-    ($(#[$meta:meta])* $vis:vis $name:ident, lib = $lib:expr, ordinal = $ord:expr) => {
+    ($(#[$meta:meta])* $vis:vis safe $name:ident: $type:ty, lib = $lib:expr, ordinal = $ord:expr) => {
+        $crate::import_variable!(@slot [$(#[$meta])*] [$vis] [safe] $name: $type, $lib, $ord);
+    };
+    ($(#[$meta:meta])* $vis:vis $name:ident: $type:ty, lib = $lib:expr, ordinal = $ord:expr) => {
+        $crate::import_variable!(@slot [$(#[$meta])*] [$vis] [] $name: $type, $lib, $ord);
+    };
+    (@slot [$($attr:tt)*] [$vis:vis] [$($safety:ident)?] $name:ident: $type:ty, $lib:expr, $ord:expr) => {
         $crate::__import_stub!(@check_record $lib, $ord);
 
         $crate::__on_console! {
@@ -540,9 +680,9 @@ macro_rules! import_variable {
             );
 
             unsafe extern "C" {
-                $(#[$meta])*
+                $($attr)*
                 #[link_name = ::core::concat!("__xbox360_import_", ::core::stringify!($name))]
-                $vis safe static $name: $crate::ImportedVariable;
+                $vis $($safety)? static $name: $crate::ImportedVariable<$type>;
             }
         }
     };
@@ -757,5 +897,20 @@ mod tests {
             Err(crate::UnknownValue { value: 4 })
         );
         assert_eq!(u32::from(UserIndex::Any), 0xff);
+    }
+
+    #[test]
+    fn unresolved_data_import_has_no_address() {
+        assert_eq!(crate::resolved_address(0xd000_beef), None);
+        assert_eq!(crate::resolved_address(0xd123_beef), None);
+        assert_eq!(crate::resolved_address(0x801f_beef), Some(0x801f_beef));
+        assert_eq!(crate::resolved_address(0xf00d_f00d), None);
+        assert_eq!(crate::resolved_address(0xdead_c0de), None);
+    }
+
+    #[test]
+    fn full_context_is_the_capture_request() {
+        // RtlCaptureContext stores 0x17 in the flags word.
+        assert_eq!(crate::xboxkrnl::ContextFlags::FULL.bits(), 0x17);
     }
 }

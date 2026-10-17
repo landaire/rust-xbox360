@@ -11,21 +11,21 @@ use xbox360_sys::xboxkrnl;
 use crate::sync::NOT_ALERTABLE;
 use crate::sync::ProcessorMode;
 
-/// Byte offset of the millisecond tick count in `KeTimeStampBundle`.
-const TICK_COUNT_OFFSET: usize = 0x10;
-
-/// A kernel interval for `duration` from now: negative 100 ns units,
-/// rounded up so the wait is never shorter than `duration`. Durations
-/// beyond the range (about 29,000 years) wait the longest interval.
-pub(crate) fn relative_interval(duration: Duration) -> i64 {
-    let intervals = duration
-        .as_secs()
-        .checked_mul(10_000_000)
-        .and_then(|intervals| {
-            intervals.checked_add(u64::from(duration.subsec_nanos().div_ceil(100)))
-        })
-        .and_then(|intervals| i64::try_from(intervals).ok());
-    -intervals.unwrap_or(i64::MAX)
+/// A kernel interval for `duration` from now, as the waits of the kernel
+/// take it: negative 100 ns units, rounded up so the wait is never shorter
+/// than `duration`. Durations beyond the range (about 29,000 years) wait
+/// the longest interval. For a constant duration the interval is computed
+/// at compile time.
+pub const fn relative_interval(duration: Duration) -> i64 {
+    let nanos = duration.subsec_nanos().div_ceil(100) as u64;
+    let intervals = match duration.as_secs().checked_mul(10_000_000) {
+        Some(intervals) => intervals.checked_add(nanos),
+        None => None,
+    };
+    match intervals {
+        Some(intervals) if intervals <= i64::MAX as u64 => -(intervals as i64),
+        _ => -i64::MAX,
+    }
 }
 
 /// A reading of the 64-bit time base register.
@@ -97,6 +97,9 @@ impl TimebaseFrequency {
 pub struct FileTime(u64);
 
 impl FileTime {
+    /// 100 ns intervals in one second.
+    pub const INTERVALS_PER_SECOND: u64 = 10_000_000;
+
     pub fn now() -> Self {
         let mut time = 0u64;
         // SAFETY: `time` is a live local u64.
@@ -129,11 +132,14 @@ impl FileTime {
 pub struct TickCount(u32);
 
 impl TickCount {
+    /// # Panics
+    ///
+    /// If the loader did not resolve `KeTimeStampBundle`.
     pub fn now() -> Self {
-        let bundle = xboxkrnl::KeTimeStampBundle.address() as usize;
-        // SAFETY: the loader stored the address of the kernel export; the
-        // tick count is at TICK_COUNT_OFFSET.
-        Self(unsafe { core::ptr::read_volatile((bundle + TICK_COUNT_OFFSET) as *const u32) })
+        match xboxkrnl::KeTimeStampBundle.get() {
+            Some(bundle) => Self(bundle.tick_count.load(core::sync::atomic::Ordering::Relaxed)),
+            None => crate::console::unresolved_import("KeTimeStampBundle"),
+        }
     }
 
     pub const fn milliseconds(self) -> u32 {

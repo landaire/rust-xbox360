@@ -209,8 +209,9 @@ impl OverlappedCall {
         if let Err(error) = wait_signaled(wait) {
             panic!("waiting for an XAM operation failed: {error}");
         }
-        // SAFETY: XAM finished with the block before setting the event.
-        unsafe { core::ptr::read_volatile(&raw const (*self.block.get()).result) }.result()
+        // SAFETY: XAM finished with the block before setting the event, and
+        // the wait orders this read after its writes.
+        unsafe { (*self.block.get()).result }.result()
     }
 }
 

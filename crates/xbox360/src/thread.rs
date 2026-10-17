@@ -11,11 +11,15 @@
 //! ends the thread early.
 
 use core::num::NonZeroU32;
+use core::sync::atomic::Ordering;
 use core::time::Duration;
 
+use xbox360_sys::processor::HardwareThread;
 use xbox360_sys::xam;
 use xbox360_sys::xboxkrnl;
 use xbox360_sys::xboxkrnl::Handle;
+use xbox360_sys::xboxkrnl::Kthread;
+use xbox360_sys::xboxkrnl::ProcessType;
 use xbox360_sys::xboxkrnl::ThreadCreationFlags;
 
 use crate::status::KernelError;
@@ -96,13 +100,71 @@ impl ThreadId {
     }
 }
 
-/// Address of a kernel thread object (`KTHREAD`).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct ThreadObject(u32);
+/// A kernel thread object (`KTHREAD`) that stays allocated for `'a`. Like
+/// a reference to [`Kthread`], it is not `Send`.
+#[derive(Clone, Copy)]
+pub struct ThreadObject<'a>(&'a Kthread);
 
-impl ThreadObject {
-    pub const fn raw(self) -> u32 {
+impl<'a> ThreadObject<'a> {
+    /// The thread object at `object`.
+    ///
+    /// # Safety
+    ///
+    /// `object` must be the address of an initialized thread object that
+    /// stays allocated for `'a`, such as one that a reference from
+    /// `ObReferenceObjectByHandle` keeps.
+    pub unsafe fn from_raw(object: u32) -> Self {
+        // SAFETY: the caller guarantees the object for `'a`.
+        Self(unsafe { &*core::ptr::with_exposed_provenance::<Kthread>(object as usize) })
+    }
+
+    /// The address of the object, as kernel calls take it.
+    pub fn raw(self) -> u32 {
+        core::ptr::from_ref(self.0).expose_provenance() as u32
+    }
+
+    /// The fields of the object.
+    pub const fn kthread(self) -> &'a Kthread {
         self.0
+    }
+
+    pub fn id(self) -> ThreadId {
+        ThreadId(self.0.id)
+    }
+
+    /// Process type of the process that owns the thread.
+    pub fn process_type(self) -> ProcessType {
+        ProcessType(u32::from(self.0.process_type))
+    }
+
+    /// Process type that `KeGetCurrentProcessType` reports for the thread.
+    pub fn current_process_type(self) -> ProcessType {
+        ProcessType(u32::from(self.0.current_process_type.load(Ordering::Relaxed)))
+    }
+
+    /// Hardware thread the thread runs or last ran on.
+    pub fn hardware_thread(self) -> HardwareThread {
+        self.0.processor()
+    }
+}
+
+impl core::fmt::Debug for ThreadObject<'_> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "ThreadObject({:#010x})", self.raw())
+    }
+}
+
+impl PartialEq for ThreadObject<'_> {
+    fn eq(&self, other: &Self) -> bool {
+        core::ptr::eq(self.0, other.0)
+    }
+}
+
+impl Eq for ThreadObject<'_> {}
+
+impl core::hash::Hash for ThreadObject<'_> {
+    fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
+        core::ptr::hash(self.0, state);
     }
 }
 
@@ -113,8 +175,11 @@ pub fn current_id() -> ThreadId {
 }
 
 /// Thread object of the calling thread.
-pub fn current_object() -> ThreadObject {
-    ThreadObject(xbox360_sys::processor::current_thread())
+pub fn current_object() -> ThreadObject<'static> {
+    // SAFETY: the processor control region names the running thread's
+    // object, which stays allocated while the thread runs, and a
+    // `ThreadObject` cannot leave the thread.
+    unsafe { ThreadObject::from_raw(xbox360_sys::processor::current_thread()) }
 }
 
 /// Give up the rest of the time slice.

@@ -1,53 +1,33 @@
 //! Kernel versions, hardware flags and firmware requests.
 
-use xbox360_sys::ImportedVariable;
 use xbox360_sys::xboxkrnl;
 
-/// A kernel version.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct KernelVersion {
-    pub major: u16,
-    pub minor: u16,
-    pub build: u16,
-    pub qfe: u16,
-}
+pub use xbox360_sys::xboxkrnl::KernelVersion;
 
-impl core::fmt::Display for KernelVersion {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(
-            f,
-            "{}.{}.{}.{}",
-            self.major, self.minor, self.build, self.qfe
-        )
-    }
-}
-
-fn read_version(slot: &ImportedVariable) -> KernelVersion {
-    let address = slot.address() as usize as *const u16;
-    // SAFETY: the loader stored the address of a four-u16 kernel export.
-    let part = |index| unsafe { core::ptr::read_volatile(address.add(index)) };
-    KernelVersion {
-        major: part(0),
-        minor: part(1),
-        build: part(2),
-        qfe: part(3),
-    }
+/// Stop on a data import that the loader left unresolved. One shared copy
+/// keeps the panic code out of the callers.
+#[cold]
+#[inline(never)]
+pub(crate) fn unresolved_import(name: &str) -> ! {
+    panic!("the loader did not resolve {name}")
 }
 
 /// Version of the running kernel (`XboxKrnlVersion`).
+///
+/// # Panics
+///
+/// If the loader did not resolve the import.
 pub fn kernel_version() -> KernelVersion {
-    read_version(&xboxkrnl::XboxKrnlVersion)
+    match xboxkrnl::XboxKrnlVersion.get() {
+        Some(version) => *version,
+        None => unresolved_import("XboxKrnlVersion"),
+    }
 }
 
 /// Version of the base kernel (`XboxKrnlBaseVersion`). `None` when the
-/// loader left the import unresolved, as Xenia does: it stores
-/// 0xDxxxBEEF in data imports it does not provide.
+/// loader left the import unresolved, as Xenia does.
 pub fn base_kernel_version() -> Option<KernelVersion> {
-    let address = xboxkrnl::XboxKrnlBaseVersion.address();
-    if address & 0xf000_ffff == 0xd000_beef {
-        return None;
-    }
-    Some(read_version(&xboxkrnl::XboxKrnlBaseVersion))
+    xboxkrnl::XboxKrnlBaseVersion.get().copied()
 }
 
 pub use xbox360_sys::xboxkrnl::FirmwareRequest;
@@ -65,10 +45,10 @@ pub enum ConsoleType {
 }
 
 impl ConsoleType {
-    /// Development kit or test kit, as stock XBDM decides from the hardware
-    /// flags. XBDM also reports a test kit when its own setting says so.
+    /// Development kit or test kit, from [`HardwareFlags::TEST_KIT`]. A
+    /// debug monitor can also report a test kit from its own setting.
     pub const fn from_hardware_flags(flags: HardwareFlags) -> Self {
-        if flags.contains(HardwareFlags::NOT_DEBUGGABLE) {
+        if flags.contains(HardwareFlags::TEST_KIT) {
             Self::TestKit
         } else {
             Self::DevelopmentKit
@@ -77,12 +57,17 @@ impl ConsoleType {
 }
 
 /// The hardware flags of the console.
+///
+/// # Panics
+///
+/// If the loader did not resolve `XboxHardwareInfo`.
 pub fn hardware_flags() -> HardwareFlags {
-    let address = xboxkrnl::XboxHardwareInfo.address();
-    // SAFETY: the loader stored the address of the kernel export.
-    HardwareFlags::from_bits_retain(unsafe {
-        core::ptr::read_volatile(address as usize as *const u32)
-    })
+    match xboxkrnl::XboxHardwareInfo.get() {
+        Some(info) => HardwareFlags::from_bits_retain(
+            info.flags.load(core::sync::atomic::Ordering::Relaxed),
+        ),
+        None => unresolved_import("XboxHardwareInfo"),
+    }
 }
 
 /// Hand the console to the firmware. Does not return.

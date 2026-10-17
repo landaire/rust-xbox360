@@ -572,7 +572,10 @@ fn check_module() -> Outcome {
         Ok(bundle) => bundle,
         Err(error) => fail!("resolve_export(KeTimeStampBundle): {error}"),
     };
-    let imported = xbox360::sys::xboxkrnl::KeTimeStampBundle.address();
+    let Some(imported) = xbox360::sys::xboxkrnl::KeTimeStampBundle.get() else {
+        fail!("KeTimeStampBundle is not resolved");
+    };
+    let imported = core::ptr::from_ref(imported) as u32;
     ensure!(
         bundle.raw() == imported,
         "KeTimeStampBundle resolves to {:#010x}, the import is {imported:#010x}",

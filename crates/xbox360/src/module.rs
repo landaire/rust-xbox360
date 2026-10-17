@@ -2,7 +2,6 @@
 
 use core::ffi::CStr;
 use core::marker::PhantomData;
-use core::num::NonZeroU16;
 use core::num::NonZeroU32;
 
 use xbox360_sys::xboxkrnl;
@@ -18,30 +17,25 @@ pub struct ModuleHandle<'a> {
     _module: PhantomData<&'a ()>,
 }
 
-impl ModuleHandle<'_> {
+impl<'a> ModuleHandle<'a> {
     /// The handle as the loader exports take it.
     pub const fn raw(self) -> u32 {
         self.handle.get()
     }
-}
 
-/// An export ordinal.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Ordinal(NonZeroU16);
-
-impl Ordinal {
-    /// `None` for 0, which no export has.
-    pub const fn new(ordinal: u16) -> Option<Self> {
-        match NonZeroU16::new(ordinal) {
-            Some(ordinal) => Some(Self(ordinal)),
-            None => None,
+    /// The loader's data table entry of the module.
+    fn entry(self) -> &'a xboxkrnl::LdrDataTableEntry {
+        // SAFETY: the handle is the address of the data table entry of a
+        // module that stays loaded for `'a`.
+        unsafe {
+            &*core::ptr::with_exposed_provenance::<xboxkrnl::LdrDataTableEntry>(
+                self.handle.get() as usize,
+            )
         }
     }
-
-    pub const fn get(self) -> u16 {
-        self.0.get()
-    }
 }
+
+pub use xbox360_sys::Ordinal;
 
 /// Address of an export: a function entry or a data item.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -110,12 +104,8 @@ pub unsafe fn module_handle(name: &CStr) -> Result<ModuleHandle<'static>, Kernel
     })
 }
 
-/// Byte offset in the loader data table entry of the word that stock XBDM
-/// compares a resolved address with (`dll_base` in Xenia's layout).
-const LDR_ENTRY_ABSENT_ADDRESS: usize = 0x18;
-
-/// Address of the export `ordinal` of `module`. As stock XBDM does, an
-/// address equal to the word at handle +0x18 counts as absent.
+/// Address of the export `ordinal` of `module`. An address equal to the
+/// image base (`dll_base`) of the module counts as absent.
 pub fn resolve_export(
     module: ModuleHandle<'_>,
     ordinal: Ordinal,
@@ -127,11 +117,7 @@ pub fn resolve_export(
         xboxkrnl::XexGetProcedureAddress(module.raw(), u32::from(ordinal.get()), &mut address)
     }
     .result()?;
-    // SAFETY: the handle points at the loader's data table entry of a
-    // module that is loaded for the handle's lifetime.
-    let absent = unsafe {
-        core::ptr::read_volatile((module.raw() as usize + LDR_ENTRY_ABSENT_ADDRESS) as *const u32)
-    };
+    let absent = module.entry().dll_base;
     if address == absent {
         Err(KernelError::EntryPointNotFound)
     } else {

@@ -1,8 +1,19 @@
 //! xboxkrnl.exe imports, kernel structures, and the types and constants of
 //! their arguments.
+//!
+//! Kernel structures that Rust code only reads or that the kernel shares,
+//! such as [`Kthread`], are views of the fields in use. A field that the
+//! kernel or another processor changes is an atomic, and the bytes between
+//! the fields are private. A field that the kernel acts on is a
+//! [`KernelU32`] or [`KernelU8`], which safe code can only read.
+
+use core::sync::atomic::AtomicU8;
+use core::sync::atomic::AtomicU32;
+use core::sync::atomic::Ordering;
 
 #[cfg(any(target_os = "xbox360", xbox360_docs))]
 use crate::lib_index::XBOXKRNL;
+use crate::processor::Msr;
 pub use crate::status::NtStatus;
 pub use crate::status::Win32ErrorCode;
 
@@ -47,6 +58,13 @@ impl Boolean {
 impl From<Boolean> for bool {
     fn from(value: Boolean) -> bool {
         value.get()
+    }
+}
+
+impl From<bool> for Boolean {
+    /// `TRUE` is 1.
+    fn from(value: bool) -> Self {
+        Self(u32::from(value))
     }
 }
 
@@ -117,6 +135,25 @@ kernel_object! {
     pub struct Kevent(size = 0x10, align = 4);
 }
 
+impl Kevent {
+    /// Initialize the event at its current address with plain stores, as
+    /// `KeInitializeEvent` does: the type in the first header byte, the
+    /// signal state, and an empty wait list that points at itself.
+    ///
+    /// # Safety
+    ///
+    /// No kernel call or other thread uses the event during the stores, and
+    /// the event does not move while the kernel may use it afterwards.
+    #[inline]
+    pub unsafe fn initialize(&self, kind: EventType, signaled: bool) {
+        let header = self.as_ptr().cast::<[u32; 4]>();
+        let list = header.cast::<u32>().wrapping_add(2) as usize as u32;
+        // SAFETY: the storage is 0x10 bytes aligned to 4; exclusivity per
+        // the contract.
+        unsafe { header.write([kind.raw() << 24, signaled as u32, list, list]) };
+    }
+}
+
 kernel_object! {
     /// `KSEMAPHORE` storage (0x14 bytes): a dispatcher header and the limit.
     pub struct Ksemaphore(size = 0x14, align = 4);
@@ -129,8 +166,40 @@ kernel_object! {
 }
 
 kernel_object! {
-    /// `KDPC` storage (0x1c bytes).
+    /// `KDPC` storage (0x1c bytes). Byte 2 holds the hardware thread the
+    /// DPC is queued on plus one, 0 while it is not queued:
+    /// `KeInsertQueueDpc` sets it and `KeRemoveQueueDpc` clears it. Byte 3
+    /// holds the hardware thread that runs the DPC plus one, 0 for the
+    /// hardware thread that queues it: `KeInsertQueueDpc` queues on that
+    /// processor's PRCB. The kernel has no export that sets byte 3; its own
+    /// callers store it directly.
     pub struct Kdpc(size = 0x1c, align = 4);
+}
+
+impl Kdpc {
+    /// Select the hardware thread that runs the DPC (byte 3); `None` runs
+    /// it on the hardware thread that queues it. `KeInitializeDpc` clears
+    /// the byte, so set it afterwards.
+    ///
+    /// # Safety
+    ///
+    /// The DPC must not be queued, and no other code may access it during
+    /// the call.
+    pub unsafe fn set_target_processor(&self, processor: Option<crate::processor::HardwareThread>) {
+        const TARGET_PROCESSOR_OFFSET: usize = 3;
+        let value = match processor {
+            Some(processor) => processor.get() + 1,
+            None => 0,
+        };
+        // SAFETY: the byte lies inside the storage, and the caller excludes
+        // concurrent access.
+        unsafe {
+            self.as_ptr()
+                .cast::<u8>()
+                .add(TARGET_PROCESSOR_OFFSET)
+                .write(value)
+        };
+    }
 }
 
 kernel_object! {
@@ -139,18 +208,399 @@ kernel_object! {
     pub struct RtlCriticalSection(size = 0x1c, align = 4);
 }
 
+/// The fields of an initialized [`RtlCriticalSection`] that code other than
+/// the critical section routines reads. The threads that use the section
+/// change them at any time.
+#[repr(C)]
+pub struct RtlCriticalSectionFields {
+    _header: [AtomicU32; 4],
+    /// Bits of the signed count of entries minus one: -1 when the section
+    /// is free.
+    pub lock_count: KernelU32,
+    /// Bits of the signed count of recursive entries of the owner.
+    pub recursion_count: KernelU32,
+    /// Address of the [`Kthread`] that owns the section, or 0.
+    pub owning_thread: KernelU32,
+}
+
+const _: () = {
+    use core::mem::offset_of;
+    assert!(offset_of!(RtlCriticalSectionFields, lock_count) == 0x10);
+    assert!(offset_of!(RtlCriticalSectionFields, recursion_count) == 0x14);
+    assert!(offset_of!(RtlCriticalSectionFields, owning_thread) == 0x18);
+    assert!(core::mem::size_of::<RtlCriticalSectionFields>() == 0x1c);
+};
+
+impl RtlCriticalSection {
+    /// The field view of the section.
+    pub fn fields(&self) -> &RtlCriticalSectionFields {
+        // SAFETY: the view has the size and alignment of the storage, whose
+        // `UnsafeCell` allows the shared writes the atomic fields admit.
+        unsafe { &*self.as_ptr().cast::<RtlCriticalSectionFields>() }
+    }
+}
+
 kernel_object! {
     /// `KSPIN_LOCK` storage (one word, 0 when free).
     pub struct KspinLock(size = 4, align = 4);
 }
 
-/// `KTHREAD`: a thread object that the kernel allocates. Rust code handles
-/// only its address.
+macro_rules! kernel_field {
+    ($(#[$meta:meta])* $name:ident($atomic:ty, $value:ty)) => {
+        $(#[$meta])*
+        #[repr(transparent)]
+        pub struct $name($atomic);
+
+        impl $name {
+            #[inline]
+            pub fn load(&self, order: Ordering) -> $value {
+                self.0.load(order)
+            }
+
+            /// # Safety
+            ///
+            /// The kernel must accept `value`: what it does with the field
+            /// after the store must not access memory that is not valid for
+            /// it or break the state of other code.
+            #[inline]
+            pub unsafe fn store(&self, value: $value, order: Ordering) {
+                self.0.store(value, order)
+            }
+
+            /// Store `value` and return the previous value.
+            ///
+            /// # Safety
+            ///
+            /// As for `store`.
+            #[inline]
+            pub unsafe fn swap(&self, value: $value, order: Ordering) -> $value {
+                self.0.swap(value, order)
+            }
+        }
+    };
+}
+
+kernel_field! {
+    /// A word of a kernel structure that the kernel acts on, such as an
+    /// address it dereferences. Loads are safe, stores are unsafe.
+    KernelU32(AtomicU32, u32)
+}
+
+kernel_field! {
+    /// A byte of a kernel structure that the kernel acts on. Loads are
+    /// safe, stores are unsafe.
+    KernelU8(AtomicU8, u8)
+}
+
+/// `LIST_ENTRY`: a link of a doubly linked list, as addresses of the next
+/// and the previous link. The kernel changes the links of the lists it
+/// shares under a lock and follows them.
+#[repr(C)]
+pub struct ListEntry {
+    pub flink: KernelU32,
+    pub blink: KernelU32,
+}
+
+/// `KTHREAD`: a thread object that the kernel allocates, up to the last
+/// field in use.
+///
+/// The kernel frees the object of a thread after the thread ends. `Kthread`
+/// is not `Sync`, so a reference to it is not `Send` and stays on the
+/// thread that took it, which keeps the object of the calling thread
+/// allocated.
+///
+/// The kernel does not act on [`Kthread::debug_data`] and
+/// [`Kthread::last_error`], so they are plain atomics. The other fields
+/// are kernel state.
 #[repr(C)]
 pub struct Kthread {
-    _opaque: [u8; 0],
-    _marker: core::marker::PhantomData<(*mut u8, core::marker::PhantomPinned)>,
+    _header_type: [AtomicU8; 4],
+    /// Signal state of the dispatcher header: nonzero once the thread has
+    /// ended.
+    pub signal_state: KernelU32,
+    _reserved_008: [AtomicU8; 0x50],
+    /// Clock ticks of 1 ms that the thread ran. The clock interrupt counts
+    /// them. For the idle thread of a processor, the idle time of the
+    /// processor.
+    pub run_time: KernelU32,
+    /// Highest address of the stack.
+    pub stack_base: KernelU32,
+    /// Lowest address of the stack.
+    pub stack_limit: KernelU32,
+    /// Address of the [`KswitchFrame`] the thread saved when it last
+    /// stopped running.
+    pub switch_frame: KernelU32,
+    /// Address of the thread local storage block.
+    pub tls_base: u32,
+    _reserved_06c: [AtomicU8; 4],
+    pub priority: KernelU8,
+    _reserved_071: AtomicU8,
+    /// [`ProcessType`] of the process that owns the thread.
+    pub process_type: u8,
+    /// [`ProcessType`] that `KeGetCurrentProcessType` reports for the
+    /// thread. The kernel changes it while the thread runs on behalf of
+    /// another process.
+    pub current_process_type: KernelU8,
+    _reserved_074: [AtomicU8; 0x10],
+    /// Address of the [`Kprocess`] that owns the thread.
+    pub process: u32,
+    _reserved_088: [AtomicU8; 0x30],
+    pub priority_boost: KernelU8,
+    pub base_priority: KernelU8,
+    _reserved_0ba: AtomicU8,
+    pub saturation: KernelU8,
+    pub suspend_count: KernelU8,
+    _reserved_0bd: [AtomicU8; 2],
+    processor: KernelU8,
+    _reserved_0c0: [AtomicU8; 9],
+    /// Priority that `KeSetBasePriorityThread` adds its increment to.
+    pub process_priority: KernelU8,
+    /// Highest base priority that `KeSetBasePriorityThread` sets.
+    pub priority_limit: KernelU8,
+    _reserved_0cb: [AtomicU8; 0x45],
+    /// Link in the thread list of the process.
+    pub thread_list_entry: ListEntry,
+    _reserved_118: [AtomicU8; 0x18],
+    /// Creation time as a FILETIME, high word first.
+    create_time: [u32; 2],
+    _reserved_138: [AtomicU8; 8],
+    pub exit_status: KernelU32,
+    _reserved_144: [AtomicU8; 8],
+    pub id: u32,
+    pub start_address: u32,
+    _reserved_154: [AtomicU8; 8],
+    /// Word for the debug monitor's own use. Stock XBDM keeps the address
+    /// of its record of the thread here. The kernel leaves it to the
+    /// monitor, so code that takes an address from it must not rely on
+    /// other code leaving it unchanged.
+    pub debug_data: AtomicU32,
+    /// Win32 last error.
+    pub last_error: AtomicU32,
+    _reserved_164: [AtomicU8; 8],
+    pub creation_flags: ThreadCreationFlags,
+    _thread_bound: core::marker::PhantomData<*const ()>,
 }
+
+const _: () = {
+    use core::mem::offset_of;
+    assert!(offset_of!(Kthread, signal_state) == 0x4);
+    assert!(offset_of!(Kthread, run_time) == 0x58);
+    assert!(offset_of!(Kthread, stack_base) == 0x5c);
+    assert!(offset_of!(Kthread, stack_limit) == 0x60);
+    assert!(offset_of!(Kthread, switch_frame) == 0x64);
+    assert!(offset_of!(Kthread, tls_base) == 0x68);
+    assert!(offset_of!(Kthread, priority) == 0x70);
+    assert!(offset_of!(Kthread, process_type) == 0x72);
+    assert!(offset_of!(Kthread, current_process_type) == 0x73);
+    assert!(offset_of!(Kthread, process) == 0x84);
+    assert!(offset_of!(Kthread, priority_boost) == 0xb8);
+    assert!(offset_of!(Kthread, base_priority) == 0xb9);
+    assert!(offset_of!(Kthread, saturation) == 0xbb);
+    assert!(offset_of!(Kthread, suspend_count) == 0xbc);
+    assert!(offset_of!(Kthread, processor) == 0xbf);
+    assert!(offset_of!(Kthread, process_priority) == 0xc9);
+    assert!(offset_of!(Kthread, priority_limit) == 0xca);
+    assert!(offset_of!(Kthread, thread_list_entry) == 0x110);
+    assert!(offset_of!(Kthread, create_time) == 0x130);
+    assert!(offset_of!(Kthread, exit_status) == 0x140);
+    assert!(offset_of!(Kthread, id) == 0x14c);
+    assert!(offset_of!(Kthread, start_address) == 0x150);
+    assert!(offset_of!(Kthread, debug_data) == 0x15c);
+    assert!(offset_of!(Kthread, last_error) == 0x160);
+    assert!(offset_of!(Kthread, creation_flags) == 0x16c);
+    assert!(core::mem::size_of::<Kthread>() == 0x170);
+};
+
+impl Kthread {
+    /// Creation time as a FILETIME.
+    pub const fn create_time(&self) -> u64 {
+        ((self.create_time[0] as u64) << 32) | self.create_time[1] as u64
+    }
+
+    /// Hardware thread the thread runs or last ran on.
+    pub fn processor(&self) -> crate::processor::HardwareThread {
+        crate::processor::HardwareThread::from_kernel(self.processor.load(Ordering::Relaxed))
+    }
+}
+
+/// `KPROCESS`, up to the thread list.
+#[repr(C)]
+pub struct Kprocess {
+    /// Guards [`Kprocess::thread_list`].
+    pub thread_list_lock: KspinLock,
+    /// Head of the list of [`Kthread::thread_list_entry`] links.
+    pub thread_list: ListEntry,
+}
+
+const _: () = assert!(core::mem::offset_of!(Kprocess, thread_list) == 4);
+
+/// `OBJECT_TYPE`: an object type that the kernel exports, such as
+/// [`ExThreadObjectType`]. Object calls take its address.
+#[repr(C)]
+pub struct ObjectType {
+    _opaque: [u8; 0],
+    _pinned: core::marker::PhantomPinned,
+}
+
+flags! {
+    /// `EXCEPTION_*` flags of an [`ExceptionRecord`].
+    pub struct ExceptionFlags(u32) {
+        /// Execution cannot continue after the exception.
+        NONCONTINUABLE = 0x1,
+    }
+}
+
+/// `EXCEPTION_RECORD`.
+#[repr(C)]
+#[derive(Debug, Clone, Copy)]
+pub struct ExceptionRecord {
+    pub code: NtStatus,
+    pub flags: ExceptionFlags,
+    /// Address of the record of an exception raised while this one was
+    /// handled, or 0.
+    pub next_record: u32,
+    /// Address of the instruction that raised the exception.
+    pub address: u32,
+    /// Number of [`ExceptionRecord::parameters`] in use.
+    pub parameter_count: u32,
+    pub parameters: [u32; 15],
+}
+
+const _: () = {
+    use core::mem::offset_of;
+    assert!(offset_of!(ExceptionRecord, address) == 0xc);
+    assert!(offset_of!(ExceptionRecord, parameters) == 0x14);
+    assert!(core::mem::size_of::<ExceptionRecord>() == 0x50);
+};
+
+flags! {
+    /// `CONTEXT_*`: the register groups of a [`Context`] that hold values.
+    pub struct ContextFlags(u32) {
+        /// MSR, IAR, LR and CTR.
+        CONTROL = 0x1,
+        /// FPR and FPSCR.
+        FLOATING_POINT = 0x2,
+        /// GPR, CR and XER.
+        INTEGER = 0x4,
+        /// VR and VSCR.
+        VECTOR = 0x10,
+    }
+}
+
+impl ContextFlags {
+    /// Every register group, as `RtlCaptureContext` requests.
+    pub const FULL: Self = Self::CONTROL
+        .union(Self::FLOATING_POINT)
+        .union(Self::INTEGER)
+        .union(Self::VECTOR);
+}
+
+/// `CONTEXT`: the registers of a thread. The vector registers need the
+/// 16-byte alignment.
+#[repr(C, align(16))]
+#[derive(Debug, Clone, Copy)]
+pub struct Context {
+    pub context_flags: ContextFlags,
+    pub msr: Msr,
+    pub iar: u32,
+    pub lr: u32,
+    pub ctr: u64,
+    pub gpr: [u64; 32],
+    pub cr: u32,
+    pub xer: u32,
+    pub fpscr: u64,
+    /// Floating point registers as IEEE bits.
+    pub fpr: [u64; 32],
+    _reserved_228: [u32; 2],
+    pub vscr: [u32; 4],
+    pub vr: [[u32; 4]; 128],
+}
+
+const _: () = {
+    use core::mem::offset_of;
+    assert!(offset_of!(Context, msr) == 0x4);
+    assert!(offset_of!(Context, iar) == 0x8);
+    assert!(offset_of!(Context, lr) == 0xc);
+    assert!(offset_of!(Context, ctr) == 0x10);
+    assert!(offset_of!(Context, gpr) == 0x18);
+    assert!(offset_of!(Context, cr) == 0x118);
+    assert!(offset_of!(Context, xer) == 0x11c);
+    assert!(offset_of!(Context, fpscr) == 0x120);
+    assert!(offset_of!(Context, fpr) == 0x128);
+    assert!(offset_of!(Context, vscr) == 0x230);
+    assert!(offset_of!(Context, vr) == 0x240);
+    assert!(core::mem::size_of::<Context>() == 0xa40);
+};
+
+impl Context {
+    /// A context with every register 0 that requests the groups of
+    /// `flags`.
+    pub const fn new(flags: ContextFlags) -> Self {
+        Self {
+            context_flags: flags,
+            msr: Msr::empty(),
+            iar: 0,
+            lr: 0,
+            ctr: 0,
+            gpr: [0; 32],
+            cr: 0,
+            xer: 0,
+            fpscr: 0,
+            fpr: [0; 32],
+            _reserved_228: [0; 2],
+            vscr: [0; 4],
+            vr: [[0; 4]; 128],
+        }
+    }
+}
+
+/// `KTRAP_FRAME`: the registers the kernel saves on an interrupt or
+/// exception, up to the last field in use.
+#[repr(C)]
+#[derive(Debug, Clone, Copy)]
+pub struct KtrapFrame {
+    _reserved_000: [u32; 0x14],
+    pub gpr: [u64; 32],
+    _reserved_150: [u32; 0x16],
+    pub lr: u32,
+    pub iar: u32,
+    _msr_high: u32,
+    /// Low word of the saved MSR.
+    pub msr: Msr,
+    pub xer: u32,
+    _reserved_1bc: u32,
+}
+
+const _: () = {
+    use core::mem::offset_of;
+    assert!(offset_of!(KtrapFrame, gpr) == 0x50);
+    assert!(offset_of!(KtrapFrame, iar) == 0x1ac);
+    assert!(offset_of!(KtrapFrame, lr) == 0x1a8);
+    assert!(offset_of!(KtrapFrame, msr) == 0x1b4);
+    assert!(offset_of!(KtrapFrame, xer) == 0x1b8);
+    assert!(core::mem::size_of::<KtrapFrame>() == 0x1c0);
+};
+
+/// `KSWITCHFRAME`: the nonvolatile registers a thread saves on its stack
+/// when it stops running, up to the last field in use.
+#[repr(C)]
+#[derive(Debug, Clone, Copy)]
+pub struct KswitchFrame {
+    _reserved_000: [u32; 0x14],
+    /// r14 to r31.
+    pub gpr: [u64; 18],
+    pub cr: u32,
+    pub iar: u32,
+    pub lr: u32,
+}
+
+const _: () = {
+    use core::mem::offset_of;
+    assert!(offset_of!(KswitchFrame, gpr) == 0x50);
+    assert!(offset_of!(KswitchFrame, cr) == 0xe0);
+    assert!(offset_of!(KswitchFrame, iar) == 0xe4);
+    assert!(offset_of!(KswitchFrame, lr) == 0xe8);
+};
 
 /// Any dispatcher object a wait takes: a [`Kevent`], [`Ksemaphore`],
 /// [`Ktimer`], [`Kthread`] or another object that starts with a dispatcher
@@ -312,13 +762,33 @@ impl PoolTag {
 flags! {
     /// `ExCreateThread` creation flags. Bits 24 to 29 select the hardware
     /// threads the new thread may run on; see [`ThreadCreationFlags::processors`].
+    ///
+    /// The kernel keeps the whole word in [`Kthread::creation_flags`].
+    /// `ExCreateThread` does not test bit 0x4, nor bits 0x100, 0x200 and
+    /// 0x400, which only code that reads the thread object acts on.
     pub struct ThreadCreationFlags(u32) {
         /// Create the thread suspended.
         SUSPENDED = 0x1,
         /// Create the thread in the system process.
         SYSTEM_PROCESS = 0x2,
+        /// Allocate the TLS data block of the process with the thread and
+        /// copy the TLS template of the process into it.
+        TLS_DATA = 0x8,
+        /// Set the priority class of the thread to 13. Takes precedence
+        /// over [`ThreadCreationFlags::PRIORITY_CLASS_5`].
+        PRIORITY_CLASS_13 = 0x20,
+        /// Set the priority class of the thread to 5.
+        PRIORITY_CLASS_5 = 0x40,
         /// Store a referenced thread object instead of a handle.
         RETURN_THREAD_OBJECT = 0x80,
+        /// The thread is the entry thread of a title. A debug monitor reads
+        /// this bit from the thread object.
+        TITLE_ENTRY = 0x100,
+        /// A debug monitor does not stop the thread when it stops
+        /// execution.
+        EXEMPT_FROM_STOPS = 0x200,
+        /// A debug monitor does not debug the thread.
+        NOT_DEBUGGABLE = 0x400,
         PROCESSOR0 = 0x0100_0000,
         PROCESSOR1 = 0x0200_0000,
         PROCESSOR2 = 0x0400_0000,
@@ -522,6 +992,117 @@ value_enum! {
     }
 }
 
+/// Result of `NtQueryFullAttributesFile` and of `NtQueryInformationFile`
+/// with [`FileInformationClass::NetworkOpen`]. Times are FILETIMEs.
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct FileNetworkOpenInformation {
+    pub creation_time: u64,
+    pub last_access_time: u64,
+    pub last_write_time: u64,
+    pub change_time: u64,
+    pub allocation_size: u64,
+    /// File size in bytes.
+    pub end_of_file: u64,
+    pub attributes: FileAttributes,
+    _pad: u32,
+}
+
+const _: () = {
+    use core::mem::offset_of;
+    assert!(offset_of!(FileNetworkOpenInformation, end_of_file) == 0x28);
+    assert!(offset_of!(FileNetworkOpenInformation, attributes) == 0x30);
+    assert!(core::mem::size_of::<FileNetworkOpenInformation>() == 0x38);
+};
+
+/// `FILE_DIRECTORY_INFORMATION`: an entry of `NtQueryDirectoryFile`. The
+/// name, `file_name_length` bytes, follows at 0x40. Times are FILETIMEs.
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct FileDirectoryInformation {
+    /// Offset of the next entry, or 0 for the last one.
+    pub next_entry_offset: u32,
+    pub file_index: u32,
+    pub creation_time: u64,
+    pub last_access_time: u64,
+    pub last_write_time: u64,
+    pub change_time: u64,
+    /// File size in bytes.
+    pub end_of_file: u64,
+    pub allocation_size: u64,
+    pub attributes: FileAttributes,
+    pub file_name_length: u32,
+}
+
+const _: () = {
+    use core::mem::offset_of;
+    assert!(offset_of!(FileDirectoryInformation, creation_time) == 0x08);
+    assert!(offset_of!(FileDirectoryInformation, end_of_file) == 0x28);
+    assert!(offset_of!(FileDirectoryInformation, attributes) == 0x38);
+    assert!(offset_of!(FileDirectoryInformation, file_name_length) == 0x3c);
+    assert!(core::mem::size_of::<FileDirectoryInformation>() == 0x40);
+};
+
+/// `FILE_BASIC_INFORMATION` of [`FileInformationClass::Basic`]. Times are
+/// FILETIMEs.
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct FileBasicInformation {
+    pub creation_time: u64,
+    pub last_access_time: u64,
+    pub last_write_time: u64,
+    pub change_time: u64,
+    pub attributes: FileAttributes,
+    _pad: u32,
+}
+
+const _: () = {
+    use core::mem::offset_of;
+    assert!(offset_of!(FileBasicInformation, attributes) == 0x20);
+    assert!(core::mem::size_of::<FileBasicInformation>() == 0x28);
+};
+
+/// `FILE_DISPOSITION_INFORMATION` of [`FileInformationClass::Disposition`].
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct FileDispositionInformation {
+    /// Delete the file when its last handle is closed.
+    pub delete_file: bool,
+}
+
+const _: () = assert!(core::mem::size_of::<FileDispositionInformation>() == 1);
+
+/// `FILE_POSITION_INFORMATION` of [`FileInformationClass::Position`].
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct FilePositionInformation {
+    pub current_byte_offset: u64,
+}
+
+/// `FILE_END_OF_FILE_INFORMATION` of [`FileInformationClass::EndOfFile`].
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct FileEndOfFileInformation {
+    pub end_of_file: u64,
+}
+
+/// `FILE_RENAME_INFORMATION` of [`FileInformationClass::Rename`].
+#[repr(C)]
+pub struct FileRenameInformation {
+    pub replace_if_exists: bool,
+    /// Directory the name is relative to, or [`Handle::NULL`].
+    pub root_directory: Handle,
+    pub file_name: AnsiString,
+}
+
+#[cfg(target_pointer_width = "32")]
+const _: () = {
+    use core::mem::offset_of;
+    assert!(offset_of!(FileRenameInformation, root_directory) == 0x04);
+    assert!(offset_of!(FileRenameInformation, file_name) == 0x08);
+    assert!(core::mem::size_of::<FileRenameInformation>() == 0x10);
+};
+
 value_enum! {
     /// `FS_INFORMATION_CLASS` of `NtQueryVolumeInformationFile`, with
     /// Xenia's values.
@@ -575,6 +1156,33 @@ flags! {
         PAGES_16MB = 0x8000_0000,
     }
 }
+
+/// `MEMORY_BASIC_INFORMATION` that [`NtQueryVirtualMemory`] fills for the
+/// region containing an address.
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct MemoryBasicInformation {
+    /// Page of the queried address.
+    pub base_address: u32,
+    pub allocation_base: u32,
+    pub allocation_protect: PageProtection,
+    /// Bytes from `base_address` with the same state and protection.
+    pub region_size: u32,
+    /// [`AllocationType::COMMIT`], [`AllocationType::RESERVE`] or
+    /// [`AllocationType::FREE`].
+    pub state: AllocationType,
+    pub protect: PageProtection,
+    /// [`AllocationType::PRIVATE`] for an allocated region.
+    pub kind: AllocationType,
+}
+
+const _: () = {
+    use core::mem::offset_of;
+    assert!(offset_of!(MemoryBasicInformation, region_size) == 0xc);
+    assert!(offset_of!(MemoryBasicInformation, state) == 0x10);
+    assert!(offset_of!(MemoryBasicInformation, protect) == 0x14);
+    assert!(core::mem::size_of::<MemoryBasicInformation>() == 0x1c);
+};
 
 flags! {
     /// `ObjectAttributes::attributes` and object lookup flags (`OBJ_*`).
@@ -637,11 +1245,18 @@ flags! {
     /// The flags word of `XboxHardwareInfo`. The top four bits hold the
     /// [`HardwareGeneration`].
     pub struct HardwareFlags(u32) {
+        /// The automatic sign-in profile setting (configuration setting 3,
+        /// 8) is available.
+        AUTO_PROFILE = 0x10,
         HARD_DISK = 0x20,
+        /// The kernel debugger is enabled at boot.
+        KERNEL_DEBUGGER_ENABLED = 0x80,
+        /// A kernel debugger is attached.
         KERNEL_DEBUGGER = 0x100,
         /// The console has 1 GB of memory, as some development kits do.
         ONE_GIGABYTE = 0x0001_0000,
-        NOT_DEBUGGABLE = 0x0200_0000,
+        /// The console is a test kit.
+        TEST_KIT = 0x0200_0000,
     }
 }
 
@@ -657,8 +1272,57 @@ impl HardwareFlags {
 pub struct HardwareGeneration(u8);
 
 impl HardwareGeneration {
+    /// The Trinity motherboard, the first Xbox 360 S.
+    pub const TRINITY: Self = Self(4);
+
     pub const fn get(self) -> u8 {
         self.0
+    }
+}
+
+flags! {
+    /// Boot flags of [`HardwareInfo`].
+    pub struct HardwareBootFlags(u16) {
+        /// The console booted from a disc.
+        FROM_DISC = 0x400,
+    }
+}
+
+/// `XboxHardwareInfo`: console hardware information, up to the boot flags.
+#[repr(C)]
+pub struct HardwareInfo {
+    /// [`HardwareFlags`] word. The debug monitor changes it while the
+    /// system runs, and the kernel acts on it.
+    pub flags: KernelU32,
+    _reserved_004: [AtomicU8; 0xa],
+    pub boot_flags: HardwareBootFlags,
+}
+
+const _: () = {
+    assert!(core::mem::offset_of!(HardwareInfo, boot_flags) == 0xe);
+    assert!(core::mem::size_of::<HardwareInfo>() == 0x10);
+};
+
+/// A kernel version, as `XboxKrnlVersion` and `XboxKrnlBaseVersion` hold
+/// it.
+#[repr(C)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct KernelVersion {
+    pub major: u16,
+    pub minor: u16,
+    pub build: u16,
+    pub qfe: u16,
+}
+
+const _: () = assert!(core::mem::size_of::<KernelVersion>() == 8);
+
+impl core::fmt::Display for KernelVersion {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(
+            f,
+            "{}.{}.{}.{}",
+            self.major, self.minor, self.build, self.qfe
+        )
     }
 }
 
@@ -684,6 +1348,54 @@ impl AnsiString {
         })
     }
 }
+
+/// `UNICODE_STRING` in a kernel structure: a counted UTF-16 string.
+#[repr(C)]
+#[derive(Debug, Clone, Copy)]
+pub struct UnicodeString {
+    /// Length in bytes.
+    pub length: u16,
+    pub maximum_length: u16,
+    /// Address of the first code unit.
+    pub buffer: u32,
+}
+
+/// `LDR_DATA_TABLE_ENTRY`: the loader's record of a loaded module, up to
+/// the last field in use. The address of the entry is the module handle.
+/// The loader changes the links and the flags under its lock.
+#[repr(C)]
+pub struct LdrDataTableEntry {
+    /// Link in the loaded module list.
+    pub in_load_order_links: ListEntry,
+    _reserved_008: [AtomicU8; 0x10],
+    /// Address the image is loaded at.
+    pub dll_base: u32,
+    _reserved_01c: [AtomicU8; 4],
+    /// Size of the loaded image in bytes.
+    pub image_size: u32,
+    /// Path of the module.
+    pub full_dll_name: UnicodeString,
+    /// File name of the module.
+    pub base_dll_name: UnicodeString,
+    /// Loader flags of the module.
+    pub flags: KernelU32,
+    _reserved_038: [AtomicU8; 0x18],
+    pub time_date_stamp: u32,
+    _reserved_054: [AtomicU8; 4],
+    /// Address of the XEX header of the image.
+    pub xex_header_base: u32,
+}
+
+const _: () = {
+    use core::mem::offset_of;
+    assert!(offset_of!(LdrDataTableEntry, dll_base) == 0x18);
+    assert!(offset_of!(LdrDataTableEntry, image_size) == 0x20);
+    assert!(offset_of!(LdrDataTableEntry, full_dll_name) == 0x24);
+    assert!(offset_of!(LdrDataTableEntry, base_dll_name) == 0x2c);
+    assert!(offset_of!(LdrDataTableEntry, flags) == 0x34);
+    assert!(offset_of!(LdrDataTableEntry, time_date_stamp) == 0x50);
+    assert!(offset_of!(LdrDataTableEntry, xex_header_base) == 0x58);
+};
 
 /// Object attributes. The console layout has no length or security fields.
 #[repr(C)]
@@ -787,18 +1499,70 @@ crate::import_thunk!(
     ordinal = 0x010
 );
 
+/// Registration record of [`ExRegisterThreadNotification`],
+/// [`ExRegisterTitleTerminateNotification`] and
+/// [`HalRegisterSMCNotification`]: the routine the kernel calls, the
+/// priority that orders the routines, and the link of the kernel's list,
+/// which the kernel owns while the record is registered. The kernel reads
+/// and writes all 0x10 bytes.
+#[repr(C)]
+pub struct NotificationRegistration {
+    /// Address of the routine, entered in the console ABI. A thread
+    /// notification routine takes `(registration, thread, created)`, with
+    /// `created` 1 when the thread starts and 0 when it ends. A title
+    /// termination routine takes `(registration)`. An SMC notification
+    /// routine takes `(registration, message)`, with the address of a
+    /// 16-byte [`SmcMessage`], and runs at dispatch level.
+    pub routine: KernelU32,
+    /// Signed priority. The kernel calls the routines of higher priority
+    /// first.
+    pub priority: KernelU32,
+    pub link: ListEntry,
+}
+
+impl NotificationRegistration {
+    pub const fn new() -> Self {
+        Self {
+            routine: KernelU32(AtomicU32::new(0)),
+            priority: KernelU32(AtomicU32::new(0)),
+            link: ListEntry {
+                flink: KernelU32(AtomicU32::new(0)),
+                blink: KernelU32(AtomicU32::new(0)),
+            },
+        }
+    }
+
+    /// The record as the registration imports take it.
+    pub const fn as_ptr(&self) -> *mut Self {
+        core::ptr::from_ref(self).cast_mut()
+    }
+}
+
+impl Default for NotificationRegistration {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+const _: () = assert!(core::mem::size_of::<NotificationRegistration>() == 0x10);
+
 crate::import_thunk!(
-    /// Registers or removes a thread creation and deletion callback.
-    /// `registration` is `{routine, priority, 0, 0}` and must stay valid while registered.
-    pub ExRegisterThreadNotification(registration: *mut u32, register: bool) -> (),
+    /// Registers a thread creation and deletion callback when `register`
+    /// is true and removes it otherwise. `registration` must stay valid
+    /// while registered.
+    pub ExRegisterThreadNotification(registration: *mut NotificationRegistration, register: bool) -> (),
     lib = XBOXKRNL,
     ordinal = 0x014
 );
 
 crate::import_thunk!(
-    /// Registers or removes a title termination callback.
-    /// `registration` is `{routine, priority, 0, 0}` and must stay valid while registered.
-    pub ExRegisterTitleTerminateNotification(registration: *mut u32, register: bool) -> (),
+    /// Registers a title termination callback when `register` is true and
+    /// removes it otherwise. `registration` must stay valid while
+    /// registered.
+    pub ExRegisterTitleTerminateNotification(
+        registration: *mut NotificationRegistration,
+        register: bool,
+    ) -> (),
     lib = XBOXKRNL,
     ordinal = 0x015
 );
@@ -818,8 +1582,8 @@ crate::import_thunk!(
 );
 
 crate::import_variable!(
-    /// Object type descriptor of thread objects.
-    pub ExThreadObjectType,
+    /// Object type of thread objects.
+    pub safe ExThreadObjectType: ObjectType,
     lib = XBOXKRNL,
     ordinal = 0x01B
 );
@@ -846,9 +1610,10 @@ crate::import_thunk!(
 );
 
 crate::import_thunk!(
-    /// Registers or removes a system management controller event callback.
-    /// `registration` is `{routine, priority, 0, 0}` and must stay valid while registered.
-    pub HalRegisterSMCNotification(registration: *mut u32, register: bool) -> u32,
+    /// Registers a system management controller event callback when
+    /// `register` is true and removes it otherwise. `registration` must stay
+    /// valid while registered.
+    pub HalRegisterSMCNotification(registration: *mut NotificationRegistration, register: bool) -> (),
     lib = XBOXKRNL,
     ordinal = 0x027
 );
@@ -917,8 +1682,8 @@ crate::import_thunk!(
 );
 
 crate::import_variable!(
-    /// Object type descriptor of device objects.
-    pub IoDeviceObjectType,
+    /// Object type of device objects.
+    pub safe IoDeviceObjectType: ObjectType,
     lib = XBOXKRNL,
     ordinal = 0x03A
 );
@@ -1035,9 +1800,136 @@ crate::import_thunk!(
     ordinal = 0x056
 );
 
+flags! {
+    /// Flags word of [`DebugMonitorData`].
+    pub struct DebugMonitorFlags(u32) {
+        /// `KeBugCheckEx` sets it before it stops the system.
+        BUG_CHECK = 0x4,
+        /// DVD commands are recorded at
+        /// [`DebugMonitorData::dvd_trace_pointer`]. The kernel does not test
+        /// it.
+        DVD_TRACE = 0x20,
+        /// The debug monitor wrote a crash dump.
+        DUMP = 0x40,
+    }
+}
+
+/// The debug monitor data block. `ExDebugMonitorService` service
+/// [`DebugMonitorService::Query`] fills the kernel's fields, the debug
+/// monitor fills its own, and the monitor publishes the block through
+/// [`KeDebugMonitorData`]. Through the fields that hold the address of a
+/// kernel variable, the monitor installs routines that the kernel calls.
+///
+/// The kernel calls [`DebugMonitorData::control_routine`] through the
+/// published block. The other address fields are [`KernelU32`] because
+/// code dereferences the addresses they hold, so a store to them must keep
+/// them valid.
+#[repr(C)]
+pub struct DebugMonitorData {
+    /// Address of `KiDebugRoutine`, the routine the kernel calls for each
+    /// exception.
+    pub debug_routine: KernelU32,
+    /// Address of `PsLoadedModuleList`, the head of the loaded module list.
+    pub loaded_module_list: KernelU32,
+    /// Address of `XexLoadedModuleListLock`, the spin lock that guards
+    /// both module lists.
+    pub loaded_module_list_lock: KernelU32,
+    /// [`DebugMonitorFlags`] word, shared with the kernel.
+    pub flags: AtomicU32,
+    /// Address of a kernel routine variable for the kernel callback
+    /// notification, or 0.
+    pub callback_routine: KernelU32,
+    _reserved_14: AtomicU32,
+    /// Routine the kernel calls with a debug monitor control code and its
+    /// argument: `(code, argument) -> u32` in the console ABI.
+    pub control_routine: KernelU32,
+    /// Address of `KiContextSwapNotification`, the routine the kernel calls
+    /// on each thread switch.
+    pub context_swap_notification: KernelU32,
+    /// Address of the title interface block of the debug monitor.
+    pub title_interface: AtomicU32,
+    /// Address of the second title block of the debug monitor.
+    pub title_reserved: AtomicU32,
+    _reserved_28: [AtomicU32; 5],
+    /// Write position of the DVD command trace.
+    pub dvd_trace_pointer: KernelU32,
+    _reserved_40: [AtomicU32; 3],
+    /// `KeNumberProcessors`.
+    pub processor_count: AtomicU32,
+    /// Address of `KeSystemProcess`, the [`Kprocess`] of the system.
+    pub system_process: KernelU32,
+    /// Address of `KeTitleProcess`, the [`Kprocess`] of the title.
+    pub title_process: KernelU32,
+    /// Address of `KiStackOverflowNotification`, the routine the kernel
+    /// calls before the bug check of a stack overflow.
+    pub stack_overflow_notification: KernelU32,
+    /// Address of `KiProcessorBlock`, the addresses of the processor
+    /// control blocks of the hardware threads.
+    pub processor_blocks: KernelU32,
+    _reserved_60: AtomicU32,
+    /// Address of `PsLoadedUsermodeModuleList`, the head of the second
+    /// loaded module list.
+    pub loaded_usermode_module_list: KernelU32,
+}
+
+const _: () = {
+    use core::mem::offset_of;
+    assert!(offset_of!(DebugMonitorData, flags) == 0xc);
+    assert!(offset_of!(DebugMonitorData, callback_routine) == 0x10);
+    assert!(offset_of!(DebugMonitorData, control_routine) == 0x18);
+    assert!(offset_of!(DebugMonitorData, context_swap_notification) == 0x1c);
+    assert!(offset_of!(DebugMonitorData, title_interface) == 0x20);
+    assert!(offset_of!(DebugMonitorData, title_reserved) == 0x24);
+    assert!(offset_of!(DebugMonitorData, dvd_trace_pointer) == 0x3c);
+    assert!(offset_of!(DebugMonitorData, processor_count) == 0x4c);
+    assert!(offset_of!(DebugMonitorData, system_process) == 0x50);
+    assert!(offset_of!(DebugMonitorData, title_process) == 0x54);
+    assert!(offset_of!(DebugMonitorData, stack_overflow_notification) == 0x58);
+    assert!(offset_of!(DebugMonitorData, processor_blocks) == 0x5c);
+    assert!(offset_of!(DebugMonitorData, loaded_usermode_module_list) == 0x64);
+    assert!(core::mem::size_of::<DebugMonitorData>() == 0x68);
+};
+
+impl DebugMonitorData {
+    /// A zero block, for storage that the query service fills.
+    pub const fn new() -> Self {
+        Self {
+            debug_routine: KernelU32(AtomicU32::new(0)),
+            loaded_module_list: KernelU32(AtomicU32::new(0)),
+            loaded_module_list_lock: KernelU32(AtomicU32::new(0)),
+            flags: AtomicU32::new(0),
+            callback_routine: KernelU32(AtomicU32::new(0)),
+            _reserved_14: AtomicU32::new(0),
+            control_routine: KernelU32(AtomicU32::new(0)),
+            context_swap_notification: KernelU32(AtomicU32::new(0)),
+            title_interface: AtomicU32::new(0),
+            title_reserved: AtomicU32::new(0),
+            _reserved_28: [const { AtomicU32::new(0) }; 5],
+            dvd_trace_pointer: KernelU32(AtomicU32::new(0)),
+            _reserved_40: [const { AtomicU32::new(0) }; 3],
+            processor_count: AtomicU32::new(0),
+            system_process: KernelU32(AtomicU32::new(0)),
+            title_process: KernelU32(AtomicU32::new(0)),
+            stack_overflow_notification: KernelU32(AtomicU32::new(0)),
+            processor_blocks: KernelU32(AtomicU32::new(0)),
+            _reserved_60: AtomicU32::new(0),
+            loaded_usermode_module_list: KernelU32(AtomicU32::new(0)),
+        }
+    }
+}
+
+impl Default for DebugMonitorData {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 crate::import_variable!(
-    /// Pointer to the debug monitor data block that the kernel reads.
-    pub KeDebugMonitorData,
+    /// Address of the [`DebugMonitorData`] block that the kernel reads, or
+    /// 0. The debug monitor stores it. While a block is published, the
+    /// kernel calls the routines it names, so the block must stay valid
+    /// and its routine fields must hold routines of the expected form.
+    pub safe KeDebugMonitorData: KernelU32,
     lib = XBOXKRNL,
     ordinal = 0x059
 );
@@ -1300,9 +2192,23 @@ crate::import_thunk!(
     ordinal = 0x0AB
 );
 
+/// `KeTimeStampBundle`: times that the kernel updates on each clock tick.
+#[repr(C)]
+pub struct TimeStampBundle {
+    _times: [KernelU32; 4],
+    /// Milliseconds since boot.
+    pub tick_count: KernelU32,
+    _reserved_14: KernelU32,
+}
+
+const _: () = {
+    assert!(core::mem::offset_of!(TimeStampBundle, tick_count) == 0x10);
+    assert!(core::mem::size_of::<TimeStampBundle>() == 0x18);
+};
+
 crate::import_variable!(
-    /// Kernel time stamp bundle. The dword at +0x10 is the tick count in milliseconds.
-    pub KeTimeStampBundle,
+    /// Kernel time stamp bundle.
+    pub safe KeTimeStampBundle: TimeStampBundle,
     lib = XBOXKRNL,
     ordinal = 0x0AD
 );
@@ -1420,9 +2326,145 @@ crate::import_thunk!(
     ordinal = 0x0C5
 );
 
+/// Page and byte counts of one process type in [`MmStatistics`].
+#[repr(C)]
+#[derive(Debug, Clone, Copy, Default)]
+pub struct MmProcessStatistics {
+    pub available_pages: u32,
+    pub total_virtual_memory_bytes: u32,
+    pub reserved_virtual_memory_bytes: u32,
+    pub physical_pages: u32,
+    pub pool_pages: u32,
+    pub stack_pages: u32,
+    pub image_pages: u32,
+    pub heap_pages: u32,
+    pub virtual_pages: u32,
+    pub page_table_pages: u32,
+    pub cache_pages: u32,
+}
+
+/// `MM_STATISTICS`: the memory statistics that `MmQueryStatistics` fills.
+#[repr(C)]
+#[derive(Debug, Clone, Copy)]
+pub struct MmStatistics {
+    /// Size of the structure in bytes, which the caller sets.
+    pub length: u32,
+    pub total_physical_pages: u32,
+    pub kernel_pages: u32,
+    pub title: MmProcessStatistics,
+    pub system: MmProcessStatistics,
+    pub highest_physical_page: u32,
+}
+
+const _: () = {
+    use core::mem::offset_of;
+    assert!(offset_of!(MmStatistics, title) == 0xc);
+    assert!(offset_of!(MmStatistics, system) == 0x38);
+    assert!(offset_of!(MmStatistics, highest_physical_page) == 0x64);
+    assert!(core::mem::size_of::<MmStatistics>() == 0x68);
+};
+
+impl MmStatistics {
+    /// Zero statistics with [`MmStatistics::length`] set, for
+    /// `MmQueryStatistics` to fill.
+    pub const fn new() -> Self {
+        const ZERO: MmProcessStatistics = MmProcessStatistics {
+            available_pages: 0,
+            total_virtual_memory_bytes: 0,
+            reserved_virtual_memory_bytes: 0,
+            physical_pages: 0,
+            pool_pages: 0,
+            stack_pages: 0,
+            image_pages: 0,
+            heap_pages: 0,
+            virtual_pages: 0,
+            page_table_pages: 0,
+            cache_pages: 0,
+        };
+        Self {
+            length: core::mem::size_of::<Self>() as u32,
+            total_physical_pages: 0,
+            kernel_pages: 0,
+            title: ZERO,
+            system: ZERO,
+            highest_physical_page: 0,
+        }
+    }
+}
+
+impl Default for MmStatistics {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// The block of [`DebugMonitorService::MemoryStatistics`]: [`MmStatistics`]
+/// followed by the debug monitor's own counts. Fields named `unknown_*` have
+/// no known meaning; consumers use their values as stock does.
+#[repr(C)]
+#[derive(Debug, Clone, Copy)]
+pub struct DebugMemoryStatistics {
+    /// Size of the structure in bytes, which the caller sets. The service
+    /// replaces it with the size it filled.
+    pub length: u32,
+    pub statistics: MmStatistics,
+    pub unknown_06c: u32,
+    /// Bits 8 to 19 hold the debug memory size.
+    pub debug_memory: u32,
+    pub unknown_074: u32,
+    pub unknown_078: u32,
+    /// Page count of the base memory configuration.
+    pub page_threshold: u32,
+    pub unknown_080: u32,
+    pub unknown_084: u32,
+    pub unknown_088: u32,
+    pub unknown_08c: u32,
+}
+
+const _: () = {
+    use core::mem::offset_of;
+    assert!(offset_of!(DebugMemoryStatistics, statistics) == 0x4);
+    assert!(offset_of!(DebugMemoryStatistics, unknown_06c) == 0x6c);
+    assert!(offset_of!(DebugMemoryStatistics, debug_memory) == 0x70);
+    assert!(offset_of!(DebugMemoryStatistics, page_threshold) == 0x7c);
+    assert!(offset_of!(DebugMemoryStatistics, unknown_08c) == 0x8c);
+    assert!(core::mem::size_of::<DebugMemoryStatistics>() == 0x90);
+};
+
+impl DebugMemoryStatistics {
+    /// Zero statistics with both length fields set, for the service to
+    /// fill.
+    pub const fn new() -> Self {
+        Self {
+            length: core::mem::size_of::<Self>() as u32,
+            statistics: MmStatistics::new(),
+            unknown_06c: 0,
+            debug_memory: 0,
+            unknown_074: 0,
+            unknown_078: 0,
+            page_threshold: 0,
+            unknown_080: 0,
+            unknown_084: 0,
+            unknown_088: 0,
+            unknown_08c: 0,
+        }
+    }
+
+    /// Whether the service filled the whole block.
+    pub const fn is_complete(&self) -> bool {
+        self.length as usize >= core::mem::size_of::<Self>()
+    }
+}
+
+impl Default for DebugMemoryStatistics {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 crate::import_thunk!(
-    /// Fills a memory statistics structure. The first dword is the structure length.
-    pub MmQueryStatistics(statistics: *mut u32) -> NtStatus,
+    /// Fills `statistics`, whose length field the caller sets.
+    pub MmQueryStatistics(statistics: *mut MmStatistics) -> NtStatus,
     lib = XBOXKRNL,
     ordinal = 0x0C6
 );
@@ -1975,22 +3017,22 @@ crate::import_thunk!(
 );
 
 crate::import_variable!(
-    /// Console hardware information. The first dword is the flags word.
-    pub XboxHardwareInfo,
+    /// Console hardware information.
+    pub safe XboxHardwareInfo: HardwareInfo,
     lib = XBOXKRNL,
     ordinal = 0x156
 );
 
 crate::import_variable!(
-    /// Version of the base kernel: four u16 (major, minor, build, qfe).
-    pub XboxKrnlBaseVersion,
+    /// Version of the base kernel.
+    pub safe XboxKrnlBaseVersion: KernelVersion,
     lib = XBOXKRNL,
     ordinal = 0x157
 );
 
 crate::import_variable!(
-    /// Version of the running kernel: four u16 (major, minor, build, qfe).
-    pub XboxKrnlVersion,
+    /// Version of the running kernel.
+    pub safe XboxKrnlVersion: KernelVersion,
     lib = XBOXKRNL,
     ordinal = 0x158
 );
@@ -2003,8 +3045,9 @@ crate::import_thunk!(
 );
 
 crate::import_variable!(
-    /// Pointer to the module handle of the running executable.
-    pub XexExecutableModuleHandle,
+    /// Module handle of the running executable: the address of its
+    /// [`LdrDataTableEntry`].
+    pub safe XexExecutableModuleHandle: KernelU32,
     lib = XBOXKRNL,
     ordinal = 0x193
 );
@@ -2096,16 +3139,93 @@ crate::import_thunk!(
     ordinal = 0x1AD
 );
 
+/// `ExLoadedImageName`: the NUL-terminated object path of the running
+/// executable. The kernel rewrites it when it starts a title.
+#[repr(C)]
+pub struct LoadedImageName {
+    _opaque: [u8; 0],
+    _pinned: core::marker::PhantomPinned,
+}
+
+impl LoadedImageName {
+    /// Copy the path into `buffer` up to its NUL or the end of `buffer`,
+    /// and return the number of bytes copied.
+    pub fn copy_to(&self, buffer: &mut [u8]) -> usize {
+        let start = core::ptr::from_ref(self).expose_provenance();
+        for (index, slot) in buffer.iter_mut().enumerate() {
+            // SAFETY: a `LoadedImageName` exists only as the kernel export,
+            // a NUL-terminated string, and the bytes up to the NUL are
+            // mapped. Atomic loads allow the kernel to rewrite it.
+            let byte = unsafe {
+                AtomicU8::from_ptr(core::ptr::with_exposed_provenance_mut(start + index))
+            }
+            .load(Ordering::Relaxed);
+            if byte == 0 {
+                return index;
+            }
+            *slot = byte;
+        }
+        buffer.len()
+    }
+}
+
 crate::import_variable!(
-    /// NUL-terminated object path of the running executable.
-    pub ExLoadedImageName,
+    /// Object path of the running executable.
+    pub safe ExLoadedImageName: LoadedImageName,
     lib = XBOXKRNL,
     ordinal = 0x1AF
 );
 
+/// The 0x58-byte display information block that
+/// [`VdGetCurrentDisplayInformation`] fills, with the fields in use named.
+#[repr(C)]
+pub struct DisplayInformation {
+    pub surface_width: u16,
+    _reserved_002: [u8; 2],
+    pub colorspace: u8,
+    _reserved_005: [u8; 3],
+    pub left: u32,
+    pub top: u32,
+    pub right: u32,
+    pub bottom: u32,
+    pub scaled_width: u32,
+    pub scaled_height: u32,
+    _reserved_020: [u32; 0xe],
+}
+
+impl DisplayInformation {
+    pub const fn new() -> Self {
+        Self {
+            surface_width: 0,
+            _reserved_002: [0; 2],
+            colorspace: 0,
+            _reserved_005: [0; 3],
+            left: 0,
+            top: 0,
+            right: 0,
+            bottom: 0,
+            scaled_width: 0,
+            scaled_height: 0,
+            _reserved_020: [0; 0xe],
+        }
+    }
+
+    /// The block as [`VdGetCurrentDisplayInformation`] takes it.
+    pub fn as_mut_ptr(&mut self) -> *mut Self {
+        core::ptr::from_mut(self)
+    }
+}
+
+const _: () = {
+    assert!(core::mem::offset_of!(DisplayInformation, colorspace) == 4);
+    assert!(core::mem::offset_of!(DisplayInformation, left) == 8);
+    assert!(core::mem::offset_of!(DisplayInformation, scaled_height) == 0x1c);
+    assert!(core::mem::size_of::<DisplayInformation>() == 0x58);
+};
+
 crate::import_thunk!(
     /// Fills a display information structure.
-    pub VdGetCurrentDisplayInformation(information: *mut u32) -> (),
+    pub VdGetCurrentDisplayInformation(information: *mut DisplayInformation) -> (),
     lib = XBOXKRNL,
     ordinal = 0x1BA
 );
