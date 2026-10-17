@@ -21,9 +21,9 @@
 //!
 //! Types, constants, structure layouts and [`status`] compile on every
 //! target, so host code can share them. Imports, the functions of
-//! [`processor`], [`interlocked`] and the entry bridge exist only for
-//! `target_os = "xbox360"`. Documentation builds them on another PowerPC
-//! target with `--cfg xbox360_docs`.
+//! [`processor`], [`mmio`], [`interlocked`] and the entry bridge exist only
+//! for `target_os = "xbox360"`. Documentation builds them on another
+//! PowerPC target with `--cfg xbox360_docs`.
 //!
 //! Every type in an import signature is 32 bits wide or narrower and passes
 //! like the C integer of its width: enums are `#[repr(u32)]` (or the C
@@ -297,6 +297,9 @@ macro_rules! import_adapter {
     };
 }
 
+pub mod image;
+#[cfg(any(target_os = "xbox360", xbox360_docs))]
+pub mod mmio;
 pub mod status;
 pub mod xam;
 pub mod xboxkrnl;

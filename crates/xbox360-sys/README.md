@@ -86,7 +86,7 @@ xbox360_sys::export!(1, worker);
 
 Pass `worker_entry`, not `worker`, to `ExCreateThread` with `xapi_thread_startup` 0. When `worker` returns, the kernel ends the thread with the returned value as its exit code.
 
-The crate needs [xex-link](https://github.com/landaire/rust-xbox360) to turn the import and export records into the XEX import and export tables. Imports, the functions of `processor`, `interlocked` and `entry_bridge` exist only for `target_os = "xbox360"`. On other targets the crate has the types, the constants, the structure layouts and `status`, so host code can share them.
+The crate needs [xex-link](https://github.com/landaire/rust-xbox360) to turn the import and export records into the XEX import and export tables. Imports, the functions of `processor`, `mmio`, `interlocked` and `entry_bridge` exist only for `target_os = "xbox360"`. On other targets the crate has the types, the constants, the structure layouts and `status`, so host code can share them.
 
 ## Why the stubs exist
 

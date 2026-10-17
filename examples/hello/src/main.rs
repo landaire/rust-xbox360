@@ -57,12 +57,12 @@ extern "C" fn sender(sock: u32) -> u32 {
 
 extern "C" fn main(_ctx: u32) -> u32 {
     dbg(c"main: starting network\n");
-    let mut wsadata = [0u8; 512];
+    let mut wsadata = xam::WsaData::new();
     // SAFETY: a null parameter block selects the default settings, and
-    // `wsadata` is live local storage of the WSADATA size.
+    // `wsadata` is live local storage.
     unsafe {
         xam::NetDll_XNetStartup(XnCaller::Title, core::ptr::null());
-        xam::NetDll_WSAStartup(XnCaller::Title, 0x0202, wsadata.as_mut_ptr());
+        xam::NetDll_WSAStartup(XnCaller::Title, xam::WinsockVersion::new(2, 2), &mut wsadata);
     }
 
     // SAFETY: the network stack was started above; the call takes no

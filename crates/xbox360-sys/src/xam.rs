@@ -8,6 +8,8 @@
 use crate::lib_index::XAM;
 pub use crate::status::Win32ErrorCode;
 #[cfg(any(target_os = "xbox360", xbox360_docs))]
+use crate::status::Hresult;
+#[cfg(any(target_os = "xbox360", xbox360_docs))]
 use crate::xboxkrnl::AccessMask;
 #[cfg(any(target_os = "xbox360", xbox360_docs))]
 use crate::xboxkrnl::FileAttributes;
@@ -16,6 +18,74 @@ use crate::xboxkrnl::Handle;
 use crate::xboxkrnl::ShareAccess;
 
 pub use crate::xboxkrnl::Boolean;
+
+/// Ordinals of `xam.xex` exports that this crate does not import, for
+/// callers that resolve them at run time. Named as Xenia names the exports.
+pub mod ordinal {
+    use crate::Ordinal;
+
+    /// `NetDll_XnpGetSecAssocList`
+    pub const XNP_GET_SEC_ASSOC_LIST: Ordinal = Ordinal::new(0x81).unwrap();
+    /// `NetDll_XnpGetKeyList`
+    pub const XNP_GET_KEY_LIST: Ordinal = Ordinal::new(0x82).unwrap();
+    /// `NetDll_XnpGetQosLookupList`
+    pub const XNP_GET_QOS_LOOKUP_LIST: Ordinal = Ordinal::new(0x83).unwrap();
+    /// `NetDll_XnpToolSetCallbacks`
+    pub const XNP_TOOL_SET_CALLBACKS: Ordinal = Ordinal::new(0x8b).unwrap();
+    /// `NetDll_XnpToolIpProxyInject`
+    pub const XNP_TOOL_IP_PROXY_INJECT: Ordinal = Ordinal::new(0x8c).unwrap();
+    /// `NetDll_XnpEthernetInterceptXmitAsIp`
+    pub const XNP_ETHERNET_INTERCEPT_XMIT_AS_IP: Ordinal = Ordinal::new(0x8e).unwrap();
+    /// `XamMediaVerificationCreate`
+    pub const MEDIA_VERIFICATION_CREATE: Ordinal = Ordinal::new(0x9bb).unwrap();
+    /// `XamMediaVerificationClose`
+    pub const MEDIA_VERIFICATION_CLOSE: Ordinal = Ordinal::new(0x9bc).unwrap();
+    /// `XamMediaVerificationVerify`
+    pub const MEDIA_VERIFICATION_VERIFY: Ordinal = Ordinal::new(0x9bd).unwrap();
+    /// `XamMediaVerificationFailedBlocks`
+    pub const MEDIA_VERIFICATION_FAILED_BLOCKS: Ordinal = Ordinal::new(0x9be).unwrap();
+    /// `XamMediaVerificationInject`
+    pub const MEDIA_VERIFICATION_INJECT: Ordinal = Ordinal::new(0x9bf).unwrap();
+    /// `XamShowBadDiscErrorUI`
+    pub const SHOW_BAD_DISC_ERROR_UI: Ordinal = Ordinal::new(0x9c0).unwrap();
+}
+
+/// The record that `XamMediaVerificationFailedBlocks` ([`ordinal`]) fills.
+/// The caller sets [`MediaVerificationFailedBlocks::size`].
+#[repr(C)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct MediaVerificationFailedBlocks {
+    /// Size of the record in bytes.
+    pub size: u32,
+    pub failed_reads: u32,
+    pub failed_hashes: u32,
+    pub blocks_checked: u32,
+    pub total_blocks: u32,
+    /// Nonzero once the verification is complete.
+    pub completed: u32,
+}
+
+impl MediaVerificationFailedBlocks {
+    /// A zero record with its size set.
+    pub const fn new() -> Self {
+        Self {
+            size: core::mem::size_of::<Self>() as u32,
+            failed_reads: 0,
+            failed_hashes: 0,
+            blocks_checked: 0,
+            total_blocks: 0,
+            completed: 0,
+        }
+    }
+}
+
+impl Default for MediaVerificationFailedBlocks {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+const _: () = assert!(core::mem::size_of::<MediaVerificationFailedBlocks>() == 0x18);
 
 value_enum! {
     /// `XNCALLER_*`: on whose behalf a network call is made.
@@ -180,6 +250,22 @@ flags! {
     }
 }
 
+/// `XNADDR`, as the XNADDR queries store it. Addresses and the port are in
+/// network byte order.
+#[repr(C)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
+pub struct XnAddr {
+    /// IP address; zero without a static or DHCP address.
+    pub address: u32,
+    /// Online IP address; zero when not online.
+    pub online_address: u32,
+    pub online_port: u16,
+    pub ethernet_address: [u8; 6],
+    pub online_id: [u8; 20],
+}
+
+const _: () = assert!(core::mem::size_of::<XnAddr>() == 0x24);
+
 flags! {
     /// `XNET_ETHERNET_LINK_*` status of the network interface.
     pub struct EthernetLinkStatus(u32) {
@@ -190,6 +276,178 @@ flags! {
         HALF_DUPLEX = 0x10,
     }
 }
+
+flags! {
+    /// `XNET_STARTUP_*` flags of [`XnetStartupParams`].
+    pub struct XnetStartupFlags(u8) {
+        /// Accept insecure connections, as development kits allow.
+        BYPASS_SECURITY = 0x01,
+    }
+}
+
+/// `XNetStartupParams` of `NetDll_XNetStartup`, with Xenia's field order.
+/// A zero field selects the default of the network stack.
+#[repr(C)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct XnetStartupParams {
+    /// The size of the block, 13.
+    pub size: u8,
+    pub flags: XnetStartupFlags,
+    pub max_datagram_sockets: u8,
+    pub max_stream_sockets: u8,
+    pub default_receive_buffer_kib: u8,
+    pub default_send_buffer_kib: u8,
+    pub max_key_registrations: u8,
+    pub max_security_associations: u8,
+    pub qos_data_limit_div4: u8,
+    pub qos_probe_timeout_seconds: u8,
+    pub qos_probe_retries: u8,
+    pub qos_server_max_simultaneous_responses: u8,
+    pub qos_pair_wait_time_seconds: u8,
+}
+
+impl XnetStartupParams {
+    /// The block with its size set and every other field zero.
+    pub const fn new() -> Self {
+        Self {
+            size: core::mem::size_of::<Self>() as u8,
+            flags: XnetStartupFlags::empty(),
+            max_datagram_sockets: 0,
+            max_stream_sockets: 0,
+            default_receive_buffer_kib: 0,
+            default_send_buffer_kib: 0,
+            max_key_registrations: 0,
+            max_security_associations: 0,
+            qos_data_limit_div4: 0,
+            qos_probe_timeout_seconds: 0,
+            qos_probe_retries: 0,
+            qos_server_max_simultaneous_responses: 0,
+            qos_pair_wait_time_seconds: 0,
+        }
+    }
+}
+
+impl Default for XnetStartupParams {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+flags! {
+    /// Flags of an [`XnetConfigParams`] record. The meaning of each bit is
+    /// not known; a debug monitor sets 0xc with a static address, subnet
+    /// and gateway.
+    pub struct XnetConfigFlags(u16) {}
+}
+
+/// `XNetConfigParams`, the record that `NetDll_XnpConfig` applies. Fields
+/// without a known meaning are reserved; a caller zeroes them.
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct XnetConfigParams {
+    pub reserved0: [u8; 0x4c],
+    pub flags: XnetConfigFlags,
+    pub reserved1: [u8; 6],
+    /// Static IP address, network byte order.
+    pub address: u32,
+    /// Subnet mask, network byte order.
+    pub subnet: u32,
+    /// Default gateway, network byte order.
+    pub gateway: u32,
+    pub reserved2: [u8; 8],
+    /// DHCP host name, NUL-terminated.
+    pub host_name: [u8; 0x184],
+}
+
+impl XnetConfigParams {
+    /// A record with every field zero.
+    pub const fn new() -> Self {
+        Self {
+            reserved0: [0; 0x4c],
+            flags: XnetConfigFlags::empty(),
+            reserved1: [0; 6],
+            address: 0,
+            subnet: 0,
+            gateway: 0,
+            reserved2: [0; 8],
+            host_name: [0; 0x184],
+        }
+    }
+}
+
+impl Default for XnetConfigParams {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+const _: () = {
+    assert!(core::mem::offset_of!(XnetConfigParams, flags) == 0x4c);
+    assert!(core::mem::offset_of!(XnetConfigParams, address) == 0x54);
+    assert!(core::mem::offset_of!(XnetConfigParams, subnet) == 0x58);
+    assert!(core::mem::offset_of!(XnetConfigParams, gateway) == 0x5c);
+    assert!(core::mem::offset_of!(XnetConfigParams, host_name) == 0x68);
+    assert!(core::mem::size_of::<XnetConfigParams>() == 0x1ec);
+};
+
+flags! {
+    /// Flags of `NetDll_XnpEthernetInterceptSetCallbacks`. The meaning of
+    /// each bit is not known; a debug monitor's network simulator sets 0x2
+    /// and a frame capture sets none.
+    pub struct EthernetInterceptFlags(u32) {}
+}
+
+/// A Winsock version (`MAKEWORD(major, minor)`) of `NetDll_WSAStartup`.
+#[repr(transparent)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct WinsockVersion(u16);
+
+impl WinsockVersion {
+    pub const fn new(major: u8, minor: u8) -> Self {
+        Self(((minor as u16) << 8) | major as u16)
+    }
+}
+
+/// `WSADATA`, as `NetDll_WSAStartup` stores it.
+#[repr(C)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct WsaData {
+    pub version: WinsockVersion,
+    pub high_version: WinsockVersion,
+    pub description: [u8; 257],
+    pub system_status: [u8; 129],
+    pub max_sockets: u16,
+    pub max_udp_datagram: u16,
+    pub vendor_info: u32,
+}
+
+impl WsaData {
+    /// Zeroed storage for `NetDll_WSAStartup` to fill.
+    pub const fn new() -> Self {
+        Self {
+            version: WinsockVersion(0),
+            high_version: WinsockVersion(0),
+            description: [0; 257],
+            system_status: [0; 129],
+            max_sockets: 0,
+            max_udp_datagram: 0,
+            vendor_info: 0,
+        }
+    }
+}
+
+impl Default for WsaData {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+const _: () = {
+    assert!(core::mem::size_of::<XnetStartupParams>() == 13);
+    assert!(core::mem::offset_of!(XnetStartupParams, default_receive_buffer_kib) == 4);
+    assert!(core::mem::offset_of!(WsaData, max_sockets) == 0x186);
+    assert!(core::mem::size_of::<WsaData>() == 0x190);
+};
 
 /// IPv4 socket address. Port and address are in network byte order.
 #[repr(C)]
@@ -710,6 +968,13 @@ impl MessageBoxFlags {
 /// `WaitForSingleObject` timeout that waits without limit.
 pub const INFINITE: u32 = u32::MAX;
 
+flags! {
+    /// `HEAP_*` flags of the heap calls.
+    pub struct HeapFlags(u32) {
+        ZERO_MEMORY = 0x8,
+    }
+}
+
 /// Result of `WaitForSingleObject`.
 #[repr(transparent)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -748,8 +1013,8 @@ pub struct SystemTime {
 }
 
 crate::import_thunk!(
-    /// Initializes Winsock. `data` receives a WSADATA.
-    pub NetDll_WSAStartup(caller: XnCaller, version: u32, data: *mut u8) -> Win32ErrorCode,
+    /// Initializes Winsock.
+    pub NetDll_WSAStartup(caller: XnCaller, version: WinsockVersion, data: *mut WsaData) -> Win32ErrorCode,
     lib = XAM,
     ordinal = 0x001
 );
@@ -963,7 +1228,7 @@ crate::import_thunk!(
 
 crate::import_thunk!(
     /// Initializes the network stack. `params` may be null.
-    pub NetDll_XNetStartup(caller: XnCaller, params: *const u8) -> i32,
+    pub NetDll_XNetStartup(caller: XnCaller, params: *const XnetStartupParams) -> i32,
     lib = XAM,
     ordinal = 0x033
 );
@@ -1026,6 +1291,20 @@ crate::import_thunk!(
     lib = XAM,
     ordinal = 0x068
 );
+
+/// [`NetDll_XnpConfig`] with a typed record. The meaning of `flags` is not
+/// known; a debug monitor passes 0.
+///
+/// # Safety
+///
+/// The caller context and `flags` must meet the requirements of the export.
+#[cfg(any(target_os = "xbox360", xbox360_docs))]
+#[inline(always)]
+pub unsafe fn xnp_config(caller: XnCaller, config: &XnetConfigParams, flags: u32) -> i32 {
+    // SAFETY: `config` is a whole record the export reads during the call;
+    // the rest per the contract.
+    unsafe { NetDll_XnpConfig(caller, (config as *const XnetConfigParams).cast(), flags) }
+}
 
 crate::import_thunk!(
     /// Stores the network configuration status.
@@ -1292,13 +1571,18 @@ crate::import_thunk!(
 
 crate::import_thunk!(
     /// Starts an I/O request to a XAM application. Completes through `overlapped` when not null.
+    ///
+    /// With `overlapped`, the result is the Win32 code `ERROR_IO_PENDING`
+    /// (997, [`crate::status::Win32Error::IO_PENDING`]) and not an HRESULT,
+    /// so it reads as a success with facility 0. The outcome of the request
+    /// is in `overlapped`.
     pub XMsgStartIORequest(
         app: u32,
         message: u32,
         overlapped: *mut Overlapped,
         buffer: *mut u8,
         buffer_length: u32,
-    ) -> u32,
+    ) -> Hresult,
     lib = XAM,
     ordinal = 0x1F7
 );
@@ -1352,6 +1636,13 @@ crate::import_thunk!(
     lib = XAM,
     ordinal = 0x282
 );
+
+flags! {
+    /// Notification areas of [`XamNotifyCreateListenerInternal`].
+    pub struct NotificationAreas(u64) {
+        SYSTEM = 0x1,
+    }
+}
 
 import_adapter!(
     /// Creates a notification listener for the notification areas in `mask`. Returns the listener handle.
@@ -1410,14 +1701,14 @@ crate::import_thunk!(
 
 crate::import_thunk!(
     /// Allocates from a heap. Returns the address or 0.
-    pub RtlAllocateHeap(heap: u32, flags: u32, size: u32) -> u32,
+    pub RtlAllocateHeap(heap: u32, flags: HeapFlags, size: u32) -> u32,
     lib = XAM,
     ordinal = 0x3FC
 );
 
 crate::import_thunk!(
     /// Frees a heap block.
-    pub RtlFreeHeap(heap: u32, flags: u32, block: u32) -> u32,
+    pub RtlFreeHeap(heap: u32, flags: HeapFlags, block: u32) -> u32,
     lib = XAM,
     ordinal = 0x3FF
 );

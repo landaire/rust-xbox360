@@ -12,6 +12,12 @@ use core::sync::atomic::AtomicU32;
 use core::sync::atomic::Ordering;
 
 #[cfg(any(target_os = "xbox360", xbox360_docs))]
+use crate::image::ImageDirectory;
+#[cfg(any(target_os = "xbox360", xbox360_docs))]
+use crate::image::ImageNtHeaders;
+#[cfg(any(target_os = "xbox360", xbox360_docs))]
+use crate::image::XexHeaderKey;
+#[cfg(any(target_os = "xbox360", xbox360_docs))]
 use crate::lib_index::XBOXKRNL;
 use crate::processor::Msr;
 pub use crate::status::NtStatus;
@@ -30,6 +36,10 @@ impl Handle {
     pub const CURRENT_PROCESS: Self = Self(0xffff_ffff);
     /// Pseudo handle of the current thread.
     pub const CURRENT_THREAD: Self = Self(0xffff_fffe);
+    /// Pseudo handle of the `\??` object directory (Xenia's
+    /// `ObDosDevices`): the root directory of an object name that does not
+    /// start with a backslash.
+    pub const DOS_DEVICES: Self = Self(0xffff_fffd);
 
     pub const fn from_raw(raw: u32) -> Self {
         Self(raw)
@@ -830,6 +840,48 @@ value_enum! {
 }
 
 value_enum! {
+    /// Byte 0 of an [`SmcMessage`]: the command of a request to the system
+    /// management controller, or the kind of a message it sends.
+    #[non_exhaustive]
+    pub enum SmcCommand: u8 {
+        /// An I2C transfer.
+        I2c = 0x11,
+        /// The optical drive tray state. Byte 1 is 0x60 plus the state.
+        TrayState = 0x83,
+    }
+}
+
+/// A 16-byte message to or from the system management controller. Byte 0
+/// is the [`SmcCommand`].
+#[repr(C)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
+pub struct SmcMessage(pub [u8; 16]);
+
+impl SmcMessage {
+    /// A message of `command` with the other bytes zero.
+    pub const fn new(command: SmcCommand) -> Self {
+        let mut bytes = [0; 16];
+        bytes[0] = command.raw();
+        Self(bytes)
+    }
+
+    /// `None` for a command without a variant.
+    pub const fn command(&self) -> Option<SmcCommand> {
+        SmcCommand::from_raw(self.0[0])
+    }
+}
+
+/// Bus address of the device of an [`SmcCommand::I2c`] transfer.
+#[repr(transparent)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct SmcI2cDevice(pub u8);
+
+impl SmcI2cDevice {
+    /// The EEPROM that holds the debug monitor settings block.
+    pub const SETTINGS_EEPROM: Self = Self(0xd4);
+}
+
+value_enum! {
     /// `ExDebugMonitorService` service. The kernel exports it for the debug
     /// monitor; the names describe what stock XBDM uses each one for.
     #[non_exhaustive]
@@ -840,7 +892,8 @@ value_enum! {
         Query = 1,
         /// Turn the capture of kernel calls on or off.
         KernelCallCapture = 2,
-        /// Return the CD-ROM channel extension and its packet routines.
+        /// Return the CD-ROM channel extension and its packet routines in a
+        /// [`CdromChannelInformation`].
         CdromChannel = 4,
         /// Return the address of the trace exception hook.
         TraceHook = 6,
@@ -848,6 +901,116 @@ value_enum! {
         DvdEmulation = 7,
         /// Fill debug-adjusted memory statistics.
         MemoryStatistics = 8,
+    }
+}
+
+/// Output of [`DebugMonitorService::CdromChannel`].
+#[repr(C)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct CdromChannelInformation {
+    _reserved_00: [u32; 2],
+    /// Address of the channel extension of the CD-ROM SATA channel, or 0.
+    pub channel: u32,
+    /// Routine `(channel, irp)` that queues a request on the channel; 0
+    /// when the kernel gives none.
+    pub start_packet: u32,
+    /// Routine `(channel)` that starts the next queued request; 0 when the
+    /// kernel gives none.
+    pub start_next_packet: u32,
+    _reserved_14: [u32; 3],
+}
+
+const _: () = {
+    use core::mem::offset_of;
+    assert!(offset_of!(CdromChannelInformation, channel) == 0x08);
+    assert!(offset_of!(CdromChannelInformation, start_next_packet) == 0x10);
+    assert!(core::mem::size_of::<CdromChannelInformation>() == 0x20);
+};
+
+/// A `KeBugCheck` code. Codes that are not named here are module-specific.
+#[repr(transparent)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct BugCheckCode(pub u32);
+
+impl BugCheckCode {
+    pub const KMODE_EXCEPTION_NOT_HANDLED: Self = Self(0x1e);
+}
+
+value_enum! {
+    /// Reason the loader passes to the entry point of a module.
+    #[non_exhaustive]
+    pub enum DllEntryReason: u32 {
+        /// The module is unloaded.
+        ProcessDetach = 0,
+        /// The module is loaded.
+        ProcessAttach = 1,
+    }
+}
+
+/// A special purpose register of `KeGetSpecialPurposeRegister` and
+/// `KeSetSpecialPurposeRegister`.
+#[repr(transparent)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct SpecialPurposeRegister(pub u32);
+
+impl SpecialPurposeRegister {
+    /// Data address breakpoint register.
+    pub const DABR: Self = Self(0x3f5);
+    /// Performance monitor control: bit 1 freezes and bit 2 enables the
+    /// counters; bits 10 to 15 select the event bus width.
+    pub const MONITOR_CONTROL: Self = Self(0x3f6);
+    /// Performance monitor event selection.
+    pub const EVENT_SELECT: Self = Self(0x3fa);
+}
+
+/// A performance monitor bus register of `KeGetPMWRegister` and
+/// `KeSetPMWRegister`.
+#[repr(transparent)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct PmwRegister(pub u32);
+
+impl PmwRegister {
+    /// Lane sources of the bus units.
+    pub const NCU0: Self = Self(0x480);
+    pub const NCU1: Self = Self(0x580);
+    pub const NCU2: Self = Self(0x680);
+    pub const CIU: Self = Self(0x708);
+    pub const BIU: Self = Self(0xb50);
+    /// L2 event group selection.
+    pub const L2_GROUP: Self = Self(0x310);
+    pub const L2: Self = Self(0x318);
+    /// L2 ECC error counts.
+    pub const L2_ECC: Self = Self(0x860);
+}
+
+/// A performance monitor register of `KeSetPRVRegister`. Values are in
+/// the high word.
+#[repr(transparent)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct PrvRegister(pub u32);
+
+impl PrvRegister {
+    /// Counter run control.
+    pub const RUN: Self = Self(0x1c0);
+    /// Interval timer control.
+    pub const INTERVAL_CONTROL: Self = Self(0x1c8);
+    /// Processor whose events trigger the counters.
+    pub const TRIGGER: Self = Self(0x1d8);
+    pub const INTERVAL: Self = Self(0x1e0);
+    pub const INTERVAL_RELOAD: Self = Self(0x1e8);
+
+    /// The value register of counter `counter`. Panics unless `counter` is
+    /// 0 to 15.
+    pub const fn counter_value(counter: u8) -> Self {
+        assert!(counter < 16, "the performance monitor has 16 counters");
+        Self(0x200 + counter as u32 * 8)
+    }
+
+    /// The control register of counter `counter`. Panics unless `counter`
+    /// is 0 to 15.
+    pub const fn counter_control(counter: u8) -> Self {
+        assert!(counter < 16, "the performance monitor has 16 counters");
+        Self(0x280 + counter as u32 * 8)
     }
 }
 
@@ -1421,9 +1584,394 @@ impl Default for IoStatusBlock {
     }
 }
 
+/// `FILE_FS_SIZE_INFORMATION`: what [`FsInformationClass::Size`] returns.
+#[repr(C)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct FsSizeInformation {
+    pub total_allocation_units: u64,
+    pub available_allocation_units: u64,
+    pub sectors_per_allocation_unit: u32,
+    pub bytes_per_sector: u32,
+}
+
+const _: () = assert!(core::mem::size_of::<FsSizeInformation>() == 0x18);
+
+/// `FILE_FS_DEVICE_INFORMATION`: what [`FsInformationClass::Device`]
+/// returns.
+#[repr(C)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FsDeviceInformation {
+    pub device_type: FileDeviceType,
+    pub characteristics: u32,
+}
+
+const _: () = assert!(core::mem::size_of::<FsDeviceInformation>() == 8);
+
+/// `FILE_FS_ATTRIBUTE_INFORMATION`: what [`FsInformationClass::Attribute`]
+/// returns. The file system name, `file_system_name_length` bytes, follows
+/// at 0xc.
+#[repr(C)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct FsAttributeInformation {
+    /// `FILE_*` file system flags.
+    pub attributes: u32,
+    pub maximum_component_name_length: u32,
+    pub file_system_name_length: u32,
+}
+
+const _: () = assert!(core::mem::size_of::<FsAttributeInformation>() == 0xc);
+
+flags! {
+    /// `FILE_*` file system flags of [`FsAttributeInformation::attributes`].
+    pub struct FileSystemAttributes(u32) {
+        CASE_SENSITIVE_SEARCH = 0x1,
+        CASE_PRESERVED_NAMES = 0x2,
+        UNICODE_ON_DISK = 0x4,
+        PERSISTENT_ACLS = 0x8,
+        FILE_COMPRESSION = 0x10,
+        VOLUME_IS_COMPRESSED = 0x8000,
+        READ_ONLY_VOLUME = 0x8_0000,
+    }
+}
+
+/// `DISK_GEOMETRY`: what [`IoControlCode::DISK_GET_DRIVE_GEOMETRY`]
+/// returns.
+#[repr(C)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct DiskGeometry {
+    pub sectors: u32,
+    pub bytes_per_sector: u32,
+}
+
+/// `PARTITION_INFORMATION`: what [`IoControlCode::DISK_GET_PARTITION_INFO`]
+/// returns.
+#[repr(C)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct PartitionInformation {
+    /// Byte offset of the partition on the disk.
+    pub starting_offset: u64,
+    /// Length of the partition in bytes.
+    pub partition_length: u64,
+}
+
+const _: () = assert!(core::mem::size_of::<PartitionInformation>() == 0x10);
+
 #[cfg(target_pointer_width = "32")]
 const _: () = assert!(core::mem::size_of::<ObjectAttributes>() == 12);
 const _: () = assert!(core::mem::size_of::<IoStatusBlock>() == 8);
+
+value_enum! {
+    /// `IRP_MJ_*`: the major function of an I/O request, which selects the
+    /// [`DriverObject::major_function`] routine.
+    #[non_exhaustive]
+    pub enum IrpMajorFunction: u8 {
+        Read = 2,
+        Write = 3,
+        FlushBuffers = 6,
+        DeviceControl = 9,
+    }
+}
+
+/// An I/O control code of a device control request.
+#[repr(transparent)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct IoControlCode(pub u32);
+
+impl IoControlCode {
+    /// The 0x14-byte flash geometry; words 0 and 2 multiply to the write
+    /// unit of the device.
+    pub const FLASH_GEOMETRY: Self = Self(0x3c_0028);
+    /// The sector count and the sector size: a [`DiskGeometry`].
+    pub const DISK_GET_DRIVE_GEOMETRY: Self = Self(0x7_0000);
+    /// The start offset and the length in bytes: a [`PartitionInformation`].
+    pub const DISK_GET_PARTITION_INFO: Self = Self(0x7_4004);
+    /// A SCSI command described by a [`ScsiPassThroughDirect`] input.
+    pub const SCSI_PASS_THROUGH_DIRECT: Self = Self(0x4_d014);
+    /// The authentication state of the optical drive.
+    pub const ODD_AUTH_STATE: Self = Self(0x2_40cc);
+}
+
+/// `SCSI_PASS_THROUGH_DIRECT`: the input of
+/// [`IoControlCode::SCSI_PASS_THROUGH_DIRECT`]. The device transfers data
+/// directly to or from `data_buffer`.
+#[repr(C)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct ScsiPassThroughDirect {
+    /// Size of the structure in bytes.
+    pub length: u16,
+    _reserved_02: [u8; 5],
+    /// Meaning unknown.
+    pub unknown_07: u8,
+    /// Bytes to transfer.
+    pub data_transfer_length: u32,
+    _reserved_0c: u32,
+    /// Address of the transfer buffer.
+    pub data_buffer: u32,
+    /// Command descriptor block.
+    pub cdb: [u8; 0x10],
+}
+
+impl ScsiPassThroughDirect {
+    /// A zeroed request.
+    pub const fn new() -> Self {
+        Self {
+            length: 0,
+            _reserved_02: [0; 5],
+            unknown_07: 0,
+            data_transfer_length: 0,
+            _reserved_0c: 0,
+            data_buffer: 0,
+            cdb: [0; 0x10],
+        }
+    }
+}
+
+const _: () = {
+    use core::mem::offset_of;
+    assert!(offset_of!(ScsiPassThroughDirect, unknown_07) == 0x07);
+    assert!(offset_of!(ScsiPassThroughDirect, data_transfer_length) == 0x08);
+    assert!(offset_of!(ScsiPassThroughDirect, data_buffer) == 0x10);
+    assert!(offset_of!(ScsiPassThroughDirect, cdb) == 0x14);
+    assert!(core::mem::size_of::<ScsiPassThroughDirect>() == 0x24);
+};
+
+/// The standard data of a SCSI INQUIRY command (0x24 bytes).
+#[repr(C)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct ScsiInquiryData {
+    /// Peripheral qualifier and device type.
+    pub device_type: u8,
+    /// Bit 7: removable medium.
+    pub removable: u8,
+    pub version: u8,
+    /// Response data format in the low four bits.
+    pub response_format: u8,
+    /// Bytes that follow this one.
+    pub additional_length: u8,
+    pub flags: [u8; 3],
+    /// ASCII vendor identification.
+    pub vendor_id: [u8; 8],
+    /// ASCII product identification.
+    pub product_id: [u8; 0x10],
+    /// ASCII product revision level.
+    pub product_revision: [u8; 4],
+}
+
+impl ScsiInquiryData {
+    /// Zeroed data.
+    pub const fn new() -> Self {
+        Self {
+            device_type: 0,
+            removable: 0,
+            version: 0,
+            response_format: 0,
+            additional_length: 0,
+            flags: [0; 3],
+            vendor_id: [0; 8],
+            product_id: [0; 0x10],
+            product_revision: [0; 4],
+        }
+    }
+}
+
+const _: () = {
+    use core::mem::offset_of;
+    assert!(offset_of!(ScsiInquiryData, vendor_id) == 0x08);
+    assert!(offset_of!(ScsiInquiryData, product_id) == 0x10);
+    assert!(offset_of!(ScsiInquiryData, product_revision) == 0x20);
+    assert!(core::mem::size_of::<ScsiInquiryData>() == 0x24);
+};
+
+/// `FILE_DEVICE_*`: the type of a device, as `IoCreateDevice` takes it and
+/// [`FsInformationClass::Device`] returns it.
+#[repr(transparent)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct FileDeviceType(pub u32);
+
+flags! {
+    /// `DO_*` flags of a [`DeviceObject`].
+    pub struct DeviceObjectFlags(u32) {
+        /// Set by the kernel at creation. The driver clears it once the
+        /// device is ready; requests fail while it is set.
+        INITIALIZING = 0x10,
+    }
+}
+
+flags! {
+    /// `IoStackLocation::flags`.
+    pub struct IoStackFlags(u8) {
+        /// The buffer parameter of a read or write is the transfer address,
+        /// not an offset into [`Irp::user_buffer`].
+        BUFFER_ADDRESS = 0x1,
+    }
+}
+
+flags! {
+    /// `SL_*` control bits of an [`IoStackLocation`].
+    pub struct IoStackControl(u8) {
+        /// The dispatch routine returned `STATUS_PENDING`.
+        PENDING_RETURNED = 0x1,
+        /// Run the completion routine when the request is cancelled.
+        INVOKE_ON_CANCEL = 0x20,
+        /// Run the completion routine when the request succeeds.
+        INVOKE_ON_SUCCESS = 0x40,
+        /// Run the completion routine when the request fails.
+        INVOKE_ON_ERROR = 0x80,
+    }
+}
+
+/// `IRP`: an I/O request packet. Only the fields this crate names are
+/// public; the kernel allocates the packet with its stack locations.
+#[repr(C)]
+pub struct Irp {
+    _header: [u32; 4],
+    pub io_status: IoStatusBlock,
+    _stack_count: u8,
+    /// Index of the current stack location.
+    pub current_location: u8,
+    _reserved0: [u8; 2],
+    pub user_buffer: *mut u8,
+    /// Words whose kernel meaning is not known.
+    pub unknown_020: [u32; 2],
+    _reserved1: [u32; 10],
+    pub current_stack_location: *mut IoStackLocation,
+}
+
+/// `IO_STACK_LOCATION`: the part of a request for one driver. The
+/// locations of a request are contiguous; the next driver's location is
+/// the one before the current one.
+#[repr(C)]
+pub struct IoStackLocation {
+    /// An [`IrpMajorFunction`].
+    pub major_function: u8,
+    pub minor_function: u8,
+    pub flags: IoStackFlags,
+    pub control: IoStackControl,
+    pub parameters: IoStackParameters,
+    pub device_object: *mut DeviceObject,
+    _file_object: u32,
+    /// Address of the console-ABI completion routine.
+    pub completion_routine: u32,
+    pub context: u32,
+}
+
+/// The parameters of an [`IoStackLocation`]; the major function selects
+/// the member.
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub union IoStackParameters {
+    pub read_write: ReadWriteParameters,
+    pub device_control: DeviceControlParameters,
+    /// The words of the parameters. A driver may reuse them once it owns
+    /// the request.
+    pub words: [u32; 4],
+}
+
+/// Parameters of [`IrpMajorFunction::Read`] and [`IrpMajorFunction::Write`].
+#[repr(C)]
+#[derive(Debug, Clone, Copy)]
+pub struct ReadWriteParameters {
+    pub length: u32,
+    /// The transfer address with [`IoStackFlags::BUFFER_ADDRESS`], else an
+    /// offset into [`Irp::user_buffer`].
+    pub buffer: u32,
+    byte_offset: [u32; 2],
+}
+
+impl ReadWriteParameters {
+    pub const fn byte_offset(&self) -> u64 {
+        ((self.byte_offset[0] as u64) << 32) | self.byte_offset[1] as u64
+    }
+}
+
+/// Parameters of [`IrpMajorFunction::DeviceControl`].
+#[repr(C)]
+#[derive(Debug, Clone, Copy)]
+pub struct DeviceControlParameters {
+    pub output_length: u32,
+    pub input_buffer: u32,
+    pub input_length: u32,
+    pub control_code: IoControlCode,
+}
+
+/// `DEVICE_OBJECT`. Only the fields this crate names are public; the
+/// kernel allocates the object and its extension.
+#[repr(C)]
+pub struct DeviceObject {
+    _header: [u32; 2],
+    pub driver_object: *mut DriverObject,
+    _reserved0: u32,
+    pub current_irp: *mut Irp,
+    pub flags: DeviceObjectFlags,
+    pub device_extension: *mut core::ffi::c_void,
+    _reserved1: [u8; 2],
+    /// Stack locations a request to the device needs.
+    pub stack_size: u8,
+    _reserved2: u8,
+    _reserved3: u32,
+    /// Mask of the address bits a transfer buffer must have clear.
+    pub alignment_requirement: u32,
+}
+
+/// A driver routine for a request: `(device, irp) -> NTSTATUS`, entered in
+/// the console ABI (see [`bridged!`](crate::bridged)).
+pub type DriverDispatch = unsafe extern "C" fn(*mut DeviceObject, *mut Irp) -> NtStatus;
+
+/// The start I/O routine of a driver: `(device, irp)`, entered in the
+/// console ABI.
+pub type DriverStartIo = unsafe extern "C" fn(*mut DeviceObject, *mut Irp);
+
+/// `DRIVER_OBJECT`: the routines of a driver.
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct DriverObject {
+    pub start_io: Option<DriverStartIo>,
+    _reserved: [u32; 2],
+    /// The routine of each [`IrpMajorFunction`].
+    pub major_function: [Option<DriverDispatch>; 11],
+}
+
+impl DriverObject {
+    pub const fn new(
+        start_io: Option<DriverStartIo>,
+        major_function: [Option<DriverDispatch>; 11],
+    ) -> Self {
+        Self {
+            start_io,
+            _reserved: [0; 2],
+            major_function,
+        }
+    }
+}
+
+const _: () = {
+    assert!(core::mem::size_of::<IoStackParameters>() == 0x10);
+    assert!(core::mem::size_of::<ReadWriteParameters>() == 0x10);
+    assert!(core::mem::size_of::<DeviceControlParameters>() == 0x10);
+};
+
+#[cfg(target_pointer_width = "32")]
+const _: () = {
+    assert!(core::mem::offset_of!(Irp, io_status) == 0x10);
+    assert!(core::mem::offset_of!(Irp, current_location) == 0x19);
+    assert!(core::mem::offset_of!(Irp, user_buffer) == 0x1c);
+    assert!(core::mem::offset_of!(Irp, unknown_020) == 0x20);
+    assert!(core::mem::offset_of!(Irp, current_stack_location) == 0x50);
+    assert!(core::mem::offset_of!(IoStackLocation, control) == 3);
+    assert!(core::mem::offset_of!(IoStackLocation, parameters) == 4);
+    assert!(core::mem::offset_of!(IoStackLocation, device_object) == 0x14);
+    assert!(core::mem::offset_of!(IoStackLocation, completion_routine) == 0x1c);
+    assert!(core::mem::offset_of!(IoStackLocation, context) == 0x20);
+    assert!(core::mem::size_of::<IoStackLocation>() == 0x24);
+    assert!(core::mem::offset_of!(DeviceObject, driver_object) == 8);
+    assert!(core::mem::offset_of!(DeviceObject, current_irp) == 0x10);
+    assert!(core::mem::offset_of!(DeviceObject, flags) == 0x14);
+    assert!(core::mem::offset_of!(DeviceObject, device_extension) == 0x18);
+    assert!(core::mem::offset_of!(DeviceObject, stack_size) == 0x1e);
+    assert!(core::mem::offset_of!(DeviceObject, alignment_requirement) == 0x24);
+    assert!(core::mem::offset_of!(DriverObject, major_function) == 0xc);
+    assert!(core::mem::size_of::<DriverObject>() == 0x38);
+};
 
 crate::import_thunk!(
     /// Raises a breakpoint exception to the attached debugger.
@@ -1627,7 +2175,7 @@ crate::import_thunk!(
 
 crate::import_thunk!(
     /// Sends a 16-byte message to the system management controller and receives the 16-byte reply.
-    pub HalSendSMCMessage(message: *const u8, reply: *mut u8) -> u32,
+    pub HalSendSMCMessage(message: *const SmcMessage, reply: *mut SmcMessage) -> u32,
     lib = XBOXKRNL,
     ordinal = 0x029
 );
@@ -1654,15 +2202,15 @@ crate::import_thunk!(
 );
 
 crate::import_thunk!(
-    /// Allocates an I/O request packet with `stack_size` stack locations. Returns its address or 0.
-    pub IoAllocateIrp(stack_size: u32) -> u32,
+    /// Allocates an I/O request packet with `stack_size` stack locations. Returns it or null.
+    pub IoAllocateIrp(stack_size: u32) -> *mut Irp,
     lib = XBOXKRNL,
     ordinal = 0x02F
 );
 
 crate::import_thunk!(
     /// Completes an I/O request packet.
-    pub IoCompleteRequest(irp: u32, priority_boost: u32) -> (),
+    pub IoCompleteRequest(irp: *mut Irp, priority_boost: u32) -> (),
     lib = XBOXKRNL,
     ordinal = 0x035
 );
@@ -1670,12 +2218,12 @@ crate::import_thunk!(
 crate::import_thunk!(
     /// Creates a device object for a driver. The device object address is stored at `device`.
     pub IoCreateDevice(
-        driver: u32,
+        driver: *mut DriverObject,
         extension_size: u32,
         name: *const AnsiString,
-        device_type: u32,
+        device_type: FileDeviceType,
         options: u32,
-        device: *mut u32,
+        device: *mut *mut DeviceObject,
     ) -> NtStatus,
     lib = XBOXKRNL,
     ordinal = 0x037
@@ -1690,7 +2238,7 @@ crate::import_variable!(
 
 crate::import_thunk!(
     /// Dismounts the file system volume on a device object.
-    pub IoDismountVolume(device: u32) -> NtStatus,
+    pub IoDismountVolume(device: *mut DeviceObject) -> NtStatus,
     lib = XBOXKRNL,
     ordinal = 0x03B
 );
@@ -1704,7 +2252,7 @@ crate::import_thunk!(
 
 crate::import_thunk!(
     /// Completes an I/O request packet with an invalid device request status.
-    pub IoInvalidDeviceRequest(device: u32, irp: u32) -> NtStatus,
+    pub IoInvalidDeviceRequest(device: *mut DeviceObject, irp: *mut Irp) -> NtStatus,
     lib = XBOXKRNL,
     ordinal = 0x041
 );
@@ -1718,14 +2266,14 @@ crate::import_thunk!(
 
 crate::import_thunk!(
     /// Starts the next queued I/O request packet of a device.
-    pub IoStartNextPacket(device: u32) -> (),
+    pub IoStartNextPacket(device: *mut DeviceObject) -> (),
     lib = XBOXKRNL,
     ordinal = 0x048
 );
 
 crate::import_thunk!(
     /// Starts or queues an I/O request packet on a device.
-    pub IoStartPacket(device: u32, irp: u32, key: *const u32) -> (),
+    pub IoStartPacket(device: *mut DeviceObject, irp: *mut Irp, key: *const u32) -> (),
     lib = XBOXKRNL,
     ordinal = 0x04A
 );
@@ -1733,8 +2281,8 @@ crate::import_thunk!(
 crate::import_thunk!(
     /// Sends a device I/O control request to a device object and waits for it.
     pub IoSynchronousDeviceIoControlRequest(
-        code: u32,
-        device: u32,
+        code: IoControlCode,
+        device: *mut DeviceObject,
         input: *const u8,
         input_length: u32,
         output: *mut u8,
@@ -1747,10 +2295,10 @@ crate::import_thunk!(
 );
 
 crate::import_thunk!(
-    /// Sends a read or write request to a device object and waits for it. `major` is the IRP major function.
+    /// Sends a read or write request to a device object and waits for it.
     pub IoSynchronousFsdRequest(
-        major: u32,
-        device: u32,
+        major: IrpMajorFunction,
+        device: *mut DeviceObject,
         buffer: *mut u8,
         length: u32,
         offset: *const u64,
@@ -1768,7 +2316,7 @@ crate::import_thunk!(
 
 crate::import_thunk!(
     /// Halts the system with a bug check code.
-    pub safe KeBugCheck(code: u32) -> !,
+    pub safe KeBugCheck(code: BugCheckCode) -> !,
     lib = XBOXKRNL,
     ordinal = 0x052
 );
@@ -1776,7 +2324,7 @@ crate::import_thunk!(
 crate::import_thunk!(
     /// Halts the system with a bug check code and four parameters.
     pub safe KeBugCheckEx(
-        code: u32,
+        code: BugCheckCode,
         parameter1: u32,
         parameter2: u32,
         parameter3: u32,
@@ -1975,14 +2523,14 @@ crate::import_thunk!(
 
 crate::import_thunk!(
     /// Reads a performance monitor register.
-    pub KeGetPMWRegister(register: u32) -> u32,
+    pub KeGetPMWRegister(register: PmwRegister) -> u32,
     lib = XBOXKRNL,
     ordinal = 0x067
 );
 
 crate::import_thunk!(
     /// Reads a special purpose register. Only the low word of the result is returned.
-    pub KeGetSpecialPurposeRegister(register: u32) -> u32,
+    pub KeGetSpecialPurposeRegister(register: SpecialPurposeRegister) -> u32,
     lib = XBOXKRNL,
     ordinal = 0x06A
 );
@@ -2115,7 +2663,7 @@ crate::import_thunk!(
 
 import_adapter!(
     /// Writes a performance monitor register. The export takes the 64-bit `value` in one register.
-    pub KeSetPMWRegister(register: u32, value: u64) -> u32,
+    pub KeSetPMWRegister(register: PmwRegister, value: u64) -> u32,
     lib = XBOXKRNL,
     ordinal = 0x09F,
     // register in r3, value in r5:r6.
@@ -2126,8 +2674,8 @@ import_adapter!(
 );
 
 import_adapter!(
-    /// Writes the processor version register field. The export takes the 64-bit `value` in one register.
-    pub KeSetPRVRegister(register: u32, value: u64) -> u32,
+    /// Writes a performance monitor register. The export takes the 64-bit `value` in one register.
+    pub KeSetPRVRegister(register: PrvRegister, value: u64) -> u32,
     lib = XBOXKRNL,
     ordinal = 0x0A1,
     // register in r3, value in r5:r6.
@@ -2146,7 +2694,7 @@ crate::import_thunk!(
 
 import_adapter!(
     /// Writes a special purpose register. The export takes the 64-bit `value` in one register.
-    pub KeSetSpecialPurposeRegister(register: u32, value: u64) -> u32,
+    pub KeSetSpecialPurposeRegister(register: SpecialPurposeRegister, value: u64) -> u32,
     lib = XBOXKRNL,
     ordinal = 0x0A5,
     // register in r3, value in r5:r6.
@@ -2284,10 +2832,30 @@ crate::import_thunk!(
     ordinal = 0x0B9
 );
 
+value_enum! {
+    /// The memory region of [`MmAllocatePhysicalMemoryEx`],
+    /// [`MmFreePhysicalMemory`] and [`NtAllocateVirtualMemory`]. The kernel
+    /// rejects every other value: the allocation returns 0 or
+    /// `STATUS_INVALID_PARAMETER`, and the free does nothing.
+    pub enum MemoryRegion: u32 {
+        /// The title region for a thread of the title process, the system
+        /// region otherwise.
+        CurrentProcess = 0,
+        Title = 1,
+        System = 2,
+        /// The title region, counted as the extra memory of a development
+        /// kit.
+        TitleDebug = 3,
+        /// The system region, counted as the extra memory of a development
+        /// kit.
+        SystemDebug = 4,
+    }
+}
+
 crate::import_thunk!(
     /// Allocates physical memory within an address range and alignment. Returns the address or 0.
     pub MmAllocatePhysicalMemoryEx(
-        kind: u32,
+        region: MemoryRegion,
         size: u32,
         protect: PageProtection,
         lowest: u32,
@@ -2299,8 +2867,9 @@ crate::import_thunk!(
 );
 
 crate::import_thunk!(
-    /// Frees physical memory.
-    pub MmFreePhysicalMemory(kind: u32, address: u32) -> (),
+    /// Frees physical memory that [`MmAllocatePhysicalMemoryEx`] allocated
+    /// in `region`.
+    pub MmFreePhysicalMemory(region: MemoryRegion, address: u32) -> (),
     lib = XBOXKRNL,
     ordinal = 0x0BD
 );
@@ -2476,7 +3045,7 @@ crate::import_thunk!(
         size: *mut u32,
         allocation_type: AllocationType,
         protect: PageProtection,
-        options: u32,
+        region: MemoryRegion,
     ) -> NtStatus,
     lib = XBOXKRNL,
     ordinal = 0x0CC
@@ -2562,7 +3131,7 @@ crate::import_thunk_stack!(
         apc_routine: u32,
         apc_context: u32,
         io_status: *mut IoStatusBlock,
-        control_code: u32,
+        control_code: IoControlCode,
         input: *const u8,
         input_length: u32,
         output: *mut u8,
@@ -2941,7 +3510,7 @@ crate::import_thunk!(
 
 crate::import_thunk!(
     /// Returns the value or address of an optional header field of a XEX header.
-    pub RtlImageXexHeaderField(header: u32, key: u32) -> u32,
+    pub RtlImageXexHeaderField(header: u32, key: XexHeaderKey) -> u32,
     lib = XBOXKRNL,
     ordinal = 0x12B
 );
@@ -3097,7 +3666,7 @@ crate::import_thunk!(
     pub RtlImageDirectoryEntryToData(
         base: u32,
         mapped: bool,
-        directory: u32,
+        directory: ImageDirectory,
         size: *mut u32,
     ) -> u32,
     lib = XBOXKRNL,
@@ -3105,8 +3674,8 @@ crate::import_thunk!(
 );
 
 crate::import_thunk!(
-    /// Returns the address of the PE NT headers of an image.
-    pub RtlImageNtHeader(base: u32) -> u32,
+    /// Returns the PE NT headers of an image, or null.
+    pub RtlImageNtHeader(base: u32) -> *const ImageNtHeaders,
     lib = XBOXKRNL,
     ordinal = 0x1A9
 );
@@ -3286,9 +3855,52 @@ crate::import_thunk!(
     ordinal = 0x209
 );
 
+/// `NIC_STATS`, the adapter counters that `NicGetStats` stores.
+#[repr(C, align(8))]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
+pub struct NicStatistics {
+    pub transmitted_bytes: u64,
+    pub received_unicast_bytes: u64,
+    pub received_unicast1_bytes: u64,
+    pub received_unicast2_bytes: u64,
+    pub received_multicast_bytes: u64,
+    pub received_broadcast_bytes: u64,
+    pub transmitted_frames: u32,
+    pub received_unicast_frames: u32,
+    pub received_unicast1_frames: u32,
+    pub received_unicast2_frames: u32,
+    pub received_multicast_frames: u32,
+    pub received_broadcast_frames: u32,
+    pub transmit_underrun_errors: u32,
+    pub transmit_other_errors: u32,
+    pub receive_frame_errors: u32,
+    pub receive_crc_errors: u32,
+    pub receive_other_errors: u32,
+    pub reserved: u32,
+}
+
+const _: () = {
+    assert!(core::mem::offset_of!(NicStatistics, transmitted_frames) == 0x30);
+    assert!(core::mem::offset_of!(NicStatistics, receive_other_errors) == 0x58);
+    assert!(core::mem::size_of::<NicStatistics>() == 0x60);
+    assert!(core::mem::align_of::<NicStatistics>() == 8);
+};
+
+/// [`NicGetStats`] with a typed record.
+///
+/// # Safety
+///
+/// `device_flags` must meet the requirements of the export.
+#[cfg(any(target_os = "xbox360", xbox360_docs))]
+#[inline(always)]
+pub unsafe fn nic_get_stats(device_flags: u32, stats: &mut NicStatistics) -> u32 {
+    // SAFETY: `stats` is a whole writable record; the rest per the contract.
+    unsafe { NicGetStats(device_flags, (stats as *mut NicStatistics).cast()) }
+}
+
 crate::import_thunk!(
-    /// Writes a boot loader image to flash. A nonzero `flags` value on return indicates failure.
-    pub XeKeysSaveBootLoader(flags: *mut u32, size: *mut u32, buffer: u32) -> u32,
+    /// Writes a boot loader image to flash. A nonzero `flags` value on return also indicates failure.
+    pub XeKeysSaveBootLoader(flags: *mut u32, size: *mut u32, buffer: u32) -> NtStatus,
     lib = XBOXKRNL,
     ordinal = 0x23D
 );
@@ -3302,7 +3914,7 @@ crate::import_thunk!(
 
 crate::import_thunk!(
     /// Stores the 5-byte console ID and, when `text` is not null, its 12-character text form.
-    pub XeKeysGetConsoleID(raw: *mut u8, text: *mut u8) -> u32,
+    pub XeKeysGetConsoleID(raw: *mut u8, text: *mut u8) -> NtStatus,
     lib = XBOXKRNL,
     ordinal = 0x246
 );
