@@ -15,7 +15,7 @@ Raw bindings to the Xbox 360 kernel (`xboxkrnl.exe`) and XAM (`xam.xex`) for Rus
 
 ```toml
 [target.'cfg(target_os = "xbox360")'.dependencies]
-xbox360-sys = "0.1"
+xbox360-sys = "0.2"
 ```
 
 Call an import in an `unsafe` block, and state why the arguments meet the requirements of the export:

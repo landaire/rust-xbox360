@@ -1,6 +1,6 @@
 [package]
 name = "xbox360-sys"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 rust-version = "1.95"
 description = "Raw Xbox 360 kernel and XAM bindings for the powerpc-unknown-xbox360 target"

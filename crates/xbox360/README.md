@@ -13,7 +13,7 @@ Safe interfaces to the Xbox 360 kernel and XAM for Rust code built for the `powe
 
 ```toml
 [dependencies]
-xbox360 = "0.1"
+xbox360 = "0.2"
 ```
 
 Print to the debug output:

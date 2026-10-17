@@ -1,6 +1,6 @@
 [package]
 name = "xbox360"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 rust-version = "1.95"
 description = "Safe Xbox 360 kernel and XAM interfaces for no_std code and for what std does not cover"
@@ -15,7 +15,7 @@ exclude = ["BUCK"]
 path = "src/lib.rs"
 
 [dependencies]
-xbox360-sys = { path = "../xbox360-sys", version = "0.1.0" }
+xbox360-sys = { path = "../xbox360-sys", version = "0.2.0" }
 
 [features]
 # Boxed closures for `thread::Builder::spawn`. The title must provide a
