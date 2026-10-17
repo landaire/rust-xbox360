@@ -727,7 +727,7 @@ import_adapter!(
     ordinal = 0x291,
     // mask in r3:r4, is_system in r5, max_version in r6.
     prologue = [
-        ".long 0x7864000e", // rldimi 4, 3, 32, 0
+        "rldimi 4, 3, 32, 0",
         "mr 3, 4",
         "mr 4, 5",
         "mr 5, 6",

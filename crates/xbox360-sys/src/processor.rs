@@ -329,8 +329,7 @@ pub fn low_priority_hint() {
 /// Clear the external interrupt enable bit of the MSR.
 ///
 /// `mtmsrd r13, 1` changes only the EE and RI bits. The PCR address in r13
-/// has the EE bit (0x8000) clear, so no register needs to be loaded. The
-/// target CPU model has no `mtmsrd` mnemonic, so the word is encoded.
+/// has the EE bit (0x8000) clear, so no register needs to be loaded.
 ///
 /// # Safety
 ///
@@ -340,11 +339,11 @@ pub fn low_priority_hint() {
 #[inline(always)]
 pub unsafe fn disable_interrupts() {
     // SAFETY: the caller upholds the function's contract.
-    unsafe { core::arch::asm!(".long 0x7da10164") };
+    unsafe { core::arch::asm!("mtmsrd 13, 1") };
 }
 
-/// Set the external interrupt enable bit of the MSR (`mtmsrd r11, 1` with
-/// r11 = [`Msr::EXTERNAL_INTERRUPT`]).
+/// Set the external interrupt enable bit of the MSR (`mtmsrd rS, 1` with
+/// rS = [`Msr::EXTERNAL_INTERRUPT`]).
 ///
 /// # Safety
 ///
@@ -356,11 +355,11 @@ pub unsafe fn enable_interrupts() {
     // SAFETY: the caller upholds the function's contract.
     unsafe {
         core::arch::asm!(
-            "lis 11, 0",
-            "ori 11, 11, {ee}",
-            ".long 0x7d610164",
+            "lis {value}, 0",
+            "ori {value}, {value}, {ee}",
+            "mtmsrd {value}, 1",
+            value = out(reg) _,
             ee = const Msr::EXTERNAL_INTERRUPT.bits(),
-            out("r11") _,
         )
     };
 }

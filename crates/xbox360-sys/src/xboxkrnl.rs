@@ -672,7 +672,7 @@ import_adapter!(
     ordinal = 0x09F,
     // register in r3, value in r5:r6.
     prologue = [
-        ".long 0x78a6000e", // rldimi 6, 5, 32, 0
+        "rldimi 6, 5, 32, 0",
         "mr 4, 6",
     ]
 );
@@ -684,7 +684,7 @@ import_adapter!(
     ordinal = 0x0A1,
     // register in r3, value in r5:r6.
     prologue = [
-        ".long 0x78a6000e", // rldimi 6, 5, 32, 0
+        "rldimi 6, 5, 32, 0",
         "mr 4, 6",
     ]
 );
@@ -703,7 +703,7 @@ import_adapter!(
     ordinal = 0x0A5,
     // register in r3, value in r5:r6.
     prologue = [
-        ".long 0x78a6000e", // rldimi 6, 5, 32, 0
+        "rldimi 6, 5, 32, 0",
         "mr 4, 6",
     ]
 );
@@ -716,7 +716,7 @@ import_adapter!(
     ordinal = 0x0A7,
     // timer in r3, due_time in r5:r6, period in r7, dpc in r8.
     prologue = [
-        ".long 0x78a6000e", // rldimi 6, 5, 32, 0
+        "rldimi 6, 5, 32, 0",
         "mr 4, 6",
         "mr 5, 7",
         "mr 6, 8",

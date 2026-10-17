@@ -37,9 +37,8 @@ impl InterruptGuard {
 
 impl Drop for InterruptGuard {
     fn drop(&mut self) {
-        // SAFETY: `mtmsrd r9, 1` changes only EE and RI, back to the values
-        // saved on this processor; the guard cannot leave the thread. The
-        // target CPU model has no `mtmsrd` mnemonic.
-        unsafe { core::arch::asm!(".long 0x7d210164", in("r9") self.saved, options(nostack)) };
+        // SAFETY: `mtmsrd rS, 1` changes only EE and RI, back to the values
+        // saved on this processor; the guard cannot leave the thread.
+        unsafe { core::arch::asm!("mtmsrd {0}, 1", in(reg) self.saved, options(nostack)) };
     }
 }

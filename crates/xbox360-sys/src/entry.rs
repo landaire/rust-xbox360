@@ -1,6 +1,5 @@
 /// Call the function in r12 with r3-r10 unchanged and the full 64-bit
-/// r14-r31 preserved. The CPU model of the target has no 64-bit mnemonics,
-/// so `std`/`ld` are encoded directly.
+/// r14-r31 preserved.
 ///
 /// # Safety
 ///
@@ -14,14 +13,12 @@ pub unsafe extern "C" fn entry_bridge() {
         "mflr 0",
         "stw 0, 0x8(1)",
         ".irp reg, 14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31",
-        // std \reg, 0x10 + 8 * (\reg - 14)(r1)
-        ".long (62 << 26) | (\\reg << 21) | (1 << 16) | (0x10 + 8 * (\\reg - 14))",
+        "std \\reg, 0x10 + 8 * (\\reg - 14)(1)",
         ".endr",
         "mtctr 12",
         "bctrl",
         ".irp reg, 14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31",
-        // ld \reg, 0x10 + 8 * (\reg - 14)(r1)
-        ".long (58 << 26) | (\\reg << 21) | (1 << 16) | (0x10 + 8 * (\\reg - 14))",
+        "ld \\reg, 0x10 + 8 * (\\reg - 14)(1)",
         ".endr",
         "lwz 0, 0x8(1)",
         "mtlr 0",

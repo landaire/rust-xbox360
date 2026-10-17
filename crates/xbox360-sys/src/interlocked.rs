@@ -3,8 +3,7 @@
 //! The loader reports every `lwarx`/`ldarx` that does not directly follow
 //! `mtmsrd r13, 1` and every `stwcx.`/`stdcx.` that is not directly followed
 //! by `mtmsrd rS, 1`. Each reservation here runs with external interrupts
-//! disabled and restores the previous MSR after the store. The target CPU
-//! model has no 64-bit or `mtmsrd` mnemonics, so those words are encoded.
+//! disabled and restores the previous MSR after the store.
 //!
 //! The 64-bit operations take and return values in SysV register pairs and
 //! join them into one doubleword.
@@ -33,19 +32,17 @@ pub unsafe extern "C" fn compare_exchange32(target: *mut u32, expected: u32, new
         "lwsync",
         "1:",
         "mfmsr 9",
-        // mtmsrd 13, 1
-        ".long 0x7da10164",
+        "mtmsrd 13, 1",
         "lwarx 10, 0, 3",
         "cmpw 10, 4",
         "bne 2f",
         "stwcx. 5, 0, 3",
-        // mtmsrd 9, 1
-        ".long 0x7d210164",
+        "mtmsrd 9, 1",
         "bne 1b",
         "b 3f",
         "2:",
         "stwcx. 10, 0, 3",
-        ".long 0x7d210164",
+        "mtmsrd 9, 1",
         "3:",
         "mr 3, 10",
         "blr",
@@ -68,31 +65,25 @@ pub unsafe extern "C" fn compare_exchange32(target: *mut u32, expected: u32, new
 pub unsafe extern "C" fn compare_exchange64(target: *mut u64, expected: u64, new: u64) -> u64 {
     core::arch::naked_asm!(
         "lwsync",
-        // rldimi 6, 5, 32, 0 and rldimi 8, 7, 32, 0: join the word pairs.
-        ".long 0x78a6000e",
-        ".long 0x78e8000e",
+        // Join the word pairs.
+        "rldimi 6, 5, 32, 0",
+        "rldimi 8, 7, 32, 0",
         "1:",
         "mfmsr 9",
-        // mtmsrd 13, 1
-        ".long 0x7da10164",
-        // ldarx 10, 0, 3
-        ".long 0x7d4018a8",
-        // cmpd 10, 6
-        ".long 0x7c2a3000",
+        "mtmsrd 13, 1",
+        "ldarx 10, 0, 3",
+        "cmpd 10, 6",
         "bne 2f",
-        // stdcx. 8, 0, 3
-        ".long 0x7d0019ad",
-        // mtmsrd 9, 1
-        ".long 0x7d210164",
+        "stdcx. 8, 0, 3",
+        "mtmsrd 9, 1",
         "bne 1b",
         "b 3f",
         "2:",
-        // stdcx. 10, 0, 3
-        ".long 0x7d4019ad",
-        ".long 0x7d210164",
+        "stdcx. 10, 0, 3",
+        "mtmsrd 9, 1",
         "3:",
-        // rldicl 3, 10, 32, 32: the high word into r3.
-        ".long 0x79430022",
+        // The high word into r3.
+        "rldicl 3, 10, 32, 32",
         "mr 4, 10",
         "blr",
     )
@@ -112,13 +103,11 @@ pub unsafe extern "C" fn fetch_add32(target: *mut u32, delta: u32) -> u32 {
     core::arch::naked_asm!(
         "1:",
         "mfmsr 9",
-        // mtmsrd 13, 1
-        ".long 0x7da10164",
+        "mtmsrd 13, 1",
         "lwarx 10, 0, 3",
         "add 11, 10, 4",
         "stwcx. 11, 0, 3",
-        // mtmsrd 9, 1
-        ".long 0x7d210164",
+        "mtmsrd 9, 1",
         "bne 1b",
         "mr 3, 10",
         "blr",
@@ -138,22 +127,18 @@ pub unsafe extern "C" fn fetch_add32(target: *mut u32, delta: u32) -> u32 {
 #[unsafe(naked)]
 pub unsafe extern "C" fn fetch_add64(target: *mut u64, delta: u64) -> u64 {
     core::arch::naked_asm!(
-        // rldimi 6, 5, 32, 0: join the word pair.
-        ".long 0x78a6000e",
+        // Join the word pair.
+        "rldimi 6, 5, 32, 0",
         "1:",
         "mfmsr 9",
-        // mtmsrd 13, 1
-        ".long 0x7da10164",
-        // ldarx 10, 0, 3
-        ".long 0x7d4018a8",
+        "mtmsrd 13, 1",
+        "ldarx 10, 0, 3",
         "add 11, 10, 6",
-        // stdcx. 11, 0, 3
-        ".long 0x7d6019ad",
-        // mtmsrd 9, 1
-        ".long 0x7d210164",
+        "stdcx. 11, 0, 3",
+        "mtmsrd 9, 1",
         "bne 1b",
-        // rldicl 3, 10, 32, 32: the high word into r3.
-        ".long 0x79430022",
+        // The high word into r3.
+        "rldicl 3, 10, 32, 32",
         "mr 4, 10",
         "blr",
     )
@@ -173,12 +158,10 @@ pub unsafe extern "C" fn exchange32(target: *mut u32, value: u32) -> u32 {
     core::arch::naked_asm!(
         "1:",
         "mfmsr 9",
-        // mtmsrd 13, 1
-        ".long 0x7da10164",
+        "mtmsrd 13, 1",
         "lwarx 10, 0, 3",
         "stwcx. 4, 0, 3",
-        // mtmsrd 9, 1
-        ".long 0x7d210164",
+        "mtmsrd 9, 1",
         "bne 1b",
         "mr 3, 10",
         "blr",
@@ -196,13 +179,7 @@ pub unsafe extern "C" fn exchange32(target: *mut u32, value: u32) -> u32 {
 /// `address` must be valid for reads and 8-byte aligned.
 #[unsafe(naked)]
 pub unsafe extern "C" fn load64(address: *const u64) -> u64 {
-    core::arch::naked_asm!(
-        // ld 4, 0(3)
-        ".long 0xe8830000",
-        // rldicl 3, 4, 32, 32
-        ".long 0x78830022",
-        "blr",
-    )
+    core::arch::naked_asm!("ld 4, 0(3)", "rldicl 3, 4, 32, 32", "blr",)
 }
 
 /// Store `value` at `address` in one access.
@@ -216,11 +193,5 @@ pub unsafe extern "C" fn load64(address: *const u64) -> u64 {
 /// `address` must be valid for writes and 8-byte aligned.
 #[unsafe(naked)]
 pub unsafe extern "C" fn store64(address: *mut u64, value: u64) {
-    core::arch::naked_asm!(
-        // rldimi 6, 5, 32, 0
-        ".long 0x78a6000e",
-        // std 6, 0(3)
-        ".long 0xf8c30000",
-        "blr",
-    )
+    core::arch::naked_asm!("rldimi 6, 5, 32, 0", "std 6, 0(3)", "blr",)
 }

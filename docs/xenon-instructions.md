@@ -44,11 +44,14 @@ codegen. Kernel structures come from the binja-xex2 `ntos` headers.
   D3DCOLOR, FLOAT16, normalized-short). Upstream LLVM does not model VMX128
   natively; emit via inline `.long` if needed.
 
-## Escape hatch
+## Inline assembly
 
-`asm!(".long 0x...")` / naked `.long` emits any 32-bit PPC word inline. Useful
-for `sync`/`lwsync`/`eieio`/yield/`dcbz128`/`lvlx`.../VMX128 ops the backend
-lacks.
+The assembler accepts the 64-bit and supervisor mnemonics for this target
+(`ld`, `std`, `ldarx`, `stdcx.`, `cmpd`, `rldimi`, `rldicl`, `mtmsrd`), even
+though the CPU model is 32-bit. `dcbz128` has no mnemonic; `dcbzl` assembles to
+the same word. `asm!(".long 0x...")` emits a 32-bit PPC word inline for
+instructions the assembler lacks: `lvlx`/`lvrx`/`stvlx`/`stvrx` and the VMX128
+operations.
 
 ## Target-spec recommendations (LLVM)
 
