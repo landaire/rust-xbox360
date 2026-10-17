@@ -79,7 +79,7 @@ xbox360::title::terminate()
 | --- | --- | --- |
 | `status` | `NtStatus`, `KernelError`, `Win32Error`, `Hresult`, the thread's last error | `std::io::Error` |
 | `sync` | `Event`, `CriticalSection`, `SpinLock`, `IrqlGuard`, `InterruptGuard` | `std::sync` for locks |
-| `atomic` | `AtomicU64` | none (32-bit atomics are in `core`) |
+| `atomic` | `AtomicU64`, `Interlocked32` | none (32-bit atomics are in `core`) |
 | `thread` | `spawn_entry`, `spawn`, `JoinHandle`, `sleep`, `exit` | `std::thread` |
 | `time` | `Timebase`, `FileTime`, `TickCount`, `sleep` | `std::time` |
 | `debug` | `DebugOutput`, `dbg_print!`, `dbg_println!` | `print!` |

@@ -9,11 +9,11 @@
 //! The 64-bit operations take and return values in SysV register pairs and
 //! join them into one doubleword.
 //!
-//! Each function documents its memory ordering. The sequences are the ones
-//! stock XBDM uses, so none orders later accesses after the operation: a
-//! caller that needs acquire ordering issues `isync` (after a dependent
-//! branch) or `lwsync` after the call, and a caller of a relaxed operation
-//! that needs release ordering issues `lwsync` before it.
+//! Each function documents its memory ordering. None orders later accesses
+//! after the operation: a caller that needs acquire ordering issues
+//! `isync` (after a dependent branch) or `lwsync` after the call, and a
+//! caller of a relaxed operation that needs release ordering issues
+//! `lwsync` before it.
 
 /// Compare the word at `target` with `expected` and store `new` on a match.
 /// Returns the observed word. A mismatch stores the observed word back to
@@ -121,6 +121,40 @@ pub unsafe extern "C" fn fetch_add32(target: *mut u32, delta: u32) -> u32 {
         ".long 0x7d210164",
         "bne 1b",
         "mr 3, 10",
+        "blr",
+    )
+}
+
+/// Add `delta` to the doubleword at `target`, wrapping on overflow.
+/// Returns the previous value.
+///
+/// # Ordering
+///
+/// Relaxed: no barrier.
+///
+/// # Safety
+///
+/// `target` must be valid for reads and writes and 8-byte aligned.
+#[unsafe(naked)]
+pub unsafe extern "C" fn fetch_add64(target: *mut u64, delta: u64) -> u64 {
+    core::arch::naked_asm!(
+        // rldimi 6, 5, 32, 0: join the word pair.
+        ".long 0x78a6000e",
+        "1:",
+        "mfmsr 9",
+        // mtmsrd 13, 1
+        ".long 0x7da10164",
+        // ldarx 10, 0, 3
+        ".long 0x7d4018a8",
+        "add 11, 10, 6",
+        // stdcx. 11, 0, 3
+        ".long 0x7d6019ad",
+        // mtmsrd 9, 1
+        ".long 0x7d210164",
+        "bne 1b",
+        // rldicl 3, 10, 32, 32: the high word into r3.
+        ".long 0x79430022",
+        "mr 4, 10",
         "blr",
     )
 }
