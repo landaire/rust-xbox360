@@ -12,9 +12,21 @@ the `xbox360` target. A title may therefore use `std::thread`, `std::net`,
 
 ## Requirements
 
-- For Buck2 builds: Buck2 and Python 3.11 or later. Buck2 downloads the Rust
-  1.98.0 release and every crate it builds, and checks each download against
-  a pinned SHA-256.
+- For Buck2 builds: nothing to install beyond the host tools below. Run
+  `bin/buck2` (`bin\buck2.cmd` on Windows) wherever this file says `buck2`,
+  or add `bin` to `PATH`. Its first run runs `bootstrap.sh`
+  (`bootstrap.ps1` on Windows), which downloads
+  [DotSlash](https://dotslash-cli.com) into `.tools`, fetches the Buck2
+  release that the DotSlash file `toolchains/buck2` pins, and reports
+  missing host tools. Buck2 downloads the Rust 1.98.0 release, a CPython
+  for its own tools, and every crate it builds, and checks each download
+  against a pinned digest.
+- A C++ linker driver for the host programs (`xex-link`,
+  `xbox360-asm-rewrite`): GCC or Clang on Linux, the Xcode command line
+  tools on macOS, or Visual Studio Build Tools with the C++ workload on
+  Windows. These stay host tools: the macOS and Windows SDKs cannot be
+  redistributed. Windows also needs long paths enabled.
+- Python 3.11 or later, only for the `buck/update_*.py` scripts.
 - For Cargo builds: `rustup`, the Rust 1.98.0 toolchain, and its `rust-src`
   component. The standard-library overlay is written against the 1.98
   standard-library source; other versions are not supported.
@@ -38,6 +50,8 @@ buck2 build //examples/... --show-output
 
 This builds the XEX of every example. `buck2 build //examples/hello:hello`
 builds one.
+
+To move to another Buck2 release, replace `toolchains/buck2` with the `buck2` DotSlash file of that release, `https://github.com/facebook/buck2/releases/download/<tag>/buck2`. To move to another DotSlash release, change the version and SHA-256 values in both bootstrap scripts and run them again.
 
 `xbox360_title` in `buck/xex.bzl` builds a title. It compiles a Rust executable for the console, with or without the standard library, and converts it with `xex-link` (`//crates/xex-link:xex-link`) using the title's manifest. `buck2 run toolchains//:llvm-objdump -- ARGS` runs the Rust release's llvm-objdump.
 

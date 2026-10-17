@@ -7,3 +7,5 @@ stdout
 /.rustsrc-backup/
 *.o
 /buck-out
+# DotSlash and the Buck2 it fetches (bootstrap.sh, bootstrap.ps1).
+/.tools
