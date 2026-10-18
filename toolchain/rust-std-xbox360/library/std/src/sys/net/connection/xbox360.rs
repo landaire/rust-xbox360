@@ -1,8 +1,9 @@
 //! Networking for the Xbox 360 devkit over the kernel's winsock (`NetDll_*`).
 //!
-//! IPv4 only. XNet security is bypassed at startup (devkit feature) so sockets
-//! can reach ordinary hosts. Sockets are blocking by default; `set_nonblocking`
-//! flips `FIONBIO`.
+//! IPv4 only. XNet security is bypassed at startup (devkit feature) so title
+//! sockets can reach ordinary hosts. The system's sockets are marked insecure one
+//! by one instead (`Socket::mark_insecure`). Sockets are blocking by default;
+//! `set_nonblocking` flips `FIONBIO`.
 
 use crate::fmt;
 use crate::io::{self, BorrowedCursor, IoSlice, IoSliceMut};
@@ -15,6 +16,11 @@ use xbox360_sys::xam::{
     SockAddrIn, SocketType, XnCaller,
 };
 
+// std built for a system module (`--cfg xbox360_system`) opens its sockets as
+// the system, so they do not belong to the running title.
+#[cfg(xbox360_system)]
+const CALLER: XnCaller = XnCaller::SystemApp;
+#[cfg(not(xbox360_system))]
 const CALLER: XnCaller = XnCaller::Title;
 const SOCKADDR_LENGTH: i32 = size_of::<SockAddrIn>() as i32;
 
@@ -79,7 +85,36 @@ impl Socket {
         ensure_net_init();
         // SAFETY: creating a socket has no pointer arguments.
         let s = unsafe { xam::NetDll_socket(CALLER, AddressFamily::Inet, ty, proto) };
-        if s == xam::Socket::INVALID { Err(last_error()) } else { Ok(Socket(s)) }
+        if s == xam::Socket::INVALID {
+            return Err(last_error());
+        }
+        let sock = Socket(s);
+        #[cfg(xbox360_system)]
+        sock.mark_insecure()?;
+        Ok(sock)
+    }
+
+    // XNET_STARTUP_BYPASS_SECURITY does not cover the system's sockets: on a
+    // development kit their datagrams were accepted and never sent. SOL_SOCKET
+    // option 0x5801 lets one exchange plain traffic with any host. A connection
+    // that a marked listener accepts worked without it.
+    #[cfg(xbox360_system)]
+    fn mark_insecure(&self) -> io::Result<()> {
+        const INSECURE: xam::SocketOption = xam::SocketOption(0x5801);
+        let enabled: u32 = 1;
+        // SAFETY: `self.0` is an open socket and `enabled` is a live local of the
+        // length passed.
+        let r = unsafe {
+            xam::NetDll_setsockopt(
+                CALLER,
+                self.0,
+                xam::SocketLevel::Socket,
+                INSECURE,
+                (&raw const enabled).cast(),
+                size_of::<u32>() as i32,
+            )
+        };
+        if r == SOCKET_ERROR { Err(last_error()) } else { Ok(()) }
     }
 
     fn set_nonblocking(&self, nb: bool) -> io::Result<()> {

@@ -57,13 +57,15 @@ To move to another Buck2 release, replace `toolchains/buck2` with the `buck2` Do
 
 Pass `rewrite = True` to make the title smaller. The executable is then compiled as one fat LTO unit, and `xbox360-asm-rewrite` replaces the register saves and restores in each function's prologue and epilogue with calls to shared helper routines, as Microsoft's compiler does. The build fails if the relinked image differs from the one rustc links, or if a rewritable sequence remains. `examples/stdhello` uses it. The `[rewrite-report]` and `[refusals]` subtargets show what changed and what was left alone.
 
+Pass `std = "system"` instead of `std = True` for a system module, a XEX without the `TITLE` module flag that runs in the system process. The executable then links the standard library for system modules (`xbox360//sysroot:std-system`, built with `--cfg xbox360_system`). Its `std::thread` threads start in the system process, so they keep running when the title exits, and its sockets open as the system rather than as the title. Each load of such a module takes TLS slots of the system process that are not returned at unload. `toolchain/rust-std-xbox360/README.md` has the numbers.
+
 Every title build also fails if the image holds an `lwarx`, `ldarx`, `stwcx.` or `stdcx.` outside the interrupt-protected form. The devkit kernel loader reports those as unprotected. `xbox360_sys::interlocked` has operations in the protected form.
 
-For projects that generate their own build files, `xbox360_executable_core`, `xbox360_executable_std` and `xex_from_assembly` are the rules behind `rewrite`.
+For projects that generate their own build files, `xbox360_executable_core`, `xbox360_executable_std`, `xbox360_executable_std_system` and `xex_from_assembly` are the rules behind `rewrite`.
 
 ### Libraries
 
-Use std in a title when you can. For what std does not cover, or for code without std such as a system module, two crates are published on crates.io:
+Use std when you can. For what std does not cover, or for code without std, two crates are published on crates.io:
 
 - [`xbox360-sys`](crates/xbox360-sys): raw kernel and XAM imports, exports, entries for callers that use the console ABI, and the interlocked operations the kernel loader accepts. std builds on it.
 - [`xbox360`](crates/xbox360): safe wrappers on top of it, such as kernel events and locks, threads without std, controller input and saved-game content.
@@ -88,8 +90,8 @@ the `xbox360` external cell, pinned to a commit:
 Its `toolchains/BUCK` calls `xbox360_toolchains()` from
 `@xbox360//buck:toolchains.bzl`, which takes the project's rustc and
 rustdoc flags for host and console crates. Console targets use
-`xbox360_title`, or the `xbox360//platforms:xbox360-core` and `-std`
-configurations through the transitions in `buck/platforms.bzl`. The project's
+`xbox360_title`, or the `xbox360//platforms:xbox360-core`, `-std` and
+`-std-system` configurations through the transitions in `buck/platforms.bzl`. The project's
 `rust-toolchain.toml` should name the release in `buck/rust_release.bzl`;
 `buck/update_rust_release.py --check PATH` compares them.
 

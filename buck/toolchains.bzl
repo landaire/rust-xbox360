@@ -16,6 +16,7 @@ load(":rust.bzl", "release_tool", "rust_release", "rust_release_toolchain")
 _XBOX360 = "xbox360//platforms:xbox360"
 _SYSROOT_CORE = "xbox360//platforms:sysroot-core"
 _SYSROOT_STD = "xbox360//platforms:sysroot-std"
+_SYSROOT_STD_SYSTEM = "xbox360//platforms:sysroot-std-system"
 
 def xbox360_toolchains(
         rustc_flags: list[str] = [],
@@ -80,19 +81,23 @@ def xbox360_toolchains(
         sysroot_core = select({
             _SYSROOT_CORE: "xbox360//sysroot:core",
             _SYSROOT_STD: "xbox360//sysroot:core",
+            _SYSROOT_STD_SYSTEM: "xbox360//sysroot:core",
             "DEFAULT": None,
         }),
         sysroot_others = select({
             _SYSROOT_CORE: ["xbox360//sysroot:alloc", "xbox360//sysroot:compiler_builtins"],
             _SYSROOT_STD: ["xbox360//sysroot:alloc", "xbox360//sysroot:compiler_builtins"],
+            _SYSROOT_STD_SYSTEM: ["xbox360//sysroot:alloc", "xbox360//sysroot:compiler_builtins"],
             "DEFAULT": [],
         }),
         sysroot_panic_abort = select({
             _SYSROOT_STD: "xbox360//sysroot:panic_abort",
+            _SYSROOT_STD_SYSTEM: "xbox360//sysroot:panic_abort",
             "DEFAULT": None,
         }),
         sysroot_std = select({
             _SYSROOT_STD: "xbox360//sysroot:std",
+            _SYSROOT_STD_SYSTEM: "xbox360//sysroot:std-system",
             "DEFAULT": None,
         }),
         visibility = ["PUBLIC"],

@@ -40,6 +40,14 @@ constraint_value(
     visibility = ["PUBLIC"],
 )
 
+# The standard library of system modules: its threads start in the system
+# process and its sockets open as the system.
+constraint_value(
+    name = "sysroot-std-system",
+    constraint_setting = ":sysroot",
+    visibility = ["PUBLIC"],
+)
+
 # For building targets directly, for example
 # `buck2 build xbox360//sysroot:std --target-platforms xbox360//platforms:xbox360-std`.
 # Titles do not need them; xbox360_title applies the same constraints.
@@ -56,6 +64,15 @@ platform(
     name = "xbox360-std",
     constraint_values = [
         ":sysroot-std",
+        ":xbox360",
+    ],
+    visibility = ["PUBLIC"],
+)
+
+platform(
+    name = "xbox360-std-system",
+    constraint_values = [
+        ":sysroot-std-system",
         ":xbox360",
     ],
     visibility = ["PUBLIC"],

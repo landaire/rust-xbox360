@@ -16,6 +16,10 @@ fn main() {
     // Needed for `#![doc(auto_cfg(hide(no_global_oom_handling)))]` attribute.
     println!("cargo::rustc-check-cfg=cfg(no_global_oom_handling)");
 
+    // The standard library of an Xbox 360 system module: threads start in the
+    // system process and sockets open as the system (sys/thread, sys/net).
+    println!("cargo:rustc-check-cfg=cfg(xbox360_system)");
+
     println!("cargo:rustc-check-cfg=cfg(restricted_std)");
     if target_os == "linux"
         || target_os == "android"

@@ -8,6 +8,7 @@ _REFS = {
     "sysroot_core": "xbox360//platforms:sysroot-core",
     "sysroot_none": "xbox360//platforms:sysroot-none",
     "sysroot_std": "xbox360//platforms:sysroot-std",
+    "sysroot_std_system": "xbox360//platforms:sysroot-std-system",
     "xbox360": "xbox360//platforms:xbox360",
 }
 
@@ -45,9 +46,14 @@ def _core_impl(platform: PlatformInfo, refs: struct) -> PlatformInfo:
 def _std_impl(platform: PlatformInfo, refs: struct) -> PlatformInfo:
     return _title(platform, refs, refs.sysroot_std, "xbox360-std")
 
+def _std_system_impl(platform: PlatformInfo, refs: struct) -> PlatformInfo:
+    return _title(platform, refs, refs.sysroot_std_system, "xbox360-std-system")
+
 xbox360_core_transition = transition(impl = _core_impl, refs = _REFS)
 
 xbox360_std_transition = transition(impl = _std_impl, refs = _REFS)
+
+xbox360_std_system_transition = transition(impl = _std_system_impl, refs = _REFS)
 
 def _sysroot_build_transition_impl(ctx: AnalysisContext) -> list[Provider]:
     none = ctx.attrs.sysroot_none[ConstraintValueInfo]

@@ -13,13 +13,21 @@ _RUSTC_FLAGS = [
     "--cap-lints=allow",
 ]
 
-# The crates that the Rust toolchain passes to other crates.
+# Crates built a second time with extra rustc flags, by target name. The
+# standard library of system modules starts its threads in the system
+# process and opens its sockets as the system.
+_VARIANTS = {
+    "std-system-0.0.0": struct(crate = "std@0.0.0", rustc_flags = ["--cfg=xbox360_system"]),
+}
+
+# The crates that the Rust toolchain passes to other crates, by target name.
 SYSROOT_EXPORTS = {
-    "alloc": "alloc@0.0.0",
-    "compiler_builtins": "compiler_builtins@0.1.160",
-    "core": "core@0.0.0",
-    "panic_abort": "panic_abort@0.0.0",
-    "std": "std@0.0.0",
+    "alloc": "alloc-0.0.0",
+    "compiler_builtins": "compiler_builtins-0.1.160",
+    "core": "core-0.0.0",
+    "panic_abort": "panic_abort-0.0.0",
+    "std": "std-0.0.0",
+    "std-system": "std-system-0.0.0",
 }
 
 def _rust_library_source_impl(ctx: AnalysisContext) -> list[Provider]:
@@ -64,11 +72,12 @@ def _package_dir(crate: dict) -> str:
     return root.rpartition("/src/")[0] if "/src/" in root else root.rpartition("/")[0]
 
 def sysroot_crates(library_source: str):
-    """Declares a target per crate in SYSROOT_CRATES and public aliases.
+    """Declares a target per crate in SYSROOT_CRATES, its variants, and public aliases.
 
     `library_source` is a rust_library_source target with a subtarget for
     each library package that has a build script.
     """
+    libraries = {}
     for key, crate in SYSROOT_CRATES.items():
         name = _target_name(key)
         if crate["registry_sha256"]:
@@ -113,8 +122,7 @@ def sysroot_crates(library_source: str):
             rustc_flags.append("@$(location :{}-build-script-run[rustc_flags])".format(name))
             env["OUT_DIR"] = "$(location :{}-build-script-run[out_dir])".format(name)
 
-        native.rust_library(
-            name = name,
+        libraries[key] = dict(
             srcs = srcs,
             crate = crate["crate"],
             crate_root = prefix + crate["root"],
@@ -129,11 +137,20 @@ def sysroot_crates(library_source: str):
             # Skipped by host builds such as `buck2 build xbox360//...`.
             target_compatible_with = ["//platforms:xbox360"],
         )
+        native.rust_library(name = name, **libraries[key])
 
-    for alias, key in SYSROOT_EXPORTS.items():
+    # A variant shares the build script run of its crate.
+    for name, variant in _VARIANTS.items():
+        library = libraries[variant.crate]
+        native.rust_library(
+            name = name,
+            **(library | {"rustc_flags": library["rustc_flags"] + variant.rustc_flags})
+        )
+
+    for alias, name in SYSROOT_EXPORTS.items():
         transition_alias(
             name = alias,
-            actual = ":" + _target_name(key),
+            actual = ":" + name,
             incoming_transition = "//platforms:sysroot-build-transition",
             visibility = ["PUBLIC"],
         )

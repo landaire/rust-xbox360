@@ -12,6 +12,15 @@ use xbox360_sys::xboxkrnl::{self, Handle, ProcessorMode, ThreadCreationFlags};
 
 pub const DEFAULT_MIN_STACK_SIZE: usize = 256 * 1024;
 
+// Without SYSTEM_PROCESS the kernel starts a thread in the title process, which
+// ends it when the title exits, whichever process the creator is in. std built
+// for a system module (`--cfg xbox360_system`) starts its threads in the system
+// process.
+#[cfg(xbox360_system)]
+const CREATION_FLAGS: ThreadCreationFlags = ThreadCreationFlags::SYSTEM_PROCESS;
+#[cfg(not(xbox360_system))]
+const CREATION_FLAGS: ThreadCreationFlags = ThreadCreationFlags::empty();
+
 pub struct Thread {
     handle: Handle,
 }
@@ -50,7 +59,7 @@ impl Thread {
                 0,
                 thread_entry as usize as u32,
                 init.expose_provenance() as u32,
-                ThreadCreationFlags::empty(),
+                CREATION_FLAGS,
             )
         };
         if !status.is_success() {

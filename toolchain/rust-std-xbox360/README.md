@@ -12,6 +12,16 @@ The kernel enters a thread start routine with the console calling convention, so
 
 A title needs a XEX TLS_INFO header with a nonzero slot count. Without it the kernel gives the title no TLS slots, `KeTlsAlloc` fails, and std aborts with "out of TLS keys". `xex-link` writes 64 slots for modules with the TITLE flag unless the manifest sets `tls_slots`.
 
+## System modules
+
+std built with `--cfg xbox360_system` is the standard library of system modules, which run in the system process:
+- `ExCreateThread` gets `SYSTEM_PROCESS`. Without that flag the kernel starts a thread in the title process, whichever process the creator is in, and ends it when the title exits.
+- Sockets open as `XnCaller::SystemApp` instead of `XnCaller::Title`, so they do not belong to the running title. `XNET_STARTUP_BYPASS_SECURITY` does not cover them. On a development kit their datagrams were accepted and never sent. Each socket that `socket()` opens therefore gets SOL_SOCKET option 0x5801, after which UDP and TCP to ordinary hosts work. Connections that a marked listener accepts worked without the option.
+
+TLS keys come from `KeTlsAlloc` in both builds. The system process has no TLS_INFO header to size it. On a development kit, 24 of its slots were free after one load of a module that uses `std::thread` and `println!`, and each further load of that module took 5. The kernel returns slots only through `KeTlsFree`, which std never calls, so the slots of a system module stay taken after it unloads. When the slots run out, `KeTlsAlloc` fails and std aborts with "out of TLS keys", which stopped the console with a crash dump.
+
+Buck2 builds this variant as `xbox360//sysroot:std-system` (`std = "system"` of `xbox360_title`). With Cargo, add `"--cfg", "xbox360_system"` to the target's `rustflags`, which build-std passes to std.
+
 ## Synchronization
 
 std uses its futex-based `Mutex`, `Condvar`, `RwLock`, `Once` and thread parker for xbox360. The kernel has no futex, keyed event or wait-on-address service, so `sys/pal/xbox360/futex.rs` provides a wait-on-address table:

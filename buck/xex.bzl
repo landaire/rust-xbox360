@@ -1,10 +1,12 @@
 """Xbox 360 titles: a Rust or C executable converted to a XEX by xex-link.
 
-`xex_core` and `xex_std` convert the image of any executable rule.
+`xex_core`, `xex_std` and `xex_std_system` convert the image of any
+executable rule.
 
-`xbox360_executable_core` and `xbox360_executable_std` compile a binary
-crate as one fat LTO code generation unit, and rustc writes that unit as
-assembly along with the image it links. The prelude's `rust_binary` has
+`xbox360_executable_core`, `xbox360_executable_std` and
+`xbox360_executable_std_system` compile a binary crate as one fat LTO code
+generation unit, and rustc writes that unit as assembly along with the image
+it links. The prelude's `rust_binary` has
 no such output: its `[asm]` subtarget compiles without linking, which
 skips LTO. `xex_from_assembly` turns that assembly into a XEX. With
 `rewrite`, xbox360-asm-rewrite replaces the callee-saved register saves
@@ -28,7 +30,7 @@ load("@prelude//python_bootstrap:python_bootstrap.bzl", "PythonBootstrapToolchai
 load("@prelude//rust:build_params.bzl", "MetadataKind")
 load("@prelude//rust:link_info.bzl", "RustLinkInfo")
 load("@prelude//rust:rust_toolchain.bzl", "RustToolchainInfo")
-load(":platforms.bzl", "xbox360_core_transition", "xbox360_std_transition")
+load(":platforms.bzl", "xbox360_core_transition", "xbox360_std_system_transition", "xbox360_std_transition")
 
 Xbox360ExecutableInfo = provider(fields = {
     # The LTO code generation unit as assembly.
@@ -105,10 +107,13 @@ _XEX_ATTRS = {
 
 # The rule configures itself, and so the executable, for the console. The
 # core variant provides core, alloc and compiler_builtins; the std variant
-# also std.
+# also std, and the std_system variant the std of system modules, whose
+# threads start in the system process and whose sockets open as the system.
 xex_core = rule(impl = _xex_impl, attrs = _XEX_ATTRS | {"elf": attrs.dep()}, cfg = xbox360_core_transition)
 
 xex_std = rule(impl = _xex_impl, attrs = _XEX_ATTRS | {"elf": attrs.dep()}, cfg = xbox360_std_transition)
+
+xex_std_system = rule(impl = _xex_impl, attrs = _XEX_ATTRS | {"elf": attrs.dep()}, cfg = xbox360_std_system_transition)
 
 def _xbox360_c_title_impl(ctx: AnalysisContext) -> list[Provider]:
     python = ctx.attrs._python_bootstrap_toolchain[PythonBootstrapToolchainInfo].interpreter
@@ -287,7 +292,8 @@ _EXECUTABLE_ATTRS = {
 
 # A binary crate for the console. The rules configure themselves for the
 # console, so host builds include them. The core variant provides core,
-# alloc and compiler_builtins; the std variant also std.
+# alloc and compiler_builtins; the std variant also std, and the std_system
+# variant the std of system modules.
 xbox360_executable_core = rule(
     impl = _xbox360_executable_impl,
     attrs = _EXECUTABLE_ATTRS,
@@ -298,6 +304,12 @@ xbox360_executable_std = rule(
     impl = _xbox360_executable_impl,
     attrs = _EXECUTABLE_ATTRS,
     cfg = xbox360_std_transition,
+)
+
+xbox360_executable_std_system = rule(
+    impl = _xbox360_executable_impl,
+    attrs = _EXECUTABLE_ATTRS,
+    cfg = xbox360_std_system_transition,
 )
 
 # Assembles `module.s` with rustc: module-level assembly passes through
@@ -479,11 +491,24 @@ xex_from_assembly = rule(
     },
 )
 
+# The rules of each standard library choice of `xbox360_title`.
+_EXECUTABLE_RULES = {
+    "core": xbox360_executable_core,
+    "std": xbox360_executable_std,
+    "std-system": xbox360_executable_std_system,
+}
+
+_XEX_RULES = {
+    "core": xex_core,
+    "std": xex_std,
+    "std-system": xex_std_system,
+}
+
 def xbox360_title(
         name: str,
         link_script: str,
         manifest: str | None = None,
-        std: bool = False,
+        std: bool | str = False,
         rewrite: bool = False,
         rustc_flags: list[str] = [],
         visibility: list[str] = [],
@@ -491,18 +516,26 @@ def xbox360_title(
     """Builds `name.xex` from a Rust executable.
 
     `link_script` is the GNU ld script that places the sections; `manifest`
-    is the xex-link manifest with the title's XEX metadata. `std` selects
-    the standard library; otherwise the crate is `no_std` and may use core
-    and alloc. Other arguments are those of `rust_binary`.
+    is the xex-link manifest with the title's XEX metadata. `std = True`
+    selects the standard library; otherwise the crate is `no_std` and may
+    use core and alloc. `std = "system"` selects the standard library of
+    system modules: its threads start in the system process, which keeps
+    them when the title exits, and its sockets open as the system rather
+    than as the title. Other arguments are those of `rust_binary`.
 
     With `rewrite`, the executable is an `xbox360_executable_*` target,
     which takes the `srcs`, `crate_root`, `edition`, `deps`, `features` and
     `env` of `rust_binary`, and `xex_from_assembly` replaces its
     callee-saved register saves and restores with shared helper routines.
     """
+    sysroots = {False: "core", True: "std", "system": "std-system"}
+    if std not in sysroots:
+        fail("{}: std must be False, True or \"system\", not {}".format(name, repr(std)))
+    sysroot = sysroots[std]
+
     crate = kwargs.pop("crate", name.replace("-", "_"))
     if rewrite:
-        (xbox360_executable_std if std else xbox360_executable_core)(
+        _EXECUTABLE_RULES[sysroot](
             name = name + "-executable",
             crate = crate,
             link_script = link_script,
@@ -534,7 +567,7 @@ def xbox360_title(
         target_compatible_with = ["xbox360//platforms:xbox360"],
         **kwargs
     )
-    (xex_std if std else xex_core)(
+    _XEX_RULES[sysroot](
         name = name,
         elf = ":{}-elf".format(name),
         manifest = manifest,
