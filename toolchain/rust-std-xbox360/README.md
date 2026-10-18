@@ -18,7 +18,9 @@ std built with `--cfg xbox360_system` is the standard library of system modules,
 - `ExCreateThread` gets `SYSTEM_PROCESS`. Without that flag the kernel starts a thread in the title process, whichever process the creator is in, and ends it when the title exits.
 - Sockets open as `XnCaller::SystemApp` instead of `XnCaller::Title`, so they do not belong to the running title. `XNET_STARTUP_BYPASS_SECURITY` does not cover them. On a development kit their datagrams were accepted and never sent. Each socket that `socket()` opens therefore gets SOL_SOCKET option 0x5801, after which UDP and TCP to ordinary hosts work. Connections that a marked listener accepts worked without the option.
 
-TLS keys come from `KeTlsAlloc` in both builds. The system process has no TLS_INFO header to size it. On a development kit, 24 of its slots were free after one load of a module that uses `std::thread` and `println!`, and each further load of that module took 5. The kernel returns slots only through `KeTlsFree`, which std never calls, so the slots of a system module stay taken after it unloads. When the slots run out, `KeTlsAlloc` fails and std aborts with "out of TLS keys", which stopped the console with a crash dump.
+TLS keys come from `KeTlsAlloc` in both builds. The system process has no TLS_INFO header to size it. On a development kit, 24 of its slots were free after one load of a module that uses `std::thread` and `println!`, and each further load of that module took 5. The kernel returns slots only through `KeTlsFree`, and the system process never exits. When the slots run out, `KeTlsAlloc` fails and std aborts with "out of TLS keys", which stopped the console with a crash dump.
+
+So std for system modules records every key it allocates, and `std::os::xbox360::release_tls_slots` (feature `xbox360_ext`) frees them. A module calls it last in its entry point for `ProcessDetach`, after its own threads have ended. It clears the calling thread's values before it frees each key. Whether `KeTlsFree` also clears the values that other threads hold has not been checked on hardware, and neither has the function itself.
 
 Buck2 builds this variant as `xbox360//sysroot:std-system` (`std = "system"` of `xbox360_title`). With Cargo, add `"--cfg", "xbox360_system"` to the target's `rustflags`, which build-std passes to std.
 
@@ -63,7 +65,8 @@ Backend files, under `library/`:
 - `std/src/sys/stdio/xbox360.rs` - stdout/stderr over DbgPrint
 - `std/src/sys/time/xbox360.rs` - Instant via the PPC timebase, SystemTime via KeQuerySystemTime
 - `std/src/sys/thread/xbox360.rs` - threads over ExCreateThread
-- `std/src/sys/thread_local/key/xbox360.rs` - TLS keys over KeTls*
+- `std/src/sys/thread_local/key/xbox360.rs` - TLS keys over KeTls*, and their release for system modules
+- `std/src/os/mod.rs` and `std/src/os/xbox360/mod.rs` - `std::os::xbox360`
 - `std/src/sys/fs/xbox360.rs` - files over the NT file API
 - `std/src/sys/net/connection/xbox360.rs` - TcpStream/TcpListener/UdpSocket over NetDll winsock
 - `core/src/sync/atomic_xbox360.rs` - protected lwarx/stwcx atomics

@@ -202,6 +202,8 @@ pub(crate) mod key {
             mod xbox360_key;
             pub(super) use racy::LazyKey;
             pub(super) use xbox360_key::{Key, get, set};
+            #[cfg(xbox360_system)]
+            pub(crate) use xbox360_key::release_slots;
             use xbox360_key::{create, destroy};
         }
         _ => {}
