@@ -190,6 +190,29 @@ rm -rf "${CARGO_HOME:-$HOME/.cargo}/build/powerpc-unknown-xbox360"
 
 Copy the edited files into the toolchain source first, as in step 2.
 
+## Size cost of the standard library
+
+Console memory is shared with the running title, so every kilobyte of a module counts. These numbers come from [openxbdm](https://github.com/landaire/xeedee), a debug monitor module that takes about 890 KiB once loaded. It calls no std API, so the growth is what std costs before you use it. Each build uses `-Copt-level=z`, one fat LTO unit and `rewrite`.
+
+![Loaded image of openxbdm by section](docs/std-size-image.svg)
+
+![XEX file of openxbdm](docs/std-size-xex.svg)
+
+| Standard library | Panic strategy | `.text` | `.data` | `.bss` | `.xthunks` | Loaded image | XEX file |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| None (`no_std`) | `immediate-abort` | 695,724 | 140,146 | 68,912 | 3,648 | 909,250 | 356,352 |
+| `std` | `immediate-abort` | 695,716 | 140,146 | 68,928 | 7,248 | 912,858 | 360,448 |
+| `std` for system modules | `immediate-abort` | 695,716 | 140,146 | 68,928 | 7,248 | 912,858 | 360,448 |
+| None (`no_std`) | `abort` | 718,884 | 140,594 | 68,912 | 3,648 | 932,858 | 364,544 |
+| `std` | `abort` | 748,492 | 173,594 | 77,188 | 7,376 | 1,007,470 | 391,168 |
+| `std` for system modules | `abort` | 748,492 | 173,594 | 77,188 | 7,376 | 1,007,470 | 391,168 |
+
+Sizes are in bytes. The loaded image is every section the loader maps, `.rodata` (784 bytes) and `.xvars` (36 bytes) included.
+
+- The two std builds are the same size. `--cfg xbox360_system` changes only thread and socket code, which openxbdm does not call.
+- Linking std adds 3.5 KiB, all of it in `.xthunks`. std links its own copy of `xbox360-sys` (0.1.0) next to the module's (0.2), and each of the 227 imports the module keeps gets an import record from both copies.
+- `-Cpanic=immediate-abort` makes every panic a trap with no message. A panic hook (`std::panic::set_hook`) needs `-Cpanic=abort` instead. That adds 23.1 KiB without std and 95.9 KiB with it.
+
 ## Repository layout
 
 | Path | Contents |
