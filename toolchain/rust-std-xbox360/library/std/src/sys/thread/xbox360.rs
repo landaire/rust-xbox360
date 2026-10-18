@@ -63,13 +63,21 @@ impl Thread {
     }
 
     pub fn join(self) {
-        // A null timeout waits without limit.
-        // SAFETY: `self.handle` is the thread handle owned by this `Thread`, closed
-        // only here after the wait.
+        // A null timeout waits without limit. Dropping `self` closes the handle.
+        // SAFETY: `self.handle` is the thread handle owned by this `Thread`.
         unsafe {
             xboxkrnl::NtWaitForSingleObjectEx(self.handle, ProcessorMode::User, false, ptr::null());
-            xboxkrnl::NtClose(self.handle);
         }
+    }
+}
+
+// Closing the handle of a detached thread does not stop it. Without the close,
+// the handle stays open until its process exits.
+impl Drop for Thread {
+    fn drop(&mut self) {
+        // SAFETY: `self.handle` is the thread handle owned by this `Thread`, closed
+        // only here.
+        unsafe { xboxkrnl::NtClose(self.handle) };
     }
 }
 
