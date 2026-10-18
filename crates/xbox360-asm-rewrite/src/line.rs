@@ -6,6 +6,10 @@ pub enum Line<'a> {
     Label(&'a str),
     Instruction(Instruction<'a>),
     Directive(&'a str),
+    /// Directive that places nothing in the section and has no effect on
+    /// the code: debug line information (`.loc`, `.file`) and call frame
+    /// information (`.cfi_*`).
+    Annotation(&'a str),
     /// Several statements joined by `;`; never analyzed.
     Statements(&'a str),
     /// `#APP`: start of an inline assembly block.
@@ -34,7 +38,7 @@ impl<'a> Line<'a> {
 
         let indented = trimmed.len() != text.len();
         if trimmed.starts_with('.') && indented {
-            return Self::Directive(trimmed);
+            return Self::directive(trimmed);
         }
 
         let code = strip_comment(trimmed);
@@ -45,7 +49,7 @@ impl<'a> Line<'a> {
         }
 
         if !indented {
-            return Self::Directive(code);
+            return Self::directive(code);
         }
 
         if code.contains(';') {
@@ -54,6 +58,24 @@ impl<'a> Line<'a> {
 
         Self::Instruction(Instruction::parse(code))
     }
+
+    fn directive(text: &'a str) -> Self {
+        if is_annotation(text) {
+            Self::Annotation(text)
+        } else {
+            Self::Directive(text)
+        }
+    }
+
+    /// Name of a directive or annotation, such as `.cfi_offset`.
+    pub fn directive_name(text: &str) -> &str {
+        text.split_whitespace().next().unwrap_or(text)
+    }
+}
+
+fn is_annotation(text: &str) -> bool {
+    let name = Line::directive_name(text);
+    name == ".loc" || name == ".file" || name.starts_with(".cfi_")
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -180,6 +202,22 @@ mod tests {
     fn classifies_lines() {
         assert_eq!(Line::parse(".LBB3_2:"), Line::Label(".LBB3_2"));
         assert_eq!(Line::parse("\t.p2align\t2"), Line::Directive(".p2align\t2"));
+        assert_eq!(
+            Line::parse("\t.loc\t2 2234 9 prologue_end"),
+            Line::Annotation(".loc\t2 2234 9 prologue_end")
+        );
+        assert_eq!(
+            Line::parse("\t.cfi_offset lr, 4"),
+            Line::Annotation(".cfi_offset lr, 4")
+        );
+        assert_eq!(
+            Line::parse("\t.file\t30 \"sysroot/library/alloc/src/vec\" \"mod.rs\""),
+            Line::Annotation(".file\t30 \"sysroot/library/alloc/src/vec\" \"mod.rs\"")
+        );
+        assert_eq!(
+            Line::parse("\t.local_label_prefix"),
+            Line::Directive(".local_label_prefix")
+        );
         assert_eq!(Line::parse("\t#APP"), Line::InlineAsmStart);
         assert_eq!(Line::parse("\t#NO_APP"), Line::InlineAsmEnd);
         assert_eq!(Line::parse("\t# %bb.1"), Line::Blank);

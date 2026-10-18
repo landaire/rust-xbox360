@@ -3,6 +3,21 @@
 //! Compiled functions are the regions between `.Lfunc_beginN:` and
 //! `.Lfunc_endN:`. Module-level assembly, including naked functions, has no
 //! such labels and passes through unchanged.
+//!
+//! In a function with call frame information (`.cfi_startproc`), the
+//! rewrite states the frame at every instruction it changes:
+//!
+//! - From the save helper call to the allocation, the return address is in
+//!   r0 (`.cfi_register lr, r0`): the call overwrites LR, and a frame above
+//!   the helper is looked up at the call instruction.
+//! - After the allocation, the frame is complete: the CFA is r1 plus the
+//!   frame size, and the return address and the saved registers are in
+//!   their slots. LLVM's own annotations of the moved stores follow and
+//!   state the same.
+//! - From the deallocation to the branch to the restore helper, the CFA is
+//!   r1; the return address and the saved registers are still in their
+//!   slots. The state of the function body is restored after the branch,
+//!   for the code that follows it.
 
 use std::collections::BTreeMap;
 use std::fmt;
@@ -11,9 +26,12 @@ use std::io::Write;
 
 use crate::analysis::Function;
 use crate::analysis::FunctionAnalysis;
+use crate::analysis::LINK_SLOT;
 use crate::analysis::Refusal;
+use crate::analysis::save_slot;
 use crate::helpers;
 use crate::helpers::HelperUse;
+use crate::labels::LabelReferences;
 use crate::line::Line;
 
 mod error;
@@ -104,16 +122,20 @@ struct Edit {
     before: Vec<String>,
     replacement: Option<Vec<String>>,
     removed: bool,
+    after: Vec<String>,
 }
 
-/// Rewrites `input` into `output`.
+/// Rewrites `input` into `output`. `references` are the label references
+/// of the same assembly ([`LabelReferences::scan`]).
 pub fn rewrite(
     input: impl BufRead,
+    references: &LabelReferences,
     mut output: impl Write,
     mut listings: Listings<impl Write, impl Write>,
 ) -> Result<Report, Error> {
     let mut report = Report::default();
     let mut helpers = HelperUse::default();
+    let mut unwind_info = false;
     let mut symbol: Option<String> = None;
     let mut open: Option<OpenFunction> = None;
 
@@ -124,10 +146,12 @@ pub fn rewrite(
                 let function = open.take().expect("open function");
                 emit_function(
                     &function,
+                    references,
                     &mut output,
                     &mut listings,
                     &mut report,
                     &mut helpers,
+                    &mut unwind_info,
                 )?;
                 writeln!(output, "{line}").map_err(Error::Write)?;
             } else {
@@ -164,7 +188,9 @@ pub fn rewrite(
         });
     }
 
-    helpers.emit(&mut output).map_err(Error::Write)?;
+    helpers
+        .emit(&mut output, unwind_info)
+        .map_err(Error::Write)?;
     report.helper_instructions = helpers.instruction_count();
 
     output.flush().map_err(Error::Write)?;
@@ -176,18 +202,24 @@ pub fn rewrite(
 
 fn emit_function(
     function: &OpenFunction,
+    references: &LabelReferences,
     output: &mut impl Write,
     listings: &mut Listings<impl Write, impl Write>,
     report: &mut Report,
     helpers: &mut HelperUse,
+    unwind_info: &mut bool,
 ) -> Result<(), Error> {
-    let parsed = Function::new(
-        function
-            .lines
-            .iter()
-            .map(|line| Line::parse(line))
-            .collect(),
-    );
+    let lines: Vec<Line<'_>> = function
+        .lines
+        .iter()
+        .map(|line| Line::parse(line))
+        .collect();
+    let has_frame_info = lines.iter().any(|line| {
+        matches!(line, Line::Annotation(annotation) if Line::directive_name(annotation) == ".cfi_startproc")
+    });
+    *unwind_info |= has_frame_info;
+
+    let parsed = Function::new(lines, |label| references.may_be_entered(label));
     let analysis = parsed.analyze();
 
     report.functions += 1;
@@ -216,7 +248,13 @@ fn emit_function(
         }
     }
 
-    let edits = plan_edits(&analysis, function.lines.len(), report, helpers);
+    let edits = plan_edits(
+        &analysis,
+        function.lines.len(),
+        has_frame_info,
+        report,
+        helpers,
+    );
 
     for (line, edit) in function.lines.iter().zip(&edits) {
         for text in &edit.before {
@@ -230,6 +268,10 @@ fn emit_function(
         } else if !edit.removed {
             writeln!(output, "{line}").map_err(Error::Write)?;
         }
+
+        for text in &edit.after {
+            writeln!(output, "{text}").map_err(Error::Write)?;
+        }
     }
 
     Ok(())
@@ -238,6 +280,7 @@ fn emit_function(
 fn plan_edits(
     analysis: &FunctionAnalysis,
     line_count: usize,
+    has_frame_info: bool,
     report: &mut Report,
     helpers: &mut HelperUse,
 ) -> Vec<Edit> {
@@ -253,10 +296,31 @@ fn plan_edits(
                 inserted.push("\tmflr 0".to_owned());
             }
 
+            report.added_instructions += inserted.len() + 1;
+            report.removed_instructions += prologue.removed.len();
+
+            if has_frame_info {
+                // A frame above the helper is looked up at the call itself.
+                inserted.push("\t.cfi_register lr, r0".to_owned());
+            }
+
             inserted.push(format!("\tbl {}", helpers::save_name(prologue.range)));
 
-            report.added_instructions += inserted.len();
-            report.removed_instructions += prologue.removed.len();
+            if has_frame_info {
+                let edit = &mut edits[prologue.allocation];
+                edit.after.push(format!(
+                    "\t.cfi_def_cfa_offset {}",
+                    prologue.frame_size.bytes()
+                ));
+                edit.after.push(format!("\t.cfi_offset lr, {LINK_SLOT}"));
+                edit.after.extend(
+                    prologue
+                        .range
+                        .registers()
+                        .map(|gpr| format!("\t.cfi_offset r{}, {}", gpr.number(), save_slot(gpr))),
+                );
+            }
+
             edits[prologue.allocation].before = inserted;
 
             for index in &prologue.removed {
@@ -275,10 +339,19 @@ fn plan_edits(
             edits[*index].removed = true;
         }
 
-        edits[epilogue.ret].replacement = Some(vec![
-            format!("\taddi 1, 1, {}", epilogue.frame_size.bytes()),
-            format!("\tb {}", helpers::restore_name(epilogue.range)),
-        ]);
+        let deallocation = format!("\taddi 1, 1, {}", epilogue.frame_size.bytes());
+        let branch = format!("\tb {}", helpers::restore_name(epilogue.range));
+        edits[epilogue.ret].replacement = Some(if has_frame_info {
+            vec![
+                "\t.cfi_remember_state".to_owned(),
+                deallocation,
+                "\t.cfi_def_cfa r1, 0".to_owned(),
+                branch,
+                "\t.cfi_restore_state".to_owned(),
+            ]
+        } else {
+            vec![deallocation, branch]
+        });
         helpers.record_restore(epilogue.range);
         report.removed_instructions += epilogue.removed.len() + 1;
         report.added_instructions += 2;

@@ -4,14 +4,16 @@
 //! `__restgprlr_N`.
 //!
 //! The input is the assembly of the final LTO module (`rustc --emit=asm`).
-//! [`analysis`] documents the rules; [`audit`] reapplies them to the
-//! disassembly of the linked image. [`reservation`] applies the kernel
-//! loader's check for unprotected reservations to the linked image.
+//! [`analysis`] documents the rules, and [`labels`] finds the local labels
+//! that control can enter; [`audit`] reapplies the rules to the disassembly
+//! of the linked image. [`reservation`] applies the kernel loader's check
+//! for unprotected reservations to the linked image.
 
 pub mod analysis;
 pub mod audit;
 pub mod helpers;
 pub mod isa;
+pub mod labels;
 pub mod line;
 pub mod reservation;
 pub mod rewrite;

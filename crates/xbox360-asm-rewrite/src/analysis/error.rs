@@ -58,6 +58,8 @@ pub enum Refusal {
     RelativeBranch { target: String },
     #[error("the function has a line with several statements")]
     MultipleStatements,
+    #[error("call frame annotation `{annotation}` lies between moved instructions")]
+    UnwindAnnotation { annotation: String },
 }
 
 impl Refusal {
@@ -88,6 +90,7 @@ impl Refusal {
             Refusal::OverlapsPrologue => "overlaps-prologue",
             Refusal::RelativeBranch { .. } => "relative-branch",
             Refusal::MultipleStatements => "multiple-statements",
+            Refusal::UnwindAnnotation { .. } => "unwind-annotation",
         }
     }
 }

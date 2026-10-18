@@ -16,6 +16,12 @@ pub enum Error {
         #[source]
         source: io::Error,
     },
+    #[error("reading {path}")]
+    Read {
+        path: PathBuf,
+        #[source]
+        source: io::Error,
+    },
     #[error(transparent)]
     Rewrite(#[from] rewrite::Error),
     #[error(transparent)]

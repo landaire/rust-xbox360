@@ -1,0 +1,79 @@
+---
+source: crates/xbox360-asm-rewrite/src/tests.rs
+expression: output
+---
+	.cfi_sections .debug_frame
+	.section	.text.with_debug_information,"ax",@progbits
+	.p2align	2
+	.type	with_debug_information,@function
+with_debug_information:
+.Lfunc_begin0:
+	.loc	1 63 0
+	.cfi_startproc
+	mflr 0
+	.cfi_register lr, r0
+	bl __xbox360_savegprlr_29_30
+	stwu 1, -32(1)
+	.cfi_def_cfa_offset 32
+	.cfi_offset lr, 4
+	.cfi_offset r29, -12
+	.cfi_offset r30, -8
+	.cfi_def_cfa_offset 32
+	.cfi_offset lr, 4
+	.cfi_offset r29, -12
+	.cfi_offset r30, -8
+	.cfi_offset cr2, -16
+	mfcr 12
+.Ltmp0:
+	.loc	2 10 9 prologue_end
+	mr	29, 3
+	.loc	2 0 9 is_stmt 0
+	stw 12, 16(1)
+	bl callee
+.Ltmp1:
+	.loc	2 12 1 epilogue_begin
+	lwz 12, 16(1)
+	mtcrf 32, 12
+	.cfi_remember_state
+	addi 1, 1, 32
+	.cfi_def_cfa r1, 0
+	b __xbox360_restgprlr_29_30
+	.cfi_restore_state
+	.cfi_endproc
+.Lfunc_end0:
+	.size	with_debug_information, .Lfunc_end0-.Lfunc_begin0
+	.section	.debug_info,"",@progbits
+	.long	.Ltmp0
+	.long	.Ltmp1
+
+	.section	.text.__xbox360_gprlr,"ax",@progbits
+	.p2align	2
+	.cfi_startproc
+	.cfi_same_value r0
+	.type	__xbox360_savegprlr_29_30,@function
+__xbox360_savegprlr_29_30:
+	stw 29, -12(1)
+	.type	__xbox360_savegprlr_30_30,@function
+__xbox360_savegprlr_30_30:
+	stw 30, -8(1)
+	stw 0, 4(1)
+	blr
+	.cfi_endproc
+	.cfi_startproc
+	.cfi_offset lr, 4
+	.cfi_offset r29, -12
+	.cfi_offset r30, -8
+	.type	__xbox360_restgprlr_29_30,@function
+__xbox360_restgprlr_29_30:
+	lwz 29, -12(1)
+	.cfi_same_value r29
+	.type	__xbox360_restgprlr_30_30,@function
+__xbox360_restgprlr_30_30:
+	lwz 30, -8(1)
+	.cfi_same_value r30
+	.type	__xbox360_restlr,@function
+__xbox360_restlr:
+	lwz 0, 4(1)
+	mtlr 0
+	blr
+	.cfi_endproc

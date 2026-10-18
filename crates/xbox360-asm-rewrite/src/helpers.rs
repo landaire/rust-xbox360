@@ -11,10 +11,22 @@
 //!   then returns to the caller's caller.
 //! - `__xbox360_restlr`: the link register part of the restore chain
 //!   ending at r30.
+//!
+//! With `unwind_info`, each chain has call frame information. A save
+//! routine runs before the caller's allocation, so its frame is the
+//! caller's frame with the return address in LR, the initial state. It
+//! keeps r0, which holds the caller's return address (see
+//! [`crate::rewrite`]). A restore routine runs after the caller's
+//! deallocation in place of the caller's return: the CFA is r1, the return
+//! address is in its slot, and each register of the chain is in its slot
+//! until the routine loads it. An entry inside a chain skips only loads of
+//! registers that the caller did not save, which the caller left
+//! unchanged.
 
 use std::io;
 use std::io::Write;
 
+use crate::analysis::LINK_SLOT;
 use crate::analysis::SaveRange;
 use crate::analysis::save_slot;
 use crate::isa::Gpr;
@@ -68,11 +80,12 @@ impl HelperUse {
         saves + restore_r30 + chain(self.restore_from[1], Gpr::R31, 3)
     }
 
-    pub fn emit(&self, out: &mut impl Write) -> io::Result<()> {
+    pub fn emit(&self, out: &mut impl Write, unwind_info: bool) -> io::Result<()> {
         if *self == Self::default() {
             return Ok(());
         }
 
+        let frame = Annotations { unwind_info };
         writeln!(out)?;
         writeln!(out, "\t.section\t.text.__xbox360_gprlr,\"ax\",@progbits")?;
         writeln!(out, "\t.p2align\t2")?;
@@ -80,6 +93,8 @@ impl HelperUse {
         for (end, from) in CHAIN_ENDS.iter().zip(self.save_from) {
             let Some(first) = from else { continue };
 
+            frame.line(out, ".cfi_startproc")?;
+            frame.line(out, ".cfi_same_value r0")?;
             for gpr in registers(first, *end) {
                 entry(
                     out,
@@ -91,29 +106,36 @@ impl HelperUse {
                 writeln!(out, "\tstw {}, {}(1)", gpr.number(), save_slot(gpr))?;
             }
 
-            writeln!(out, "\tstw 0, 4(1)")?;
+            writeln!(out, "\tstw 0, {LINK_SLOT}(1)")?;
             writeln!(out, "\tblr")?;
+            frame.line(out, ".cfi_endproc")?;
         }
 
-        if let Some(first) = self.restore_from[0] {
-            for gpr in registers(first, Gpr::R30) {
-                entry(
-                    out,
-                    &restore_name(Some(SaveRange {
-                        first: gpr,
-                        last: Gpr::R30,
-                    })),
-                )?;
-                writeln!(out, "\tlwz {}, {}(1)", gpr.number(), save_slot(gpr))?;
+        let r30_chain = self.restore_from[0];
+        if r30_chain.is_some() || self.restore_link_only {
+            frame.restore_start(out, r30_chain.map(|first| (first, Gpr::R30)))?;
+
+            if let Some(first) = r30_chain {
+                for gpr in registers(first, Gpr::R30) {
+                    entry(
+                        out,
+                        &restore_name(Some(SaveRange {
+                            first: gpr,
+                            last: Gpr::R30,
+                        })),
+                    )?;
+                    restore(out, &frame, gpr)?;
+                }
             }
-        }
 
-        if self.restore_from[0].is_some() || self.restore_link_only {
             entry(out, &restore_name(None))?;
             restore_link(out)?;
+            frame.line(out, ".cfi_endproc")?;
         }
 
         if let Some(first) = self.restore_from[1] {
+            frame.restore_start(out, Some((first, Gpr::R31)))?;
+
             for gpr in registers(first, Gpr::R31) {
                 entry(
                     out,
@@ -122,14 +144,55 @@ impl HelperUse {
                         last: Gpr::R31,
                     })),
                 )?;
-                writeln!(out, "\tlwz {}, {}(1)", gpr.number(), save_slot(gpr))?;
+                restore(out, &frame, gpr)?;
             }
 
             restore_link(out)?;
+            frame.line(out, ".cfi_endproc")?;
         }
 
         Ok(())
     }
+}
+
+/// Call frame annotations, written only with unwind information.
+struct Annotations {
+    unwind_info: bool,
+}
+
+impl Annotations {
+    fn line(&self, out: &mut impl Write, annotation: &str) -> io::Result<()> {
+        if self.unwind_info {
+            writeln!(out, "\t{annotation}")?;
+        }
+
+        Ok(())
+    }
+
+    /// Start of a restore chain whose registers `first..=last` are in
+    /// their slots.
+    fn restore_start(&self, out: &mut impl Write, chain: Option<(Gpr, Gpr)>) -> io::Result<()> {
+        self.line(out, ".cfi_startproc")?;
+        self.line(out, &format!(".cfi_offset lr, {LINK_SLOT}"))?;
+
+        for gpr in chain
+            .into_iter()
+            .flat_map(|(first, last)| registers(first, last))
+        {
+            self.line(
+                out,
+                &format!(".cfi_offset r{}, {}", gpr.number(), save_slot(gpr)),
+            )?;
+        }
+
+        Ok(())
+    }
+}
+
+/// Loads `gpr` from its slot; from then on it holds the caller's value.
+fn restore(out: &mut impl Write, frame: &Annotations, gpr: Gpr) -> io::Result<()> {
+    writeln!(out, "\tlwz {}, {}(1)", gpr.number(), save_slot(gpr))?;
+    frame.line(out, &format!(".cfi_same_value r{}", gpr.number()))
 }
 
 pub fn save_name(range: SaveRange) -> String {
@@ -165,7 +228,7 @@ fn entry(out: &mut impl Write, name: &str) -> io::Result<()> {
 }
 
 fn restore_link(out: &mut impl Write) -> io::Result<()> {
-    writeln!(out, "\tlwz 0, 4(1)")?;
+    writeln!(out, "\tlwz 0, {LINK_SLOT}(1)")?;
     writeln!(out, "\tmtlr 0")?;
     writeln!(out, "\tblr")
 }

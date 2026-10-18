@@ -40,6 +40,17 @@
 //! - Functions with a relative branch other than `.+4`, or with several
 //!   statements on one line, are left unchanged. Inline assembly never
 //!   holds a candidate.
+//!
+//! Debug line and call frame annotations (`.loc`, `.file`, `.cfi_*`) place
+//! nothing in the section and do not end a block, nor do local labels that
+//! code cannot enter (see [`crate::labels`]). Removed and inserted
+//! instructions leave every remaining instruction after the same `.loc`.
+//! Call frame annotations keep their position relative to the remaining
+//! instructions, so none may lie where the rewrite changes the frame state
+//! they describe: between `mflr 0` and the allocation, or between the first
+//! moved epilogue instruction and the return. The rewrite emits the call
+//! frame annotations of the moved saves and restores itself (see
+//! [`crate::rewrite`]).
 
 use std::collections::HashMap;
 
@@ -60,7 +71,7 @@ pub use self::error::LivePath;
 pub use self::error::Refusal;
 
 /// Offset of the link register save word from the incoming stack pointer.
-const LINK_SLOT: i64 = 4;
+pub const LINK_SLOT: i64 = 4;
 const WORD: i64 = 4;
 
 /// Size of a stack frame, as allocated by `stwu 1, -N(1)` and released by
@@ -102,6 +113,7 @@ impl SaveRange {
 pub struct PrologueRewrite {
     /// Index of `stwu 1, -N(1)`; the helper call goes before it.
     pub allocation: usize,
+    pub frame_size: FrameSize,
     /// `mflr 0` that follows the allocation and moves before the call.
     pub moved_link_read: Option<usize>,
     /// Stores taken over by the helper, and `moved_link_read`.
@@ -136,10 +148,14 @@ pub struct Function<'a> {
     lines: Vec<Line<'a>>,
     /// Lines between `#APP` and `#NO_APP`, inclusive.
     inline_asm: Vec<bool>,
+    /// Labels at which control may enter other than from the line before.
+    entries: Vec<bool>,
 }
 
 impl<'a> Function<'a> {
-    pub fn new(lines: Vec<Line<'a>>) -> Self {
+    /// `may_be_entered` tells whether control can reach a label other than
+    /// by falling through to it.
+    pub fn new(lines: Vec<Line<'a>>, may_be_entered: impl Fn(&str) -> bool) -> Self {
         let mut inside = false;
         let inline_asm = lines
             .iter()
@@ -155,8 +171,16 @@ impl<'a> Function<'a> {
                 _ => inside,
             })
             .collect();
+        let entries = lines
+            .iter()
+            .map(|line| matches!(line, Line::Label(label) if may_be_entered(label)))
+            .collect();
 
-        Self { lines, inline_asm }
+        Self {
+            lines,
+            inline_asm,
+            entries,
+        }
     }
 
     fn instruction(&self, index: usize) -> Option<&Instruction<'a>> {
@@ -201,26 +225,41 @@ impl<'a> Function<'a> {
     }
 
     /// Straight-line block containing `index`: `[start, end)`. A block
-    /// ends at labels, directives, inline assembly, and after control
-    /// transfers.
+    /// ends at labels control may enter, directives, inline assembly, and
+    /// after control transfers.
     fn block(&self, index: usize) -> (usize, usize) {
-        let straight = |line: &Line<'_>| match line {
-            Line::Blank => true,
+        let straight = |index: usize| match &self.lines[index] {
+            Line::Blank | Line::Annotation(_) => true,
+            Line::Label(_) => !self.entries[index],
             Line::Instruction(instruction) => isa::control(instruction) == Control::Fallthrough,
             _ => false,
         };
 
         let mut start = index;
-        while start > 0 && straight(&self.lines[start - 1]) {
+        while start > 0 && straight(start - 1) {
             start -= 1;
         }
 
         let mut end = index + 1;
-        while end < self.lines.len() && straight(&self.lines[end]) {
+        while end < self.lines.len() && straight(end) {
             end += 1;
         }
 
         (start, end)
+    }
+
+    /// First call frame annotation in `range`.
+    fn unwind_annotation(&self, range: std::ops::Range<usize>) -> Option<Refusal> {
+        self.lines[range].iter().find_map(|line| match line {
+            Line::Annotation(annotation)
+                if Line::directive_name(annotation).starts_with(".cfi_") =>
+            {
+                Some(Refusal::UnwindAnnotation {
+                    annotation: (*annotation).to_owned(),
+                })
+            }
+            _ => None,
+        })
     }
 
     pub fn analyze(&self) -> FunctionAnalysis {
@@ -373,6 +412,14 @@ impl<'a> Function<'a> {
         removed.sort_unstable();
         let window_end = removed.last().copied().unwrap_or(allocation_index);
 
+        // An annotation between `mflr 0` and the allocation would apply
+        // after the helper call, where LR no longer holds the return address.
+        if link_read < allocation_index
+            && let Some(refusal) = self.unwind_annotation(link_read + 1..allocation_index)
+        {
+            return Err(refusal);
+        }
+
         // r0 must still hold the `mflr 0` result at the helper call.
         for index in link_read + 1..allocation_index {
             let effects = self.effects_at(index)?;
@@ -432,6 +479,7 @@ impl<'a> Function<'a> {
 
         Ok(PrologueRewrite {
             allocation: allocation_index,
+            frame_size: frame,
             moved_link_read,
             removed,
             range,
@@ -485,7 +533,7 @@ impl<'a> Function<'a> {
 
                 match line {
                     // No effect on the link register.
-                    Line::Label(_) | Line::Blank => {}
+                    Line::Label(_) | Line::Blank | Line::Annotation(_) => {}
                     Line::Directive(directive) => {
                         if !is_alignment(directive) {
                             return Err(LivePath::Directive {
@@ -684,6 +732,9 @@ impl<'a> Function<'a> {
 
         let removed: Vec<usize> = moved.iter().map(|(position, _)| *position).collect();
         let first = removed[0];
+        if let Some(refusal) = self.unwind_annotation(first + 1..ret) {
+            return Err(refusal);
+        }
 
         for index in first + 1..ret {
             if removed.binary_search(&index).is_ok() {

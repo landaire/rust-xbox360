@@ -217,7 +217,10 @@ fn check(function: Disassembled, scope: &HashMap<String, ScopeKind>, report: &mu
         text.push(rewritten);
     }
 
-    let parsed = Function::new(text.iter().map(|line| Line::parse(line)).collect());
+    // Every label above is a branch target.
+    let parsed = Function::new(text.iter().map(|line| Line::parse(line)).collect(), |_| {
+        true
+    });
     let analysis = parsed.analyze();
 
     let mut rewritable = false;

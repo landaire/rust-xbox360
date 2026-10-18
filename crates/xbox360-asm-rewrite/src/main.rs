@@ -8,6 +8,7 @@ use std::process::ExitCode;
 use clap::Parser;
 use clap::Subcommand;
 use xbox360_asm_rewrite::audit;
+use xbox360_asm_rewrite::labels::LabelReferences;
 use xbox360_asm_rewrite::reservation;
 use xbox360_asm_rewrite::rewrite;
 
@@ -78,7 +79,12 @@ fn run(arguments: Arguments) -> Result<(), Error> {
                 scope: create(&scope)?,
                 refusals: create(&refusals)?,
             };
-            let report = rewrite::rewrite(open(&input)?, create(&output)?, listings)?;
+            let references =
+                LabelReferences::scan(open(&input)?).map_err(|source| Error::Read {
+                    path: input.clone(),
+                    source,
+                })?;
+            let report = rewrite::rewrite(open(&input)?, &references, create(&output)?, listings)?;
             println!("{report}");
         }
         Command::Audit { disassembly, scope } => {

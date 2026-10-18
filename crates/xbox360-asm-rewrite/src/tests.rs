@@ -8,6 +8,7 @@ use crate::audit;
 use crate::audit::ScopeKind;
 use crate::isa::Gpr;
 use crate::isa::GprSet;
+use crate::labels::LabelReferences;
 use crate::line::Line;
 use crate::rewrite::Listings;
 use crate::rewrite::Report;
@@ -27,12 +28,13 @@ fn rewritten(source: &str) -> (String, Report) {
         scope: Vec::new(),
         refusals: Vec::new(),
     };
-    let report = rewrite(source.as_bytes(), &mut output, listings).expect("rewrite");
+    let references = LabelReferences::scan(source.as_bytes()).expect("scan");
+    let report = rewrite(source.as_bytes(), &references, &mut output, listings).expect("rewrite");
     (String::from_utf8(output).expect("utf-8"), report)
 }
 
 fn analyze(body: &str) -> FunctionAnalysis {
-    Function::new(body.lines().map(Line::parse).collect()).analyze()
+    Function::new(body.lines().map(Line::parse).collect(), |_| true).analyze()
 }
 
 fn prologue_refusal(body: &str) -> Refusal {
@@ -583,6 +585,116 @@ fn refuses_epilogue_overlapping_prologue() {
     let analysis = analyze(body);
     assert!(matches!(analysis.prologue, Some(Ok(_))));
     assert_eq!(analysis.epilogues, vec![Err(Refusal::OverlapsPrologue)]);
+}
+
+/// Function as LLVM prints it with `-Cdebuginfo`: line annotations and
+/// local labels inside the prologue and epilogue, call frame annotations,
+/// and debug sections that name the labels.
+#[test]
+fn rewrites_function_with_debug_information() {
+    let source = format!(
+        "\t.cfi_sections .debug_frame\n{}\t.section\t.debug_info,\"\",@progbits\n\t.long\t.Ltmp0\n\t.long\t.Ltmp1\n",
+        compiled(
+            "with_debug_information",
+            "\t.loc\t1 63 0
+\t.cfi_startproc
+\tmflr 0
+\tstwu 1, -32(1)
+\tstw 0, 36(1)
+\t.cfi_def_cfa_offset 32
+\t.cfi_offset lr, 4
+\t.cfi_offset r29, -12
+\t.cfi_offset r30, -8
+\t.cfi_offset cr2, -16
+\tmfcr 12
+.Ltmp0:
+\t.loc\t2 10 9 prologue_end
+\tstw 29, 20(1)
+\tmr\t29, 3
+\t.loc\t2 0 9 is_stmt 0
+\tstw 30, 24(1)
+\tstw 12, 16(1)
+\tbl callee
+.Ltmp1:
+\t.loc\t2 12 1 epilogue_begin
+\tlwz 12, 16(1)
+\tmtcrf 32, 12
+\tlwz 30, 24(1)
+\tlwz 29, 20(1)
+\tlwz 0, 36(1)
+\taddi 1, 1, 32
+\tmtlr 0
+\tblr
+\t.cfi_endproc
+",
+        )
+    );
+    let (output, report) = rewritten(&source);
+    insta::assert_snapshot!(output);
+    assert_eq!(report.prologues.rewritten, 1);
+    assert_eq!(report.epilogues.rewritten, 1);
+}
+
+/// A jump table in a loaded section names `.Ltmp0`, so control may enter
+/// there and the saves after it are outside the allocation block.
+#[test]
+fn keeps_block_boundary_at_referenced_local_label() {
+    let source = format!(
+        "{}\t.section\t.rodata,\"a\",@progbits\n\t.long\t.Ltmp0\n",
+        compiled(
+            "entered_label",
+            "\tmflr 0
+\tstwu 1, -16(1)
+\tstw 0, 20(1)
+.Ltmp0:
+\tstw 30, 8(1)
+\tbl callee
+\tlwz 30, 8(1)
+\tlwz 0, 20(1)
+\taddi 1, 1, 16
+\tmtlr 0
+\tblr
+",
+        )
+    );
+    let (_, report) = rewritten(&source);
+    assert_eq!(report.prologues.rewritten, 0);
+}
+
+#[test]
+fn refuses_unwind_annotation_between_moved_instructions() {
+    let epilogue = "\tmflr 0
+\tstwu 1, -16(1)
+\tstw 0, 20(1)
+\tstw 30, 8(1)
+\tbl callee
+\tlwz 30, 8(1)
+\tlwz 0, 20(1)
+\taddi 1, 1, 16
+\t.cfi_def_cfa_offset 0
+\tmtlr 0
+\tblr
+";
+    assert_eq!(
+        epilogue_refusal(epilogue),
+        Refusal::UnwindAnnotation {
+            annotation: ".cfi_def_cfa_offset 0".to_owned()
+        }
+    );
+
+    let prologue = "\tmflr 0
+\t.cfi_register lr, r0
+\tstwu 1, -16(1)
+\tstw 0, 20(1)
+\tstw 30, 8(1)
+\tbl callee
+";
+    assert_eq!(
+        prologue_refusal(prologue),
+        Refusal::UnwindAnnotation {
+            annotation: ".cfi_register lr, r0".to_owned()
+        }
+    );
 }
 
 #[test]
