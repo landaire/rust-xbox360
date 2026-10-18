@@ -1463,6 +1463,18 @@ crate::import_thunk!(
 );
 
 crate::import_thunk!(
+    /// Finds the resource `name` of a module and stores its address and size. `name` must equal the stored name, which is at most 8 bytes, byte for byte, so case is significant. `0xFFFFFFFF` as `module` names the caller's module. Fails with `STATUS_NOT_FOUND` when the module has no such resource.
+    pub XexGetModuleSection(
+        module: u32,
+        name: *const u8,
+        address: *mut u32,
+        size: *mut u32,
+    ) -> NtStatus,
+    lib = XBOXKRNL,
+    ordinal = 0x196
+);
+
+crate::import_thunk!(
     /// Finds an export of a module by ordinal and stores its address. `ordinal` may instead be the address of a NUL-terminated export name.
     pub XexGetProcedureAddress(module: u32, ordinal: u32, address: *mut u32) -> NtStatus,
     lib = XBOXKRNL,

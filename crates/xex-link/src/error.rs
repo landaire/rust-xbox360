@@ -77,6 +77,12 @@ pub enum XexLinkError {
     UnexpectedArg(String),
     #[error("missing required input and output paths")]
     MissingPaths,
+    #[error("--resource takes NAME=PATH, got {0:?}")]
+    BadResourceArg(String),
+    #[error("resource name {0:?} must be 1 to 8 bytes without NUL")]
+    BadResourceName(String),
+    #[error("resource file {path} is too large ({len} bytes)")]
+    ResourceTooLarge { path: String, len: u64 },
 }
 
 pub(crate) fn io<T>(path: &str, result: std::result::Result<T, std::io::Error>) -> Result<T> {

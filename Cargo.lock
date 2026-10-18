@@ -439,8 +439,7 @@ checksum = "32a66949e030da00e8c7d4434b251670a91556f4144941d37452769c25d58a53"
 [[package]]
 name = "lzxc"
 version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b0cc6c8be21bf14a789c60724ba56dbe7ff2e5ac28a40135ccac3b309655b38e"
+source = "git+https://github.com/landaire/acceleration?rev=0705839ac6c4d78afb0acff321666f40e642c146#0705839ac6c4d78afb0acff321666f40e642c146"
 
 [[package]]
 name = "lzxd"
@@ -1066,8 +1065,7 @@ dependencies = [
 [[package]]
 name = "xecrypt"
 version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "441facba06a99ae64f9edc6937c0f505f3a56c242bf091c952b125df1326c5c4"
+source = "git+https://github.com/landaire/acceleration?rev=0705839ac6c4d78afb0acff321666f40e642c146#0705839ac6c4d78afb0acff321666f40e642c146"
 dependencies = [
  "aes",
  "bitflags",
@@ -1082,8 +1080,7 @@ dependencies = [
 [[package]]
 name = "xenon_types"
 version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5165d020dfa8970cf1902d71b32054994a9b4001c2c5f9ebb35b041f81f53bc4"
+source = "git+https://github.com/landaire/acceleration?rev=0705839ac6c4d78afb0acff321666f40e642c146#0705839ac6c4d78afb0acff321666f40e642c146"
 dependencies = [
  "bitflags",
  "serde",
@@ -1107,8 +1104,7 @@ dependencies = [
 [[package]]
 name = "xex2"
 version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cdac3e898642060059d786a6989039ade83d0b3c08ab19e2475f5c582961c42b"
+source = "git+https://github.com/landaire/acceleration?rev=0705839ac6c4d78afb0acff321666f40e642c146#0705839ac6c4d78afb0acff321666f40e642c146"
 dependencies = [
  "bitflags",
  "byteorder",

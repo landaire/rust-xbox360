@@ -118,7 +118,7 @@ Raw UDP/TCP works; XNet identity, QoS, DNS, and secure association do not.
 
 ## Reuse
 
-- `acceleration` (path dependency, kept out of tree to avoid committing the
+- `acceleration` (Git dependency, kept out of tree to avoid committing the
   retail AES key): `xex2::Xex2Builder` already emits a Xenia-loadable devkit
   XEX from a PE image. We extend it to populate a non-empty IMPORT_LIBRARIES
   table. Also provides LZX, page descriptors, RSA devkit signing, and shared

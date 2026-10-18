@@ -14,6 +14,7 @@ mod layout;
 mod link;
 mod manifest;
 mod pe;
+mod resources;
 
 use std::process::ExitCode;
 

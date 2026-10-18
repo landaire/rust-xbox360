@@ -34,9 +34,7 @@ the `xbox360` target. A title may therefore use `std::thread`, `std::net`,
   `tools/run-xenia.sh` invokes it.
 - For C titles: `clang` with the PowerPC target, on the `PATH` of the Buck2 daemon. Buck2 does not download it. The build of a C title fails with a message if it is absent. Run `buck2 kill` after you change `PATH`.
 
-`xex-link` builds the XEX with the `xex2` and `xenon_types` crates of the
-[acceleration](https://github.com/landaire/acceleration) project from
-crates.io.
+`xex-link` builds the XEX with the `xex2` and `xenon_types` crates of the [acceleration](https://github.com/landaire/acceleration) project, pinned to a Git commit.
 
 ## Building with Buck2
 
@@ -273,8 +271,10 @@ The host `clang` must include the PowerPC target (`clang -print-targets`). No C 
 `xex-link` reads the XEX metadata from a TOML manifest:
 
 ```
-usage: xex-link <input.elf> <output.xex> [--manifest PATH]
+usage: xex-link <input.elf> <output.xex> [--manifest PATH] [--resource NAME=PATH]...
 ```
+
+`--resource NAME=PATH` embeds a file in the image as the resource `NAME` (1 to 8 bytes, case-sensitive), which the title finds with `XexGetModuleSection`. With Buck2, pass `resources = {"NAME": "file or target"}` to `xbox360_title`.
 
 Every key is optional; an absent key, or an absent `--manifest`, takes the
 default shown. Commented keys have no default. Unknown keys are rejected.

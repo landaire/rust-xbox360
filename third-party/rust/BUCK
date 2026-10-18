@@ -3,6 +3,13 @@
 load("@prelude//rust:cargo_buildscript.bzl", "buildscript_run")
 load("@prelude//rust:cargo_package.bzl", "cargo")
 
+git_fetch(
+    name = "acceleration-2db5a2638de2d497.git",
+    repo = "https://github.com/landaire/acceleration",
+    rev = "0705839ac6c4d78afb0acff321666f40e642c146",
+    visibility = [],
+)
+
 http_archive(
     name = "aes-0.9.2.crate",
     sha256 = "f8eb277bec05f56a0e0591f155a484cbd0f4f07ff2905051a48c72f004f7ed58",
@@ -2220,24 +2227,16 @@ cargo.rust_library(
     visibility = [],
 )
 
-http_archive(
-    name = "lzxc-0.2.0.crate",
-    sha256 = "b0cc6c8be21bf14a789c60724ba56dbe7ff2e5ac28a40135ccac3b309655b38e",
-    strip_prefix = "lzxc-0.2.0",
-    urls = ["https://static.crates.io/crates/lzxc/0.2.0/download"],
-    visibility = [],
-)
-
 cargo.rust_library(
     name = "lzxc-0.2",
-    srcs = [":lzxc-0.2.0.crate"],
+    srcs = [":acceleration-2db5a2638de2d497.git"],
     crate = "lzxc",
-    crate_root = "lzxc-0.2.0.crate/src/lib.rs",
+    crate_root = "acceleration-2db5a2638de2d497/crates/lzxc/src/lib.rs",
     edition = "2024",
     env = {
         "CARGO_BIN_NAME": "lzxc",
         "CARGO_CRATE_NAME": "lzxc",
-        "CARGO_MANIFEST_DIR": "lzxc-0.2.0.crate",
+        "CARGO_MANIFEST_DIR": "acceleration-2db5a2638de2d497",
         "CARGO_PKG_AUTHORS": "Lander Brandt",
         "CARGO_PKG_DESCRIPTION": "LZX compression encoder. Produces streams decodable by the `lzxd` crate.",
         "CARGO_PKG_HOMEPAGE": "",
@@ -5322,24 +5321,16 @@ cargo.rust_library(
     visibility = [],
 )
 
-http_archive(
-    name = "xecrypt-0.4.0.crate",
-    sha256 = "441facba06a99ae64f9edc6937c0f505f3a56c242bf091c952b125df1326c5c4",
-    strip_prefix = "xecrypt-0.4.0",
-    urls = ["https://static.crates.io/crates/xecrypt/0.4.0/download"],
-    visibility = [],
-)
-
 cargo.rust_library(
     name = "xecrypt-0.4",
-    srcs = [":xecrypt-0.4.0.crate"],
+    srcs = [":acceleration-2db5a2638de2d497.git"],
     crate = "xecrypt",
-    crate_root = "xecrypt-0.4.0.crate/src/lib.rs",
+    crate_root = "acceleration-2db5a2638de2d497/crates/xecrypt/src/lib.rs",
     edition = "2024",
     env = {
         "CARGO_BIN_NAME": "xecrypt",
         "CARGO_CRATE_NAME": "xecrypt",
-        "CARGO_MANIFEST_DIR": "xecrypt-0.4.0.crate",
+        "CARGO_MANIFEST_DIR": "acceleration-2db5a2638de2d497",
         "CARGO_PKG_AUTHORS": "Lander Brandt <landerbrandt@gmail.com>",
         "CARGO_PKG_DESCRIPTION": "Xbox 360 cryptographic primitives (AES, SHA-1, RSA signature verification)",
         "CARGO_PKG_HOMEPAGE": "",
@@ -5372,24 +5363,16 @@ alias(
     visibility = ["PUBLIC"],
 )
 
-http_archive(
-    name = "xenon_types-0.4.0.crate",
-    sha256 = "5165d020dfa8970cf1902d71b32054994a9b4001c2c5f9ebb35b041f81f53bc4",
-    strip_prefix = "xenon_types-0.4.0",
-    urls = ["https://static.crates.io/crates/xenon_types/0.4.0/download"],
-    visibility = [],
-)
-
 cargo.rust_library(
     name = "xenon_types-0.4",
-    srcs = [":xenon_types-0.4.0.crate"],
+    srcs = [":acceleration-2db5a2638de2d497.git"],
     crate = "xenon_types",
-    crate_root = "xenon_types-0.4.0.crate/src/lib.rs",
+    crate_root = "acceleration-2db5a2638de2d497/crates/xenon_types/src/lib.rs",
     edition = "2024",
     env = {
         "CARGO_BIN_NAME": "xenon_types",
         "CARGO_CRATE_NAME": "xenon_types",
-        "CARGO_MANIFEST_DIR": "xenon_types-0.4.0.crate",
+        "CARGO_MANIFEST_DIR": "acceleration-2db5a2638de2d497",
         "CARGO_PKG_AUTHORS": "Lander Brandt <landerbrandt@gmail.com>",
         "CARGO_PKG_DESCRIPTION": "Common types for Xbox 360 (Xenon) file formats and protocols",
         "CARGO_PKG_HOMEPAGE": "",
@@ -5416,24 +5399,16 @@ alias(
     visibility = ["PUBLIC"],
 )
 
-http_archive(
-    name = "xex2-0.4.0.crate",
-    sha256 = "cdac3e898642060059d786a6989039ade83d0b3c08ab19e2475f5c582961c42b",
-    strip_prefix = "xex2-0.4.0",
-    urls = ["https://static.crates.io/crates/xex2/0.4.0/download"],
-    visibility = [],
-)
-
 cargo.rust_library(
     name = "xex2-0.4",
-    srcs = [":xex2-0.4.0.crate"],
+    srcs = [":acceleration-2db5a2638de2d497.git"],
     crate = "xex2",
-    crate_root = "xex2-0.4.0.crate/src/lib.rs",
+    crate_root = "acceleration-2db5a2638de2d497/crates/xex2/src/lib.rs",
     edition = "2024",
     env = {
         "CARGO_BIN_NAME": "xex2",
         "CARGO_CRATE_NAME": "xex2",
-        "CARGO_MANIFEST_DIR": "xex2-0.4.0.crate",
+        "CARGO_MANIFEST_DIR": "acceleration-2db5a2638de2d497",
         "CARGO_PKG_AUTHORS": "Lander Brandt <landerbrandt@gmail.com>",
         "CARGO_PKG_DESCRIPTION": "Parser, extractor, and rebuilder for Xbox 360 XEX2 executables",
         "CARGO_PKG_HOMEPAGE": "",

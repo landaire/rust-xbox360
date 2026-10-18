@@ -19,12 +19,13 @@ use crate::imports::prepare_direct_imports;
 use crate::layout::image_end;
 use crate::layout::page_size;
 use crate::pe;
+use crate::resources::place_resources;
 
 /// Link the ELF at `config.input` into a XEX at `config.output` and print a
 /// summary line.
 pub fn link(config: Config) -> Result<()> {
     // Loader-read data appended after the ELF image: the IAT, then the export
-    // table in a code section.
+    // table in a code section, then the resources.
     const LOADER_SECTION: [u8; 8] = *b".xload\0\0";
     const EXPORT_TABLE_SECTION: [u8; 8] = *b".xexp\0\0\0";
 
@@ -32,6 +33,7 @@ pub fn link(config: Config) -> Result<()> {
         input,
         output,
         manifest,
+        resources,
     } = config;
     let base = manifest.load_address.0;
     let page = page_size(manifest.image_flags);
@@ -92,6 +94,16 @@ pub fn link(config: Config) -> Result<()> {
         VirtualAddress(base + next_rva)
     });
 
+    // Resources start on their own page, so their pages are read-only data.
+    let resource_entries = if resources.is_empty() {
+        Vec::new()
+    } else {
+        let rva = image_end(&sections).div_ceil(page) * page;
+        let placed = place_resources(&resources, base, rva)?;
+        sections.push(placed.section);
+        placed.entries
+    };
+
     let image = pe::PeImage {
         image_base: base,
         entry_rva: entry - base,
@@ -112,7 +124,8 @@ pub fn link(config: Config) -> Result<()> {
         .base_version(manifest.base_version)
         .image_flags(manifest.image_flags)
         .module_flags(manifest.module_flags)
-        .imports(imports);
+        .imports(imports)
+        .resources(resource_entries);
     if let Some(table) = export_table {
         builder = builder.export_table(table);
     }
@@ -151,9 +164,10 @@ pub fn link(config: Config) -> Result<()> {
         None => "",
     };
     println!(
-        "wrote {output} ({} bytes), entry {entry:#010x}, base {base:#010x}, {section_count} section(s), {import_count} import(s), {} export(s){compressed}{encrypted}",
+        "wrote {output} ({} bytes), entry {entry:#010x}, base {base:#010x}, {section_count} section(s), {import_count} import(s), {} export(s), {} resource(s){compressed}{encrypted}",
         xex.len(),
         exports.len(),
+        resources.len(),
     );
 
     Ok(())

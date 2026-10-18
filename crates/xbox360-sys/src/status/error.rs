@@ -79,6 +79,7 @@ kernel_errors! {
     OrdinalNotFound = 0xc000_0138,
     UnrecognizedVolume = 0xc000_014f,
     MappedAlignment = 0xc000_0220,
+    NotFound = 0xc000_0225,
     EntryPointNotFound = 0xc000_0263,
     DeviceRemoved = 0xc000_02b6,
 }

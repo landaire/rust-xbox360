@@ -6,12 +6,16 @@ use crate::error::Result;
 use crate::error::XexLinkError;
 use crate::error::io;
 use crate::manifest::Manifest;
+use crate::resources::ResourceFile;
 
 pub const USAGE: &str = "\
-usage: xex-link <input.elf> <output.xex> [--manifest PATH]
+usage: xex-link <input.elf> <output.xex> [--manifest PATH] [--resource NAME=PATH]...
 
 options:
   --manifest PATH         TOML file of XEX metadata; every key is optional
+  --resource NAME=PATH    embed the file as the resource NAME (1 to 8 bytes,
+                          case-sensitive), which XexGetModuleSection returns;
+                          repeatable
 
 manifest keys:
   title_id = INT          title id (default 0x00000000)
@@ -39,6 +43,7 @@ pub struct Config {
     pub input: String,
     pub output: String,
     pub manifest: Manifest,
+    pub resources: Vec<ResourceFile>,
 }
 
 impl Config {
@@ -47,6 +52,7 @@ impl Config {
         let mut input = None;
         let mut output = None;
         let mut manifest_path = None;
+        let mut resources = Vec::new();
 
         let mut args = std::env::args().skip(1);
         while let Some(arg) = args.next() {
@@ -56,6 +62,12 @@ impl Config {
                         .next()
                         .ok_or_else(|| XexLinkError::MissingValue(arg.clone()).into_report())?;
                     manifest_path = Some(path);
+                }
+                "--resource" => {
+                    let value = args
+                        .next()
+                        .ok_or_else(|| XexLinkError::MissingValue(arg.clone()).into_report())?;
+                    resources.push(ResourceFile::parse(&value)?);
                 }
                 "-h" | "--help" => {
                     println!("{USAGE}");
@@ -87,6 +99,7 @@ impl Config {
             input,
             output,
             manifest,
+            resources,
         })
     }
 }

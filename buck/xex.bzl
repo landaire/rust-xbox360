@@ -58,6 +58,23 @@ _TOOL_ATTRS = {
     "_xex_link": attrs.exec_dep(providers = [RunInfo], default = "xbox360//crates/xex-link:xex-link"),
 }
 
+# Files that a XEX embeds as named resources, which the title finds with
+# `XexGetModuleSection`.
+XexResourcesInfo = provider(fields = {
+    # Resource name (1 to 8 bytes) to the file.
+    "files": provider_field(dict[str, Artifact]),
+})
+
+def _xex_resources_impl(ctx: AnalysisContext) -> list[Provider]:
+    return [DefaultInfo(other_outputs = ctx.attrs.files.values()), XexResourcesInfo(files = ctx.attrs.files)]
+
+# Resources for the `resources` of the XEX rules and `xbox360_title`: a map
+# of resource names to files or targets.
+xex_resources = rule(
+    impl = _xex_resources_impl,
+    attrs = {"files": attrs.dict(attrs.string(), attrs.source())},
+)
+
 def _write_stdout(ctx: AnalysisContext, output: Artifact, command: cmd_args, category: str):
     ctx.actions.run(
         cmd_args(
@@ -90,6 +107,9 @@ def _xex_link(ctx: AnalysisContext, image: Artifact, checks: list[Artifact]) -> 
     )
     if ctx.attrs.manifest:
         cmd.add("--manifest", ctx.attrs.manifest)
+    if ctx.attrs.resources:
+        for name, src in ctx.attrs.resources[XexResourcesInfo].files.items():
+            cmd.add("--resource", cmd_args(name, "=", src, delimiter = ""))
     ctx.actions.run(cmd, category = "xex_link")
     return xex
 
@@ -133,6 +153,9 @@ _XEX_ATTRS = {
     # defaults apply.
     "manifest": attrs.option(attrs.source(), default = None),
     "out": attrs.option(attrs.string(), default = None),
+    # An `xex_resources` target: the files that the image embeds by
+    # resource name.
+    "resources": attrs.option(attrs.dep(providers = [XexResourcesInfo]), default = None),
 } | _TOOL_ATTRS
 
 # The standard library source, for the debugger command files of Rust
@@ -554,6 +577,7 @@ def xbox360_title(
         name: str,
         link_script: str,
         manifest: str | None = None,
+        resources: dict[str, str] | str | None = None,
         std: bool | str = False,
         rewrite: bool = False,
         rustc_flags: list[str] = [],
@@ -562,7 +586,9 @@ def xbox360_title(
     """Builds `name.xex` from a Rust executable.
 
     `link_script` is the GNU ld script that places the sections; `manifest`
-    is the xex-link manifest with the title's XEX metadata. `std = True`
+    is the xex-link manifest with the title's XEX metadata. `resources`
+    maps resource names (1 to 8 bytes) to the files, or targets, that the
+    image embeds under them, or names an `xex_resources` target. `std = True`
     selects the standard library; otherwise the crate is `no_std` and may
     use core and alloc. `std = "system"` selects the standard library of
     system modules: its threads start in the system process, which keeps
@@ -580,6 +606,12 @@ def xbox360_title(
     sysroot = sysroots[std]
 
     crate = kwargs.pop("crate", name.replace("-", "_"))
+    if type(resources) == type({}):
+        xex_resources(
+            name = name + "-resources",
+            files = resources,
+        )
+        resources = ":{}-resources".format(name)
     if rewrite:
         _EXECUTABLE_RULES[sysroot](
             name = name + "-executable",
@@ -592,6 +624,7 @@ def xbox360_title(
             name = name,
             executable = ":{}-executable".format(name),
             manifest = manifest,
+            resources = resources,
             visibility = visibility,
         )
         return
@@ -617,5 +650,6 @@ def xbox360_title(
         name = name,
         elf = ":{}-elf".format(name),
         manifest = manifest,
+        resources = resources,
         visibility = visibility,
     )
