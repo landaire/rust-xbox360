@@ -15,4 +15,5 @@ panic = "abort"
 
 [profile.release]
 panic = "abort"
+debug = "full"
 opt-level = "s"

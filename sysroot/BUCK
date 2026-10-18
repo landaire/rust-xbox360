@@ -8,11 +8,14 @@ http_file(
     urls = [RUST_SRC["url"]],
 )
 
+# The library source of the standard library crates; titles' debugger
+# command files map the recorded source paths to it.
 rust_library_source(
     name = "library",
     archive = ":rust-src-archive",
     overlay = "//toolchain/rust-std-xbox360:library",
     package_dirs = sysroot_package_dirs(),
+    visibility = ["PUBLIC"],
 )
 
 sysroot_crates(library_source = ":library")

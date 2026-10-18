@@ -4,13 +4,15 @@ load("@prelude//decls:toolchains_common.bzl", "toolchains_common")
 load("@prelude//python_bootstrap:python_bootstrap.bzl", "PythonBootstrapToolchainInfo")
 load("@prelude//rust:cargo_buildscript.bzl", "buildscript_run")
 load("@prelude//rust/buildscript:buildscript_platform.bzl", "transition_alias")
-load("//buck:flags.bzl", "XBOX360_OPT_LEVEL")
+load("//buck:flags.bzl", "XBOX360_OPT_LEVEL", "XBOX360_SYSROOT_DEBUGINFO")
 load("//sysroot:crates.bzl", "SYSROOT_CRATES")
 
 # Every standard library crate is compiled like `cargo -Zbuild-std` does.
+# These flags follow the console flags of the toolchain.
 _RUSTC_FLAGS = [
     "-Zforce-unstable-if-unmarked",
     "--cap-lints=allow",
+    XBOX360_SYSROOT_DEBUGINFO,
 ]
 
 # Crates built a second time with extra rustc flags, by target name. The

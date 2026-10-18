@@ -7,4 +7,5 @@ name = "threads"
 path = "src/main.rs"
 [profile.release]
 panic = "abort"
+debug = "full"
 opt-level = "s"

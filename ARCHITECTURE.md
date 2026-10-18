@@ -30,7 +30,9 @@ helpers are required for full MS compatibility but not for a title to run.
 With `rewrite`, `xbox360-asm-rewrite` gives a title shared save/restore
 helpers of its own (`__xbox360_savegprlr_K_M`, `__xbox360_restgprlr_K_M`,
 `__xbox360_restlr`) by rewriting the LTO assembly before it is assembled
-and linked.
+and linked. The rewrite keeps the DWARF line annotations in place and
+writes call frame annotations for the moved saves, the moved restores and
+the helpers, so a debugger unwinds through them.
 
 The parameter home area is required on hardware. Console callees store
 r3-r10 into the caller's frame at sp+0x10..sp+0x50, including non-variadic
@@ -65,6 +67,18 @@ Xenia loads the XEX by reconstructing the PE image, mapping sections, and
 rewriting each kernel import thunk to a `sc 2` syscall trap dispatched to its
 host implementation. So the XEX only needs correct import records naming
 `(library, ordinal)`; Xenia supplies the kernel/Xam behavior.
+
+## Debug information
+
+Console code is compiled with `-Cdebuginfo=full` (the standard library with
+`limited`, as in the Rust release) and C with `-g`. The ELF keeps the DWARF
+and `.debug_frame` (`.eh_frame` is discarded; there is no exception
+unwinding). `xex-link` copies only loaded sections, so the debug information
+adds nothing to the XEX. Its virtual addresses are the load addresses, so the
+ELF is the debugger's symbol file without relocation. Source paths are
+relative to the project root (`-Zremap-cwd-prefix=.`); the standard library
+records `sysroot/library/...`, which the `[gdb]` and `[lldb]` command files
+map to `xbox360//sysroot:library`.
 
 ## Imports
 

@@ -22,6 +22,10 @@ not give rustc's image.
 
 Every rule fails the build if the image holds a reservation that the
 kernel loader reports as unprotected.
+
+Every rule's `[elf]` is the image with symbols and debug information, which
+xex-link leaves out of the XEX. `[gdb]` and `[lldb]` are command files that
+load it into a debugger.
 """
 
 load("@prelude//decls:toolchains_common.bzl", "toolchains_common")
@@ -89,6 +93,32 @@ def _xex_link(ctx: AnalysisContext, image: Artifact, checks: list[Artifact]) -> 
     ctx.actions.run(cmd, category = "xex_link")
     return xex
 
+def _debugger_files(ctx: AnalysisContext, elf: Artifact, library: Dependency | None) -> dict[str, list[Provider]]:
+    """`[gdb]` and `[lldb]`: command files that load `elf` and, with
+    `library` (`xbox360//sysroot:library`), find the standard library
+    source. Paths are relative to the project root, as are the source paths
+    in the debug information, so the debugger runs there."""
+    gdb = [cmd_args("file ", elf, delimiter = "")]
+    lldb = [cmd_args("target create ", elf, delimiter = "")]
+    outputs = [elf]
+
+    if library:
+        source = library[DefaultInfo].default_outputs[0]
+
+        # rustc records the library sources under the package of the
+        # sysroot crates, without the leading `./` of the remapped prefix.
+        recorded = cmd_args(library.label.path, "/library", delimiter = "", replace_regex = ("^\\./", ""))
+        gdb.append(cmd_args("set substitute-path ", recorded, " ", source, delimiter = ""))
+        lldb.append(cmd_args("settings set target.source-map ", recorded, " ", source, delimiter = ""))
+        outputs.append(source)
+
+    files = {}
+    for name, lines in [("gdb", gdb), ("lldb", lldb)]:
+        script, _ = ctx.actions.write(name + ".commands", cmd_args(lines, "", delimiter = "\n"), allow_args = True)
+        files[name] = [DefaultInfo(default_output = script, other_outputs = outputs)]
+
+    return files
+
 def _xex_impl(ctx: AnalysisContext) -> list[Provider]:
     elf = ctx.attrs.elf[DefaultInfo].default_outputs[0]
     reservations = _check_reservations(ctx, elf)
@@ -96,7 +126,7 @@ def _xex_impl(ctx: AnalysisContext) -> list[Provider]:
     return [DefaultInfo(default_output = xex, sub_targets = {
         "elf": [DefaultInfo(default_output = elf)],
         "reservations": [DefaultInfo(default_output = reservations)],
-    })]
+    } | _debugger_files(ctx, elf, ctx.attrs._sysroot_library))]
 
 _XEX_ATTRS = {
     # See xex-link's documentation for the format; without one, xex-link's
@@ -105,15 +135,21 @@ _XEX_ATTRS = {
     "out": attrs.option(attrs.string(), default = None),
 } | _TOOL_ATTRS
 
+# The standard library source, for the debugger command files of Rust
+# titles.
+_SYSROOT_LIBRARY_ATTRS = {
+    "_sysroot_library": attrs.dep(default = "xbox360//sysroot:library"),
+}
+
 # The rule configures itself, and so the executable, for the console. The
 # core variant provides core, alloc and compiler_builtins; the std variant
 # also std, and the std_system variant the std of system modules, whose
 # threads start in the system process and whose sockets open as the system.
-xex_core = rule(impl = _xex_impl, attrs = _XEX_ATTRS | {"elf": attrs.dep()}, cfg = xbox360_core_transition)
+xex_core = rule(impl = _xex_impl, attrs = _XEX_ATTRS | _SYSROOT_LIBRARY_ATTRS | {"elf": attrs.dep()}, cfg = xbox360_core_transition)
 
-xex_std = rule(impl = _xex_impl, attrs = _XEX_ATTRS | {"elf": attrs.dep()}, cfg = xbox360_std_transition)
+xex_std = rule(impl = _xex_impl, attrs = _XEX_ATTRS | _SYSROOT_LIBRARY_ATTRS | {"elf": attrs.dep()}, cfg = xbox360_std_transition)
 
-xex_std_system = rule(impl = _xex_impl, attrs = _XEX_ATTRS | {"elf": attrs.dep()}, cfg = xbox360_std_system_transition)
+xex_std_system = rule(impl = _xex_impl, attrs = _XEX_ATTRS | _SYSROOT_LIBRARY_ATTRS | {"elf": attrs.dep()}, cfg = xbox360_std_system_transition)
 
 def _xbox360_c_title_impl(ctx: AnalysisContext) -> list[Provider]:
     python = ctx.attrs._python_bootstrap_toolchain[PythonBootstrapToolchainInfo].interpreter
@@ -128,6 +164,8 @@ def _xbox360_c_title_impl(ctx: AnalysisContext) -> list[Provider]:
                 # No C library exists for the console.
                 "-ffreestanding",
                 "-fno-builtin",
+                # Debug information stays in the ELF that a debugger loads.
+                "-g",
                 ctx.attrs.compiler_flags,
                 "-c",
                 src,
@@ -159,7 +197,7 @@ def _xbox360_c_title_impl(ctx: AnalysisContext) -> list[Provider]:
     return [DefaultInfo(default_output = xex, sub_targets = {
         "elf": [DefaultInfo(default_output = image)],
         "reservations": [DefaultInfo(default_output = reservations)],
-    })]
+    } | _debugger_files(ctx, image, None))]
 
 # A XEX from C sources. clang from PATH compiles them for big-endian
 # PowerPC without a C library, and the Rust release's rust-lld links the
@@ -236,6 +274,9 @@ def _xbox360_executable_impl(ctx: AnalysisContext) -> list[Provider]:
             sysroot_externs,
             [_dependency_dirs(dep) for dep in ctx.attrs.deps + sysroot_crates],
             cmd_args(srcs, format = "--remap-path-prefix={}/=" + ctx.label.package + "/"),
+            # Debug information names files relative to the project root,
+            # as with the prelude's Rust rules.
+            "-Zremap-cwd-prefix=.",
             cmd_args(ctx.attrs._rust_lld[RunInfo], format = "-Clinker={}"),
             cmd_args(ctx.attrs.link_script, format = "-Clink-arg=-T{}"),
             "-Clink-arg=--no-rosegment",
@@ -350,6 +391,9 @@ def _assemble(ctx: AnalysisContext, assembly: Artifact) -> Artifact:
             # The CPU and features of the console flags, which the LTO unit
             # was compiled for.
             toolchain.rustc_flags,
+            # The crate has no code of its own; the assembly carries the
+            # debug information of the LTO unit.
+            "-Cdebuginfo=none",
             "--emit=obj",
             # rustc writes its intermediate files next to the output, which
             # is private to this action, rather than in the working directory.
@@ -441,15 +485,17 @@ def _xex_from_assembly_impl(ctx: AnalysisContext) -> list[Provider]:
         sub_targets["rewrite-report"] = [DefaultInfo(default_output = report)]
 
     obj = _assemble(ctx, assembly)
-    image = _link(ctx, executable, obj, "image", strip = True)
+
+    # xex-link copies only the loaded sections, so the image with symbols
+    # and debug information is also the debugger's ELF.
+    image = _link(ctx, executable, obj, "image", strip = False)
 
     if ctx.attrs.rewrite:
-        unstripped = _link(ctx, executable, obj, "image.unstripped", strip = False)
         disassembly = ctx.actions.declare_output("disassembly")
         _write_stdout(
             ctx,
             disassembly,
-            cmd_args(ctx.attrs._llvm_objdump[RunInfo], "-d", "--no-show-raw-insn", unstripped),
+            cmd_args(ctx.attrs._llvm_objdump[RunInfo], "-d", "--no-show-raw-insn", image),
             category = "disassemble",
         )
         audit = ctx.actions.declare_output("audit")
@@ -462,7 +508,6 @@ def _xex_from_assembly_impl(ctx: AnalysisContext) -> list[Provider]:
         checks.append(audit)
         sub_targets["audit"] = [DefaultInfo(default_output = audit)]
         sub_targets["disassembly"] = [DefaultInfo(default_output = disassembly)]
-        sub_targets["unstripped"] = [DefaultInfo(default_output = unstripped)]
 
     reservations = _check_reservations(ctx, image)
     checks.append(reservations)
@@ -473,6 +518,7 @@ def _xex_from_assembly_impl(ctx: AnalysisContext) -> list[Provider]:
     sub_targets["asm"] = [DefaultInfo(default_output = assembly)]
     sub_targets["elf"] = [DefaultInfo(default_output = image)]
     sub_targets["reservations"] = [DefaultInfo(default_output = reservations)]
+    sub_targets |= _debugger_files(ctx, image, ctx.attrs._sysroot_library)
     return [DefaultInfo(default_output = xex, sub_targets = sub_targets)]
 
 # A XEX assembled and linked from the assembly of an `xbox360_executable_*`
@@ -481,7 +527,7 @@ def _xex_from_assembly_impl(ctx: AnalysisContext) -> list[Provider]:
 xex_from_assembly = rule(
     impl = _xex_from_assembly_impl,
     cfg = xbox360_core_transition,
-    attrs = _XEX_ATTRS | {
+    attrs = _XEX_ATTRS | _SYSROOT_LIBRARY_ATTRS | {
         "executable": attrs.dep(providers = [Xbox360ExecutableInfo]),
         "rewrite": attrs.bool(default = True),
         "_compare_files": attrs.source(default = "xbox360//buck:compare_files.py"),

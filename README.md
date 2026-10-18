@@ -63,6 +63,23 @@ Every title build also fails if the image holds an `lwarx`, `ldarx`, `stwcx.` or
 
 For projects that generate their own build files, `xbox360_executable_core`, `xbox360_executable_std`, `xbox360_executable_std_system` and `xex_from_assembly` are the rules behind `rewrite`.
 
+### Debugging
+
+Every title keeps its symbols and debug information in its ELF, including with `rewrite`. The XEX does not carry them, so it does not grow.
+
+- `[elf]` is the ELF. Its addresses are the addresses the console loads the title at, so a debugger uses it as is.
+- `[gdb]` and `[lldb]` are command files that load the ELF and find the standard library source.
+
+On a devkit with kdnet enabled, `openxbdm-kd` from [xeedee](https://github.com/landaire/xeedee) serves the console's kernel debugger to GDB or LLDB. Titles are 32-bit PowerPC code, so start it with `--registers 32`. `--stop-on-load` holds the title after it loads and before it runs, so you can set breakpoints first. Run the debugger from the repository root, because the source paths in the debug information are relative to it:
+
+```
+openxbdm-kd gdbserver --registers 32 --stop-on-load stdhello.xex
+gdb -x "$(buck2 build //examples/stdhello:stdhello[gdb] --show-simple-output)" -ex 'target remote 127.0.0.1:2159'
+lldb -s "$(buck2 build //examples/stdhello:stdhello[lldb] --show-simple-output)" -o 'gdb-remote 127.0.0.1:2159'
+```
+
+With Cargo, the examples' release profile keeps debug information (`debug = "full"`). Load the ELF from `target/powerpc-unknown-xbox360/release`.
+
 ### Libraries
 
 Use std when you can. For what std does not cover, or for code without std, two crates are published on crates.io:
