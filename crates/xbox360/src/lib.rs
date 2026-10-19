@@ -3,8 +3,9 @@
 //!
 //! Titles that use the standard library use `std` for threads, locks, time,
 //! allocation and output. This crate covers what `std` does not provide
-//! (kernel events and spin locks, module exports, console information, the
-//! title loader, controllers, XAM user interface and content), and serves `no_std` code such as system modules and small
+//! (kernel events and spin locks, module exports, console information,
+//! directory listing, the title loader, controllers, XAM user interface and
+//! content), and serves `no_std` code such as system modules and small
 //! titles.
 //!
 //! The crate re-exports topical crates under one name: `xbox360-status`,
@@ -33,6 +34,8 @@ pub use xbox360_sync as sync;
 pub use xbox360_system::console;
 #[cfg(any(target_os = "xbox360", xbox360_docs))]
 pub use xbox360_system::debug;
+#[cfg(any(target_os = "xbox360", xbox360_docs))]
+pub use xbox360_system::directory;
 #[cfg(any(target_os = "xbox360", xbox360_docs))]
 pub use xbox360_system::module;
 #[cfg(any(target_os = "xbox360", xbox360_docs))]

@@ -4,7 +4,7 @@ Safe interfaces to the Xbox 360 kernel and XAM for Rust code built for the `powe
 
 ## tl;dr
 
-- Use `std` in titles that have it. This crate covers what `std` does not: kernel events and spin locks, module exports, console information, the title loader, controllers, message boxes and content packages.
+- Use `std` in titles that have it. This crate covers what `std` does not: kernel events and spin locks, module exports, console information, directory listing, the title loader, controllers, message boxes and content packages.
 - Use it in `no_std` code, such as system modules and small titles, for threads, locks, time, debug output and a global allocator.
 - Kernel calls return `Result<_, KernelError>`, waits return `Result<_, WaitError>`, and XAM calls return `Result<_, Win32Error>`.
 - Arguments from a closed set of values are enums. Some returned values, such as `DeviceType`, `DeviceSubtype`, `SigninState` and `Disposition`, are newtypes with a `kind()` that converts to an enum.
@@ -86,6 +86,7 @@ xbox360::title::terminate()
 | `pool` | `PoolAllocator` | `std::alloc::System` |
 | `module` | `module_handle`, `resolve_export`, `load_image` | none |
 | `console` | kernel versions, hardware flags, firmware requests | none |
+| `directory` | `Directory`, `DirectoryEntry` | `std::fs::read_dir` |
 | `title` | `terminate`, `return_to_dashboard`, `launch` | none |
 | `xam` | controllers, message boxes, content packages, sign-in state | none |
 
