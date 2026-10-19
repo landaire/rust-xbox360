@@ -701,12 +701,29 @@ crate::import_thunk!(
 );
 
 crate::import_thunk!(
+    /// Writes the media type of the disc in the console drive to `media` and its title id to
+    /// `title`. The 2.0.6717 dashboard reads media 1 as an Xbox 360 game and -1 as unknown.
+    pub XamLoaderGetMediaInfo(media: *mut u32, title: *mut u32) -> (),
+    lib = XAM,
+    ordinal = 0x1A3
+);
+
+crate::import_thunk!(
     /// Ends the running title and launches the executable at `path` (null or a NUL-terminated path) with `flags`.
     /// A null `path` returns to the dashboard.
     /// Call it only from a thread of the title process: XAM then ends the title and the calling thread with it.
     pub XamLoaderLaunchTitle(path: *const u8, flags: u32) -> !,
     lib = XAM,
     ordinal = 0x1A4
+);
+
+crate::import_thunk!(
+    /// Launches the executable at `path` with `flags`, as [`XamLoaderLaunchTitle`] does. The
+    /// purpose of `second` and `third` (NUL-terminated strings or null) is not known; the 2.0.6717
+    /// dashboard passes null for all three strings to launch the disc.
+    pub XamLoaderLaunchTitleEx(path: *const u8, second: *const u8, third: *const u8, flags: u32) -> (),
+    lib = XAM,
+    ordinal = 0x1A5
 );
 
 crate::import_thunk!(
@@ -730,6 +747,20 @@ crate::import_thunk!(
     pub safe XamLoaderGetDvdTrayState() -> u32,
     lib = XAM,
     ordinal = 0x1AA
+);
+
+crate::import_thunk!(
+    /// Returns 1 when `title` is a system title id.
+    pub safe XamIsSystemTitleId(title: u32) -> Boolean,
+    lib = XAM,
+    ordinal = 0x1BB
+);
+
+crate::import_thunk!(
+    /// Returns the title id of the title that ran before the current one, or 0.
+    pub safe XamLoaderGetPriorTitleId() -> u32,
+    lib = XAM,
+    ordinal = 0x1BE
 );
 
 crate::import_thunk!(
@@ -992,6 +1023,92 @@ crate::import_thunk!(
     pub XamContentGetDeviceData(device_id: u32, device_data: *mut u8) -> Win32ErrorCode,
     lib = XAM,
     ordinal = 0x25E
+);
+
+crate::import_thunk!(
+    /// Commits the writes to the content drive `root_name`. The 2.0.6717 dashboard flushes
+    /// `DASHUSER` after it writes `DashPreferences`. Returns a Win32 error code.
+    pub XamContentFlush(root_name: *const u8, overlapped: *mut Overlapped) -> Win32ErrorCode,
+    lib = XAM,
+    ordinal = 0x267
+);
+
+crate::import_thunk!(
+    /// Reads the header of the package of the 0x200-byte aggregate record `content` into
+    /// `buffer`, 0x93D6 bytes in the 2.0.6717 dashboard. Returns a Win32 error code.
+    pub XamContentGetMetaDataInternal(content: *const u8, buffer: *mut u8, overlapped: *mut Overlapped) -> Win32ErrorCode,
+    lib = XAM,
+    ordinal = 0x26E
+);
+
+crate::import_thunk!(
+    /// Deletes the package of the 0x200-byte aggregate record `content`. Returns a Win32 error
+    /// code, or `ERROR_IO_PENDING` with an `overlapped`.
+    pub XamContentDeleteInternal(content: *const u8, overlapped: *mut Overlapped) -> Win32ErrorCode,
+    lib = XAM,
+    ordinal = 0x270
+);
+
+import_adapter_stack!(
+    /// Opens the package of the 0x200-byte aggregate record `content` and maps it to the drive
+    /// `root_name`, as [`XamContentCreate`]. The 2.0.6717 dashboard opens existing packages
+    /// (`flags` 3) and passes 0 for `reserved` and `size`. Returns a Win32 error code.
+    /// The export takes `size` in one register.
+    pub XamContentCreateInternal(
+        root_name: *const u8,
+        content: *const u8,
+        flags: u32,
+        disposition_out: *mut u32,
+        license_mask_out: *mut u32,
+        reserved: u32,
+        size: u64,
+        overlapped: *mut Overlapped,
+    ) -> Win32ErrorCode,
+    lib = XAM,
+    ordinal = 0x271,
+    // root_name..reserved in r3-r8; size in r9:r10; overlapped at 0x78(1).
+    prologue = [
+        "rldimi 10, 9, 32, 0",
+        "mr 9, 10",
+        "lwz 10, 0x78(1)",
+    ]
+);
+
+crate::import_thunk!(
+    /// Launches the NUL-terminated executable path `image` inside the package of the 0x200-byte
+    /// aggregate record `content`. Returns 0 on success; the system then ends the caller.
+    pub XamContentLaunchImageInternal(content: *const u8, image: *const u8) -> u32,
+    lib = XAM,
+    ordinal = 0x273
+);
+
+crate::import_thunk!(
+    /// Writes the path of the package of the 0x200-byte aggregate record `content` to `path` as a
+    /// NUL-terminated string of at most `capacity` bytes. The 2.0.6717 dashboard passes 0x104
+    /// and 0 for the reserved arguments. Returns a Win32 error code.
+    pub XamContentResolveInternal(
+        content: *const u8,
+        path: *mut u8,
+        capacity: u32,
+        reserved1: u32,
+        reserved2: u32,
+        reserved3: u32,
+    ) -> Win32ErrorCode,
+    lib = XAM,
+    ordinal = 0x276
+);
+
+crate::import_thunk!(
+    /// Writes the 0x24-byte attribute block of the package of the 0x200-byte aggregate record
+    /// `content` to `attributes`; +0x4 holds the creation FILETIME. Returns a Win32 error code,
+    /// or `ERROR_IO_PENDING` with an `overlapped`.
+    pub XamContentGetAttributesInternal(
+        content: *const u8,
+        attributes: *mut u8,
+        overlapped: *mut Overlapped,
+    ) -> Win32ErrorCode,
+    lib = XAM,
+    ordinal = 0x277
 );
 
 crate::import_thunk!(
