@@ -16,11 +16,18 @@ path = "src/lib.rs"
 
 [dependencies]
 xbox360-sys = { path = "../xbox360-sys", version = "0.2.0" }
+xbox360-atomic = { path = "../xbox360-atomic", version = "0.2.0" }
+xbox360-status = { path = "../xbox360-status", version = "0.2.0" }
+xbox360-sync = { path = "../xbox360-sync", version = "0.2.0" }
+xbox360-system = { path = "../xbox360-system", version = "0.2.0" }
+xbox360-thread = { path = "../xbox360-thread", version = "0.2.0" }
+xbox360-time = { path = "../xbox360-time", version = "0.2.0" }
+xbox360-xam = { path = "../xbox360-xam", version = "0.2.0" }
 
 [features]
 # Boxed closures for `thread::Builder::spawn`. The title must provide a
 # global allocator, for example `pool::PoolAllocator`.
-alloc = []
+alloc = ["xbox360-thread/alloc"]
 
 [lints.rust]
 # `xbox360` is the target_os of the custom powerpc-unknown-xbox360 target.

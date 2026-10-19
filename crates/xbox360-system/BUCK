@@ -1,0 +1,10 @@
+rust_library(
+    name = "xbox360-system",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "xbox360_system",
+    crate_root = "src/lib.rs",
+    edition = "2024",
+    target_compatible_with = ["//platforms:xbox360"],
+    visibility = ["PUBLIC"],
+    deps = ["//crates/xbox360-sys:xbox360-sys", "//crates/xbox360-status:xbox360-status", "//crates/xbox360-thread:xbox360-thread"],
+)

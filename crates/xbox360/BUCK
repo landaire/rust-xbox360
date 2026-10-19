@@ -6,7 +6,7 @@ rust_library(
     edition = "2024",
     target_compatible_with = ["//platforms:xbox360"],
     visibility = ["PUBLIC"],
-    deps = ["//crates/xbox360-sys:xbox360-sys"],
+    deps = ["//crates/xbox360-sys:xbox360-sys", "//crates/xbox360-atomic:xbox360-atomic", "//crates/xbox360-status:xbox360-status", "//crates/xbox360-sync:xbox360-sync", "//crates/xbox360-system:xbox360-system", "//crates/xbox360-time:xbox360-time", "//crates/xbox360-xam:xbox360-xam", "//crates/xbox360-thread:xbox360-thread"],
 )
 
 # With the `alloc` feature. The title must define a global allocator.
@@ -19,5 +19,5 @@ rust_library(
     features = ["alloc"],
     target_compatible_with = ["//platforms:xbox360"],
     visibility = ["PUBLIC"],
-    deps = ["//crates/xbox360-sys:xbox360-sys"],
+    deps = ["//crates/xbox360-sys:xbox360-sys", "//crates/xbox360-atomic:xbox360-atomic", "//crates/xbox360-status:xbox360-status", "//crates/xbox360-sync:xbox360-sync", "//crates/xbox360-system:xbox360-system", "//crates/xbox360-time:xbox360-time", "//crates/xbox360-xam:xbox360-xam", "//crates/xbox360-thread:xbox360-thread-alloc"],
 )

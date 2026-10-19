@@ -1043,7 +1043,14 @@ dependencies = [
 name = "xbox360"
 version = "0.2.0"
 dependencies = [
+ "xbox360-atomic",
+ "xbox360-status",
+ "xbox360-sync",
  "xbox360-sys",
+ "xbox360-system",
+ "xbox360-thread",
+ "xbox360-time",
+ "xbox360-xam",
 ]
 
 [[package]]
@@ -1056,10 +1063,69 @@ dependencies = [
 ]
 
 [[package]]
+name = "xbox360-atomic"
+version = "0.2.0"
+dependencies = [
+ "xbox360-sys",
+]
+
+[[package]]
+name = "xbox360-status"
+version = "0.2.0"
+dependencies = [
+ "xbox360-sys",
+]
+
+[[package]]
+name = "xbox360-sync"
+version = "0.2.0"
+dependencies = [
+ "xbox360-status",
+ "xbox360-sys",
+ "xbox360-time",
+]
+
+[[package]]
 name = "xbox360-sys"
 version = "0.2.0"
 dependencies = [
  "rustc-std-workspace-core",
+]
+
+[[package]]
+name = "xbox360-system"
+version = "0.2.0"
+dependencies = [
+ "xbox360-status",
+ "xbox360-sys",
+ "xbox360-thread",
+]
+
+[[package]]
+name = "xbox360-thread"
+version = "0.2.0"
+dependencies = [
+ "xbox360-status",
+ "xbox360-sync",
+ "xbox360-sys",
+ "xbox360-time",
+]
+
+[[package]]
+name = "xbox360-time"
+version = "0.2.0"
+dependencies = [
+ "xbox360-status",
+ "xbox360-sys",
+]
+
+[[package]]
+name = "xbox360-xam"
+version = "0.2.0"
+dependencies = [
+ "xbox360-status",
+ "xbox360-sync",
+ "xbox360-sys",
 ]
 
 [[package]]
