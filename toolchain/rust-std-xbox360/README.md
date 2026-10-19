@@ -55,7 +55,9 @@ The devkit kernel traps `lwarx`/`stwcx.` that are not in the interrupt-bracketed
     mtmsrd rS, 1
   done:
 
-Key constraints: mtmsrd(disable) immediately before lwarx, the restore immediately after stwcx, and every lwarx path must reach a stwcx within a short window. `max-atomic-width` stays 32 so `target_has_atomic` is kept and `Arc`/`Mutex`/tokio still build. 64-bit atomics never reach these helpers.
+Key constraints: mtmsrd(disable) immediately before lwarx, the restore immediately after stwcx, and every lwarx path must reach a stwcx within a short window.
+
+`max-atomic-width` is 64. The CPU is 64-bit running 32-bit code, so 8-byte compare-and-swap and read-modify-write use the same protected form with `ldarx`/`stdcx.`, the values joined from and split into 32-bit register halves around the reservation. 8-byte atomic loads and stores are one aligned `ld` or `std` (single-copy atomic) between full barriers; `atomic_load`/`atomic_store` route size 8 there because LLVM would otherwise call `__atomic_load_8`/`__atomic_store_8` on a 32-bit target. `examples/atomics64` checks the operations and four threads adding across the 32-bit halves on a development kit.
 
 ## Layout
 

@@ -4,7 +4,7 @@
   "llvm-target": "powerpc-unknown-none",
   "target-endian": "big",
   "target-pointer-width": 32,
-  "max-atomic-width": 32,
+  "max-atomic-width": 64,
   "os": "xbox360",
   "env": "",
   "vendor": "unknown",

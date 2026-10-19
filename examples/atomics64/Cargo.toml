@@ -1,0 +1,16 @@
+[package]
+name = "atomics64"
+version = "0.1.0"
+edition = "2024"
+
+[[bin]]
+name = "atomics64"
+path = "src/main.rs"
+
+[profile.release]
+panic = "abort"
+debug = "full"
+opt-level = "s"
+
+[dependencies]
+xbox360 = { path = "../../crates/xbox360" }

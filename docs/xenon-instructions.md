@@ -56,9 +56,9 @@ operations.
 ## Target-spec recommendations (LLVM)
 
 - 64-bit big-endian PowerPC ISA with 32-bit pointers (ILP32). This project's
-  target is 32-bit PPC BE (`powerpc`), which works but lacks 64-bit atomics
-  (`max-atomic-width` is 32, so `AtomicU64` RMW is unavailable) and puts u64 in
-  register pairs. A future ppc64-BE-ILP32 target would gain those.
+  target is 32-bit PPC BE (`powerpc`), which puts u64 in register pairs. Its
+  `max-atomic-width` is 64: the std overlay implements 8-byte atomics with
+  protected `ldarx`/`stdcx.` and `ld`/`std`. A future ppc64-BE-ILP32 target would gain those.
 - Xenon predates VSX: enable AltiVec if used, but do NOT enable `+vsx`. Xenon has
   `isel` and the fre/frsqrte estimates (`fsel`, `fres`, `frsqrte`).
 - No `-mcpu=xenon` exists in LLVM.
