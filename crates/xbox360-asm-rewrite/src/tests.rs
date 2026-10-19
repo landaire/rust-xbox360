@@ -162,6 +162,47 @@ fn rewrites_link_only_and_multiple_epilogues() {
     assert_eq!(report.epilogues.rewritten, 2);
 }
 
+/// LLVM's long conditional branch in a function larger than the range of
+/// `bc`: an inverted branch over `b`. The target of `.+8` is the first
+/// restore of an epilogue, which the rewrite removes, so the branch must
+/// name a label rather than a byte offset.
+#[test]
+fn rewrites_function_with_relaxed_branches() {
+    let source = compiled(
+        "relaxed_branches",
+        "\tmflr 0
+\tstwu 1, -16(1)
+\tstw 0, 20(1)
+\tstw 30, 8(1)
+\tmr\t30, 3
+\tbl callee
+\tcmplwi\t3, 0
+\tbc 12, 2, .+8
+\tb .LBB0_2
+.Ltmp0:
+\t.loc\t1 7 3
+\tlwz 30, 8(1)
+\tlwz 0, 20(1)
+\taddi 1, 1, 16
+\tmtlr 0
+\tblr
+.LBB0_2:
+\tmr\t3, 30
+\tlwz 30, 8(1)
+\tlwz 0, 20(1)
+\taddi 1, 1, 16
+\tmtlr 0
+\tblr
+",
+    );
+    let (output, report) = rewritten(&source);
+    insta::assert_snapshot!(output);
+    assert_eq!(report.prologues.rewritten, 1);
+    assert_eq!(report.epilogues.rewritten, 2);
+    assert!(report.prologues.refused.is_empty());
+    assert!(report.epilogues.refused.is_empty());
+}
+
 #[test]
 fn leaves_module_assembly_unchanged() {
     // Naked functions and global assembly carry no `.Lfunc_begin` label.

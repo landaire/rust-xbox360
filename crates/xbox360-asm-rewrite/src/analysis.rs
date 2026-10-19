@@ -38,8 +38,10 @@
 //!   slot; none after `mtlr 0` accesses the link register; none after the
 //!   deallocation uses r1.
 //! - Functions with a relative branch other than `.+4`, or with several
-//!   statements on one line, are left unchanged. Inline assembly never
-//!   holds a candidate.
+//!   statements on one line, are left unchanged. [`crate::rewrite`] first
+//!   turns the relative branches whose target the text fixes into label
+//!   branches ([`crate::relative`]). Inline assembly never holds a
+//!   candidate.
 //!
 //! Debug line and call frame annotations (`.loc`, `.file`, `.cfi_*`) place
 //! nothing in the section and do not end a block, nor do local labels that

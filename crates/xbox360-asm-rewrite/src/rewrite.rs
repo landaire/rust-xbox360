@@ -2,7 +2,9 @@
 //!
 //! Compiled functions are the regions between `.Lfunc_beginN:` and
 //! `.Lfunc_endN:`. Module-level assembly, including naked functions, has no
-//! such labels and passes through unchanged.
+//! such labels and passes through unchanged. Relative branch targets in a
+//! compiled function become local labels before the analysis
+//! ([`crate::relative`]).
 //!
 //! In a function with call frame information (`.cfi_startproc`), the
 //! rewrite states the frame at every instruction it changes:
@@ -33,6 +35,8 @@ use crate::helpers;
 use crate::helpers::HelperUse;
 use crate::labels::LabelReferences;
 use crate::line::Line;
+use crate::relative;
+use crate::relative::TargetLabels;
 
 mod error;
 
@@ -138,12 +142,14 @@ pub fn rewrite(
     let mut unwind_info = false;
     let mut symbol: Option<String> = None;
     let mut open: Option<OpenFunction> = None;
+    let mut targets = TargetLabels::default();
 
     for line in input.lines() {
         let line = line.map_err(Error::Read)?;
         if let Some(function) = &mut open {
             if line.strip_suffix(':') == Some(function.end_label.as_str()) {
-                let function = open.take().expect("open function");
+                let mut function = open.take().expect("open function");
+                function.lines = targets.apply(&function.lines);
                 emit_function(
                     &function,
                     references,
@@ -219,7 +225,9 @@ fn emit_function(
     });
     *unwind_info |= has_frame_info;
 
-    let parsed = Function::new(lines, |label| references.may_be_entered(label));
+    let parsed = Function::new(lines, |label| {
+        references.may_be_entered(label) || relative::is_target_label(label)
+    });
     let analysis = parsed.analyze();
 
     report.functions += 1;
