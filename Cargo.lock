@@ -1070,6 +1070,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "xbox360-draw"
+version = "0.2.0"
+
+[[package]]
 name = "xbox360-status"
 version = "0.2.0"
 dependencies = [

@@ -1,0 +1,16 @@
+rust_library(
+    name = "xbox360-draw",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "xbox360_draw",
+    crate_root = "src/lib.rs",
+    edition = "2024",
+    visibility = ["PUBLIC"],
+)
+
+rust_test(
+    name = "xbox360-draw-test",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "xbox360_draw",
+    crate_root = "src/lib.rs",
+    edition = "2024",
+)
