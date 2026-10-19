@@ -1,0 +1,18 @@
+[package]
+name = "resources"
+version = "0.1.0"
+edition = "2024"
+
+[[bin]]
+name = "resources"
+path = "src/main.rs"
+
+[dependencies]
+xbox360 = { path = "../../crates/xbox360" }
+
+[profile.dev]
+panic = "abort"
+
+[profile.release]
+panic = "abort"
+debug = "full"

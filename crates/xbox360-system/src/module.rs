@@ -184,6 +184,56 @@ pub fn executable_module() -> ModuleHandle<'static> {
     }
 }
 
+/// The bytes of the resource `name` of `module`, which the image holds where
+/// the resource header of its XEX places them. `None` when the module has no
+/// resource of that name. Names compare byte for byte, so case matters, and a
+/// name longer than 8 bytes never matches. A resource that the header places
+/// outside the image fails with `KernelError::InvalidParameter`, because the
+/// kernel returns the stored address and size unchecked.
+pub fn resource<'a>(
+    module: ModuleHandle<'a>,
+    name: &CStr,
+) -> Result<Option<&'a [u8]>, KernelError> {
+    let mut address = 0u32;
+    let mut size = 0u32;
+
+    // SAFETY: the handle names a module loaded for its lifetime, `name` is
+    // NUL-terminated, and `address` and `size` are live local storage.
+    let status = unsafe {
+        xboxkrnl::XexGetModuleSection(module.raw(), name.as_ptr().cast(), &mut address, &mut size)
+    };
+    match status.result() {
+        Ok(()) => {}
+        Err(KernelError::NotFound) => return Ok(None),
+        Err(error) => return Err(error),
+    }
+
+    // An empty resource may store any address, including null.
+    if size == 0 {
+        return Ok(Some(&[]));
+    }
+
+    let entry = module.entry();
+    let image_start = u64::from(entry.dll_base);
+    let image_end = image_start + u64::from(entry.image_size);
+    let start = u64::from(address);
+    if start < image_start || start + u64::from(size) > image_end {
+        return Err(KernelError::InvalidParameter);
+    }
+
+    // SAFETY: the bytes lie inside the module's image, checked above, which
+    // stays mapped while the module is loaded for `'a`, and no image is
+    // larger than `isize::MAX` bytes.
+    let bytes = unsafe {
+        core::slice::from_raw_parts(
+            core::ptr::with_exposed_provenance::<u8>(address as usize),
+            size as usize,
+        )
+    };
+
+    Ok(Some(bytes))
+}
+
 /// Load the image at `path`, or add a reference to it if it is loaded.
 /// `minimum_version` rejects older images; `None` accepts any version.
 ///

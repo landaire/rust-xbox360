@@ -274,7 +274,7 @@ The host `clang` must include the PowerPC target (`clang -print-targets`). No C 
 usage: xex-link <input.elf> <output.xex> [--manifest PATH] [--resource NAME=PATH]...
 ```
 
-`--resource NAME=PATH` embeds a file in the image as the resource `NAME` (1 to 8 bytes, case-sensitive), which the title finds with `XexGetModuleSection`. With Buck2, pass `resources = {"NAME": "file or target"}` to `xbox360_title`.
+`--resource NAME=PATH` embeds a file in the image as the resource `NAME` (1 to 8 bytes, case-sensitive), which the title reads in place with `xbox360::module::resource`. With Buck2, pass `resources = {"NAME": "file or target"}` to `xbox360_title`.
 
 Every key is optional; an absent key, or an absent `--manifest`, takes the
 default shown. Commented keys have no default. Unknown keys are rejected.
@@ -316,11 +316,12 @@ multiple of the page size: 64 KB, or 4 KB with `SMALL_PAGES`.
 | `net` | No | Sends a UDP datagram. |
 | `noimp` | No | Title with no imports; writes to a memory heartbeat. |
 | `library-check` | No | Checks each module of the `xbox360` crate. |
+| `resources` | No | Reads two files that the image embeds as resources. |
 | `stdhello` | Yes | Allocation, threads, and files. |
 | `tokweb` | Yes | tokio async runtime with an HTTP request to a host server. |
 | `chello` | No | C title, built with `clang`. |
 
-Every example builds with Buck2. With Cargo, the Rust titles marked "No" other than `library-check` build with step 4, and those marked "Yes" with step 5. `hello2`, `threads`, `net` and `chello` declare their own import thunks instead of using `xbox360-sys`.
+Every example builds with Buck2. With Cargo, the Rust titles marked "No" other than `library-check` and `resources` build with step 4, and those marked "Yes" with step 5. `hello2`, `threads`, `net` and `chello` declare their own import thunks instead of using `xbox360-sys`.
 
 ## Further reading
 
