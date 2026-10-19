@@ -1516,6 +1516,23 @@ crate::import_thunk_stack!(
 );
 
 crate::import_thunk!(
+    /// MD5 of the concatenation of up to three buffers; the first `digest_size` bytes of the
+    /// digest go to `digest`. The dashboard passes null buffers of size 0 for the unused ones.
+    pub XeCryptMd5(
+        data1: *const u8,
+        size1: u32,
+        data2: *const u8,
+        size2: u32,
+        data3: *const u8,
+        size3: u32,
+        digest: *mut u8,
+        digest_size: u32,
+    ) -> (),
+    lib = XBOXKRNL,
+    ordinal = 0x187
+);
+
+crate::import_thunk!(
     /// Fills a buffer with random bytes.
     pub XeCryptRandom(buffer: *mut u8, length: u32) -> (),
     lib = XBOXKRNL,

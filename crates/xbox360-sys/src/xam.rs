@@ -830,6 +830,23 @@ crate::import_thunk!(
 );
 
 crate::import_thunk!(
+    /// Starts an I/O request to a XAM application with an extra parameter block. The 2.0.6717
+    /// dashboard queries a video license with app 0xFA, message 0x7005D, a 16-byte request and
+    /// `extended` pointing to the words 0x20080002 and 0. Without `overlapped` the call completes
+    /// before it returns; the dashboard then also takes a nonzero thread error as failure.
+    pub XMsgStartIORequestEx(
+        app: u32,
+        message: u32,
+        overlapped: *mut Overlapped,
+        buffer: *mut u8,
+        buffer_length: u32,
+        extended: *mut u32,
+    ) -> Hresult,
+    lib = XAM,
+    ordinal = 0x1FC
+);
+
+crate::import_thunk!(
     /// Returns the Win32 result of the request of `overlapped`, or `ERROR_IO_INCOMPLETE` while
     /// it runs and `wait` is false. Stores the result length at `length` when not null.
     pub XamGetOverlappedResult(overlapped: *mut Overlapped, length: *mut u32, wait: bool) -> Win32ErrorCode,
@@ -1429,6 +1446,29 @@ crate::import_thunk!(
 );
 
 crate::import_thunk!(
+    /// Removes the IPTV service registration.
+    pub XamIptvUninstall() -> Hresult,
+    lib = XAM,
+    ordinal = 0x517
+);
+
+crate::import_thunk!(
+    /// Stores the DVR storage in megabytes: the space given to recordings, the space they
+    /// use, and the largest allocation the service accepts.
+    pub XamGetDvrStorage(allocated: *mut u32, used: *mut u32, maximum: *mut u32) -> Hresult,
+    lib = XAM,
+    ordinal = 0x518
+);
+
+crate::import_thunk!(
+    /// Sets the space given to recordings, in megabytes. Completes through `overlapped`;
+    /// the 2.0.6717 dashboard treats a negative result as a failure.
+    pub XamSetDvrStorage(allocated: u32, overlapped: *mut Overlapped) -> Hresult,
+    lib = XAM,
+    ordinal = 0x519
+);
+
+crate::import_thunk!(
     /// Stores a pointer to the NUL-terminated UTF-16 name of the IPTV service at `name`.
     pub XamIptvGetServiceName(name: *mut *const u16) -> Hresult,
     lib = XAM,
@@ -1440,6 +1480,15 @@ crate::import_thunk!(
     pub safe GetProcessHeap() -> u32,
     lib = XAM,
     ordinal = 0x7D2
+);
+
+crate::import_thunk!(
+    /// Copies the background download queue of `user` to `items`, 0x250-byte records with the
+    /// package path at +0x138. `count` holds the capacity in records on entry and the number
+    /// copied on return. The 2.0.6717 dashboard passes a capacity of 6 and reads only `count`.
+    pub XamBackgroundDownloadGetItems(user_index: UserIndex, items: *mut u8, count: *mut u32) -> u32,
+    lib = XAM,
+    ordinal = 0x9C7
 );
 
 crate::import_thunk!(
