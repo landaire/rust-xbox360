@@ -93,11 +93,14 @@ impl Win32Error {
     pub const NOT_ENOUGH_MEMORY: Self = Self::known(8);
     pub const BAD_FORMAT: Self = Self::known(11);
     pub const INVALID_DATA: Self = Self::known(13);
+    /// `ERROR_NO_MORE_FILES`: an enumeration has no further entries.
+    pub const NO_MORE_FILES: Self = Self::known(18);
     pub const BAD_LENGTH: Self = Self::known(24);
     pub const WRITE_FAULT: Self = Self::known(29);
     pub const NOT_SUPPORTED: Self = Self::known(50);
     pub const INVALID_PARAMETER: Self = Self::known(87);
     pub const BUFFER_OVERFLOW: Self = Self::known(111);
+    pub const INSUFFICIENT_BUFFER: Self = Self::known(122);
     pub const INVALID_NAME: Self = Self::known(123);
     pub const MOD_NOT_FOUND: Self = Self::known(126);
     pub const PROC_NOT_FOUND: Self = Self::known(127);

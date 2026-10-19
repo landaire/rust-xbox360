@@ -4,12 +4,20 @@
 pub struct XnetOption(pub u32);
 
 impl XnetOption {
+    /// A `u64` that changes with network traffic (the 2.0.6717 dashboard
+    /// shows activity when it changes).
+    pub const ACTIVITY_COUNTER: Self = Self(0x4);
     /// Promiscuous receive.
     pub const PROMISCUOUS: Self = Self(0x1390);
     /// Link flags of the network interface.
     pub const LINK_FLAGS: Self = Self(0x1395);
     /// Reports the secondary network interface.
     pub const SECONDARY_NIC: Self = Self(0x2f00);
+    /// A `u32` state of the USB wireless adapter; bit 0 is set while it is
+    /// attached.
+    pub const WIRELESS_ADAPTER_STATE: Self = Self(0x2af9);
+    /// An `i32`: received signal strength of the wireless adapter in dBm.
+    pub const WIRELESS_RSSI: Self = Self(0x0d01_0206);
 }
 
 flags! {

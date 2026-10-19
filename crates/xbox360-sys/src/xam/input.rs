@@ -145,3 +145,64 @@ const _: () = assert!(core::mem::size_of::<Gamepad>() == 12);
 const _: () = assert!(core::mem::size_of::<InputState>() == 16);
 const _: () = assert!(core::mem::size_of::<Vibration>() == 4);
 const _: () = assert!(core::mem::size_of::<Capabilities>() == 20);
+
+flags! {
+    /// Second argument of `XamInputGetKeystrokeEx`. The low byte selects
+    /// device classes; dash passes all of them.
+    pub struct KeystrokeQuery(u32) {
+        ALL_DEVICES = 0xff,
+        /// Take a keystroke of any user and write that user's index back.
+        ANY_USER = 0x4000_0000,
+    }
+}
+
+flags! {
+    /// `XINPUT_KEYSTROKE` flags.
+    pub struct KeystrokeFlags(u16) {
+        KEY_DOWN = 0x0001,
+        KEY_UP = 0x0002,
+        REPEAT = 0x0004,
+    }
+}
+
+/// `XINPUT_KEYSTROKE`: one key transition. Controller buttons arrive as
+/// virtual keys 0x5800 and up.
+#[repr(C)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
+pub struct Keystroke {
+    pub virtual_key: u16,
+    pub unicode: u16,
+    pub flags: KeystrokeFlags,
+    pub user_index: u8,
+    pub hid_code: u8,
+}
+
+const _: () = assert!(core::mem::size_of::<Keystroke>() == 8);
+
+value_enum! {
+    /// Controller keys as `XamInputGetKeystrokeEx` reports them in
+    /// [`Keystroke::virtual_key`], those the dashboard's code names (the
+    /// openblades dash-input notes). Keyboard keys use Windows virtual key
+    /// codes, which this enum does not list.
+    #[non_exhaustive]
+    pub enum PadKey: u16 {
+        A = 0x5800,
+        B = 0x5801,
+        X = 0x5802,
+        Y = 0x5803,
+        RightShoulder = 0x5804,
+        LeftShoulder = 0x5805,
+        LeftTrigger = 0x5806,
+        RightTrigger = 0x5807,
+        DPadUp = 0x5810,
+        DPadDown = 0x5811,
+        DPadLeft = 0x5812,
+        DPadRight = 0x5813,
+        Start = 0x5814,
+        Back = 0x5815,
+        LeftStickUp = 0x5820,
+        LeftStickDown = 0x5821,
+        LeftStickRight = 0x5822,
+        LeftStickLeft = 0x5823,
+    }
+}

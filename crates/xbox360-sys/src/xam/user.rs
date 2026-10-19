@@ -54,3 +54,19 @@ impl SigninState {
         }
     }
 }
+
+/// `XamUserLogon` flags, passed on unchanged. The 2.0.6717 dashboard signs
+/// every user out with 0x13 and starts its Xbox LIVE logon test with 0xA0.
+#[repr(transparent)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct LogonFlags(u32);
+
+impl LogonFlags {
+    pub const fn from_bits_retain(bits: u32) -> Self {
+        Self(bits)
+    }
+
+    pub const fn bits(self) -> u32 {
+        self.0
+    }
+}

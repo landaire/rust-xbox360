@@ -8,6 +8,7 @@
 //! [`KernelU32`] or [`KernelU8`], which safe code can only read.
 
 mod boolean;
+mod crypt;
 mod debug;
 mod device;
 mod exception;
@@ -35,6 +36,7 @@ use crate::lib_index::XBOXKRNL;
 
 pub use self::boolean::Boolean;
 pub use self::boolean::Boolean8;
+pub use self::crypt::DesState;
 pub use self::debug::CdromChannelInformation;
 pub use self::debug::DebugMemoryStatistics;
 pub use self::debug::DebugMonitorData;
@@ -145,6 +147,10 @@ pub use self::thread::ProcessType;
 pub use self::thread::ThreadCreationFlags;
 pub use self::thread::TlsIndex;
 pub use self::video::DisplayInformation;
+pub use self::video::DisplayDiscoveryData;
+pub use self::video::DisplayModeOverrideParameters;
+pub use self::video::SystemCommandBuffer;
+pub use self::video::VideoModeInfo;
 pub use crate::status::NtStatus;
 pub use crate::status::Win32ErrorCode;
 
@@ -182,6 +188,14 @@ crate::import_thunk!(
     pub ExAllocatePoolTypeWithTag(size: u32, tag: PoolTag, pool_type: PoolType) -> u32,
     lib = XBOXKRNL,
     ordinal = 0x00B
+);
+
+crate::import_variable!(
+    /// Console game region. The dashboard 2.0.6717 compares the first 16
+    /// bits with 0x0101 to select Japanese video mode names.
+    pub safe ExConsoleGameRegion: u32,
+    lib = XBOXKRNL,
+    ordinal = 0x00C
 );
 
 crate::import_thunk!(
@@ -276,6 +290,13 @@ crate::import_thunk!(
     pub FscSetCacheElementCount(cache: u32, count: u32) -> u32,
     lib = XBOXKRNL,
     ordinal = 0x021
+);
+
+crate::import_thunk!(
+    /// Returns the AV pack value the hardware reports.
+    pub safe HalGetCurrentAVPack() -> u32,
+    lib = XBOXKRNL,
+    ordinal = 0x022
 );
 
 crate::import_thunk!(
@@ -845,6 +866,13 @@ crate::import_thunk!(
 );
 
 crate::import_thunk!(
+    /// Translates a mapped virtual address to its physical address.
+    pub MmGetPhysicalAddress(address: u32) -> u32,
+    lib = XBOXKRNL,
+    ordinal = 0x0BE
+);
+
+crate::import_thunk!(
     /// True when an address is mapped.
     pub safe MmIsAddressValid(address: u32) -> Boolean8,
     lib = XBOXKRNL,
@@ -1240,6 +1268,13 @@ crate::import_thunk!(
 );
 
 crate::import_thunk!(
+    /// Deletes the symbolic link object `link`.
+    pub ObDeleteSymbolicLink(link: *const AnsiString) -> NtStatus,
+    lib = XBOXKRNL,
+    ordinal = 0x104
+);
+
+crate::import_thunk!(
     /// Releases a reference to an object.
     pub ObDereferenceObject(object: u32) -> (),
     lib = XBOXKRNL,
@@ -1441,6 +1476,46 @@ crate::import_variable!(
 );
 
 crate::import_thunk!(
+    /// Sets the parity bit of each byte of a DES key of `size` bytes.
+    pub XeCryptDesParity(input: *const u8, size: u32, output: *mut u8) -> (),
+    lib = XBOXKRNL,
+    ordinal = 0x174
+);
+
+crate::import_thunk!(
+    /// Expands an 8-byte DES key into `state`.
+    pub XeCryptDesKey(state: *mut DesState, key: *const u8) -> (),
+    lib = XBOXKRNL,
+    ordinal = 0x175
+);
+
+crate::import_thunk!(
+    /// Encrypts (`encrypt` nonzero) or decrypts one 8-byte block in ECB mode.
+    pub XeCryptDesEcb(state: *const DesState, input: *const u8, output: *mut u8, encrypt: Boolean) -> (),
+    lib = XBOXKRNL,
+    ordinal = 0x176
+);
+
+crate::import_thunk_stack!(
+    /// HMAC-SHA1 of the concatenation of up to three buffers under `key`; the first `digest_size` bytes of
+    /// the digest go to `digest`. The dashboard passes null buffers of size 0 for the unused ones.
+    pub XeCryptHmacSha(
+        key: *const u8,
+        key_size: u32,
+        data1: *const u8,
+        size1: u32,
+        data2: *const u8,
+        size2: u32,
+        data3: *const u8,
+        size3: u32,
+        digest: *mut u8,
+        digest_size: u32,
+    ) -> (),
+    lib = XBOXKRNL,
+    ordinal = 0x182
+);
+
+crate::import_thunk!(
     /// Fills a buffer with random bytes.
     pub XeCryptRandom(buffer: *mut u8, length: u32) -> (),
     lib = XBOXKRNL,
@@ -1562,6 +1637,14 @@ crate::import_variable!(
 );
 
 crate::import_thunk!(
+    /// Makes the command processor write its ring read pointer, in dwords, to `physical` (dword
+    /// aligned). `block_log2` is the read pointer block size field of the ring control register.
+    pub VdEnableRingBufferRPtrWriteBack(physical: u32, block_log2: u32) -> (),
+    lib = XBOXKRNL,
+    ordinal = 0x1B6
+);
+
+crate::import_thunk!(
     /// Fills a display information structure.
     pub VdGetCurrentDisplayInformation(information: *mut DisplayInformation) -> (),
     lib = XBOXKRNL,
@@ -1569,10 +1652,85 @@ crate::import_thunk!(
 );
 
 crate::import_thunk!(
+    /// Copies the next of the kernel's three system command buffer descriptors to `buffer` and stores in
+    /// `identifier` the value the GPU writes to the identifier address once that buffer has run.
+    pub VdGetSystemCommandBuffer(buffer: *mut SystemCommandBuffer, identifier: *mut u32) -> (),
+    lib = XBOXKRNL,
+    ordinal = 0x1BD
+);
+
+crate::import_thunk!(
+    /// Gives the GPU command processor to the calling title: loads the CP microcode (the kernel's own
+    /// when both pointers are null), stores `shutdown_callback`/`context` for [`VdShutdownEngines`] and
+    /// resets the engines. `unused` is not read. Returns 1. Traps when the engines are already owned.
+    pub VdInitializeEngines(
+        unused: u32,
+        shutdown_callback: u32,
+        context: u32,
+        prefetch_microcode: *const u32,
+        engine_microcode: *const u32,
+    ) -> u32,
+    lib = XBOXKRNL,
+    ordinal = 0x1C2
+);
+
+crate::import_thunk!(
+    /// Points the command processor ring at `physical` with 2^(`size_log2` + 1) dwords and resets its
+    /// read and write pointers.
+    pub VdInitializeRingBuffer(physical: u32, size_log2: u32) -> (),
+    lib = XBOXKRNL,
+    ordinal = 0x1C3
+);
+
+crate::import_thunk!(
     /// Reads a video encoder register.
     pub VdReadDVERegisterUlong(register: u32) -> u32,
     lib = XBOXKRNL,
     ordinal = 0x1CB
+);
+
+import_adapter!(
+    /// Overrides the display mode; nonzero on success. `scan` is 1 for
+    /// interlaced and 2 for progressive [INFERENCE]; `parameters` may be
+    /// null. All zero arguments remove the override.
+    pub VdSetDisplayModeOverride(
+        width: u32,
+        height: u32,
+        refresh_rate: f64,
+        scan: u32,
+        parameters: *const DisplayModeOverrideParameters,
+    ) -> u32,
+    lib = XBOXKRNL,
+    ordinal = 0x1D4,
+    // Both ABIs pass the double in f1. The console ABI also reserves r5 for
+    // it, so `scan` and `parameters` move from r5:r6 to r6:r7.
+    prologue = [
+        "mr 7, 6",
+        "mr 6, 5",
+    ]
+);
+
+crate::import_thunk!(
+    /// Sets the routine the graphics interrupt handler calls with (0, `context`), or none when 0.
+    pub VdSetGraphicsInterruptCallback(callback: u32, context: u32) -> (),
+    lib = XBOXKRNL,
+    ordinal = 0x1D5
+);
+
+crate::import_thunk!(
+    /// Sets the virtual address of the dword where the GPU writes the identifier of each finished
+    /// system command buffer, or none when 0.
+    pub VdSetSystemCommandBufferGpuIdentifierAddress(address: u32) -> (),
+    lib = XBOXKRNL,
+    ordinal = 0x1D9
+);
+
+crate::import_thunk!(
+    /// Waits for the GPU to idle, returns the command processor to the kernel's own ring and calls the
+    /// shutdown callback of [`VdInitializeEngines`].
+    pub VdShutdownEngines() -> (),
+    lib = XBOXKRNL,
+    ordinal = 0x1DC
 );
 
 crate::import_thunk!(
@@ -1618,10 +1776,24 @@ crate::import_thunk!(
 );
 
 crate::import_thunk!(
+    /// Sets the speaker configuration (the XConfig audio flags value).
+    pub XAudioSetSpeakerConfig(config: u32, reserved: u32) -> u32,
+    lib = XBOXKRNL,
+    ordinal = 0x200
+);
+
+crate::import_thunk!(
     /// Fills a network interface statistics structure.
     pub NicGetStats(device_flags: u32, stats: *mut u8) -> u32,
     lib = XBOXKRNL,
     ordinal = 0x209
+);
+
+crate::import_thunk!(
+    /// State of the USB camera driver. The dashboard reads 2 as ready.
+    pub safe XUsbcamGetState() -> u32,
+    lib = XBOXKRNL,
+    ordinal = 0x21D
 );
 
 crate::import_thunk!(
@@ -1639,10 +1811,39 @@ crate::import_thunk!(
 );
 
 crate::import_thunk!(
+    /// Copies the key `key` into `buffer`; `size` holds the buffer size on entry and the key size on return.
+    /// Key 0x14 is the 12-digit console serial number.
+    pub XeKeysGetKey(key: u16, buffer: *mut u8, size: *mut u32) -> NtStatus,
+    lib = XBOXKRNL,
+    ordinal = 0x244
+);
+
+crate::import_thunk!(
     /// Stores the 5-byte console ID and, when `text` is not null, its 12-character text form.
     pub XeKeysGetConsoleID(raw: *mut u8, text: *mut u8) -> NtStatus,
     lib = XBOXKRNL,
     ordinal = 0x246
+);
+
+crate::import_thunk_stack!(
+    /// Writes a 64-dword front buffer flip into `commands`: when `system_buffer` holds a buffer, fetch
+    /// constant 15 from the 6-dword `fetch_constant` (base address virtual) and an indirect buffer call
+    /// of it, then an event write of `identifier` to `identifier_address` (virtual), padded with a NOP.
+    /// The five outputs are written only when `system_buffer` carries optional state.
+    pub VdSwap(
+        commands: *mut u32,
+        fetch_constant: *const u32,
+        identifier_address: u32,
+        system_buffer: *const SystemCommandBuffer,
+        identifier: u32,
+        out0: *mut u32,
+        out1: *mut u32,
+        out2: *mut u32,
+        out3: *mut u32,
+        out4: *mut u32,
+    ) -> (),
+    lib = XBOXKRNL,
+    ordinal = 0x25B
 );
 
 crate::import_thunk!(
@@ -1650,4 +1851,27 @@ crate::import_thunk!(
     pub safe HalIsExecutingPowerDownDpc() -> Boolean8,
     lib = XBOXKRNL,
     ordinal = 0x267
+);
+
+crate::import_thunk!(
+    /// Calls `callback` with each display mode the attached display
+    /// supports; the callback returns nonzero to continue.
+    pub VdEnumerateVideoModes(callback: u32, context: u32) -> (),
+    lib = XBOXKRNL,
+    ordinal = 0x270
+);
+
+crate::import_thunk!(
+    /// Fills `data` with the display discovery result; nonzero on success.
+    pub VdGetDisplayDiscoveryData(data: *mut DisplayDiscoveryData) -> u32,
+    lib = XBOXKRNL,
+    ordinal = 0x27E
+);
+
+crate::import_thunk!(
+    /// Replaces a 4-byte configuration setting with `(old & and_mask) | or_mask`.
+    /// The 16-bit arguments pass zero-extended in full registers.
+    pub ExReadModifyWriteXConfigSettingUlong(category: u16, setting: u16, and_mask: u32, or_mask: u32) -> NtStatus,
+    lib = XBOXKRNL,
+    ordinal = 0x2BC
 );

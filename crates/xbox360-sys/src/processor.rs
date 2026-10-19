@@ -317,6 +317,16 @@ pub fn lwsync() {
     unsafe { core::arch::asm!("lwsync", options(nostack, preserves_flags)) };
 }
 
+/// `sync`: complete every earlier load and store, including stores to
+/// write-combined or uncached memory, before any later one. A device that
+/// reads memory the processor wrote needs it before it is started.
+#[cfg(any(target_os = "xbox360", xbox360_docs))]
+#[inline(always)]
+pub fn sync() {
+    // SAFETY: a barrier has no other effect.
+    unsafe { core::arch::asm!("sync", options(nostack, preserves_flags)) };
+}
+
 /// `or 31, 31, 31`: lower the priority of this hardware thread for a spin
 /// wait.
 #[cfg(any(target_os = "xbox360", xbox360_docs))]

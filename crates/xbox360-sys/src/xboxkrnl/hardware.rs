@@ -24,8 +24,13 @@ value_enum! {
     pub enum SmcCommand: u8 {
         /// An I2C transfer.
         I2c = 0x11,
+        /// Query of the IR receiver address. The low nibble of reply byte 1
+        /// is the address.
+        QueryIrAddress = 0x16,
         /// The optical drive tray state. Byte 1 is 0x60 plus the state.
         TrayState = 0x83,
+        /// Sets the IR receiver address to the low nibble of byte 1.
+        SetIrAddress = 0x95,
     }
 }
 

@@ -167,6 +167,22 @@ macro_rules! import_thunk_stack {
     };
 }
 
+/// Define an import with at most eight 32-bit arguments whose export
+/// returns a 64-bit value in r3. SysV callers read it from the r3 (high)
+/// and r4 (low) pair, so the stub splits the register. The forms and rules
+/// of [`import_thunk!`] apply.
+#[macro_export]
+macro_rules! import_thunk_u64 {
+    ($(#[$meta:meta])* $vis:vis safe $name:ident($($arg:ident: $argty:ty),* $(,)?) -> u64, lib = $lib:expr, ordinal = $ord:expr) => {
+        $crate::__import_stub!(@check_registers $lib, $ord, [$($arg: $argty),*]);
+        $crate::__import_stub!(@registers [] ["mr 4, 3", "rldicl 3, 3, 32, 32", "lwz 0, 0x54(1)", "mtlr 0", "addi 1, 1, 0x50", "blr"] [$(#[$meta])*] [$vis] [] $name($($arg: $argty),*) -> u64, $lib, $ord);
+    };
+    ($(#[$meta:meta])* $vis:vis $name:ident($($arg:ident: $argty:ty),* $(,)?) -> u64, lib = $lib:expr, ordinal = $ord:expr) => {
+        $crate::__import_stub!(@check_registers $lib, $ord, [$($arg: $argty),*]);
+        $crate::__import_stub!(@registers [] ["mr 4, 3", "rldicl 3, 3, 32, 32", "lwz 0, 0x54(1)", "mtlr 0", "addi 1, 1, 0x50", "blr"] [$(#[$meta])*] [$vis] [unsafe] $name($($arg: $argty),*) -> u64, $lib, $ord);
+    };
+}
+
 /// Define an import whose export takes a 64-bit argument in one register.
 /// `prologue` joins the SysV register pair with `rldimi` and moves the
 /// later arguments to the registers the export reads them from. Then the
@@ -175,6 +191,18 @@ macro_rules! import_adapter {
     ($(#[$meta:meta])* $vis:vis $name:ident($($arg:ident: $argty:ty),* $(,)?) -> $ret:ty, lib = $lib:expr, ordinal = $ord:expr, prologue = [$($prologue:literal),* $(,)?]) => {
         $crate::__import_stub!(@check_record $lib, $ord);
         $crate::__import_stub!(@registers_returning [$($prologue),*] [$(#[$meta])*] [$vis] [unsafe] $name($($arg: $argty),*) -> $ret, $lib, $ord);
+    };
+}
+
+/// Define an import whose export takes a 64-bit argument in one register
+/// and a ninth argument on the stack. The stub opens the frame of
+/// [`import_thunk_stack!`] first, so `prologue` finds the SysV stack
+/// arguments at 0x78(1) and up and stores the ninth console argument in
+/// the slot at 0x50(1).
+macro_rules! import_adapter_stack {
+    ($(#[$meta:meta])* $vis:vis $name:ident($($arg:ident: $argty:ty),* $(,)?) -> $ret:ty, lib = $lib:expr, ordinal = $ord:expr, prologue = [$($prologue:literal),* $(,)?]) => {
+        $crate::__import_stub!(@check_record $lib, $ord);
+        $crate::__import_stub!(@stack_adapter [$($prologue),*] [$(#[$meta])*] [$vis] [unsafe] $name($($arg: $argty),*) -> $ret, $lib, $ord);
     };
 }
 
@@ -272,6 +300,35 @@ macro_rules! __import_stub {
                     "stw 11, 0x5c(1)",
                     "bl 2f",
                     $($epilogue,)*
+                    ::core::concat!(".pushsection \".xthunks.", ::core::module_path!(), "::", ::core::stringify!($name), "\", \"ax\""),
+                    ".balign 4",
+                    "2:",
+                    ".long {record}",
+                    ".long 0x60000000", // nop
+                    ".long 0x60000000", // nop
+                    ".long 0x4e800020", // blr
+                    ".popsection",
+                    record = const (1u32 << 24) | (($lib as u32) << 16) | ($ord as u32),
+                )
+            }
+        }
+    };
+    (@stack_adapter [$($prologue:literal),*] [$($attr:tt)*] [$vis:vis] [$($unsafety:tt)?] $name:ident($($arg:ident: $argty:ty),*) -> $ret:ty, $lib:expr, $ord:expr) => {
+        $crate::__on_console! {
+            $($attr)*
+            $(#[doc = $crate::__import_stub!(@safety_doc $unsafety)])?
+            #[unsafe(naked)]
+            $vis $($unsafety)? extern "C" fn $name($($arg: $argty),*) -> $ret {
+                ::core::arch::naked_asm!(
+                    "stwu 1, -0x70(1)",
+                    "mflr 0",
+                    "stw 0, 0x74(1)",
+                    $($prologue,)*
+                    "bl 2f",
+                    "lwz 0, 0x74(1)",
+                    "mtlr 0",
+                    "addi 1, 1, 0x70",
+                    "blr",
                     ::core::concat!(".pushsection \".xthunks.", ::core::module_path!(), "::", ::core::stringify!($name), "\", \"ax\""),
                     ".balign 4",
                     "2:",
