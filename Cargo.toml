@@ -1,4 +1,4 @@
 [workspace]
 resolver = "2"
-members = ["crates/xbox360", "crates/xbox360-atomic", "crates/xbox360-status", "crates/xbox360-sync", "crates/xbox360-system", "crates/xbox360-thread", "crates/xbox360-time", "crates/xbox360-xam", "crates/xbox360-asm-rewrite", "crates/xbox360-sys", "crates/xex-link", "third-party/rust"]
+members = ["crates/xbox360", "crates/xbox360-video", "crates/xbox360-atomic", "crates/xbox360-status", "crates/xbox360-sync", "crates/xbox360-system", "crates/xbox360-thread", "crates/xbox360-time", "crates/xbox360-xam", "crates/xbox360-asm-rewrite", "crates/xbox360-sys", "crates/xex-link", "third-party/rust"]
 exclude = ["examples/hello", "examples/blink", "tools/xbdbg", "examples/noimp", "examples/hello2", "examples/threads", "examples/net", "examples/stdhello", "examples/tokweb", "examples/library-check", "examples/resources", "examples/atomics64"]

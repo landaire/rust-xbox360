@@ -1,0 +1,19 @@
+rust_library(
+    name = "xbox360-video",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "xbox360_video",
+    crate_root = "src/lib.rs",
+    edition = "2024",
+    visibility = ["PUBLIC"],
+    deps = ["//crates/xbox360-sys:xbox360-sys"],
+)
+
+# Host tests of the tiling.
+rust_test(
+    name = "xbox360-video-test",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "xbox360_video",
+    crate_root = "src/lib.rs",
+    edition = "2024",
+    deps = ["//crates/xbox360-sys:xbox360-sys"],
+)
