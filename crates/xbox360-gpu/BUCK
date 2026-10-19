@@ -1,0 +1,19 @@
+rust_library(
+    name = "xbox360-gpu",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "xbox360_gpu",
+    crate_root = "src/lib.rs",
+    edition = "2024",
+    visibility = ["PUBLIC"],
+    deps = ["//crates/xbox360-sys:xbox360-sys", "//crates/xbox360-draw:xbox360-draw", "//crates/xbox360-video:xbox360-video"],
+)
+
+# Host tests of the shader encoder.
+rust_test(
+    name = "xbox360-gpu-test",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "xbox360_gpu",
+    crate_root = "src/lib.rs",
+    edition = "2024",
+    deps = ["//crates/xbox360-sys:xbox360-sys", "//crates/xbox360-draw:xbox360-draw", "//crates/xbox360-video:xbox360-video"],
+)

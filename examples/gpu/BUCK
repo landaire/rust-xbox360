@@ -1,0 +1,18 @@
+load("//buck:xex.bzl", "xbox360_title")
+
+xbox360_title(
+    name = "gpu",
+    srcs = glob(["src/**/*.rs"]),
+    crate_root = "src/main.rs",
+    edition = "2024",
+    link_script = "link.x",
+    manifest = "xex.toml",
+    std = True,
+    rewrite = True,
+    deps = [
+        "//crates/xbox360:xbox360",
+        "//crates/xbox360-draw:xbox360-draw",
+        "//crates/xbox360-gpu:xbox360-gpu",
+        "//crates/xbox360-video:xbox360-video",
+    ],
+)

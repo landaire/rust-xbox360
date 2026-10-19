@@ -1074,6 +1074,15 @@ name = "xbox360-draw"
 version = "0.2.0"
 
 [[package]]
+name = "xbox360-gpu"
+version = "0.2.0"
+dependencies = [
+ "xbox360-draw",
+ "xbox360-sys",
+ "xbox360-video",
+]
+
+[[package]]
 name = "xbox360-status"
 version = "0.2.0"
 dependencies = [
