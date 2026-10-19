@@ -1,0 +1,41 @@
+rust_library(
+    name = "xbox360-image",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "xbox360_image",
+    crate_root = "src/lib.rs",
+    edition = "2024",
+    visibility = ["PUBLIC"],
+    deps = [
+        "//crates/xbox360-draw:xbox360-draw",
+        "//third-party/rust:thiserror",
+        "//third-party/rust:zune-core",
+        "//third-party/rust:zune-jpeg",
+        "//third-party/rust:zune-png",
+    ],
+)
+
+rust_test(
+    name = "xbox360-image-test",
+    srcs = glob(["src/**/*.rs", "src/snapshots/*.snap"]),
+    crate = "xbox360_image",
+    crate_root = "src/lib.rs",
+    edition = "2024",
+    # insta finds the snapshots relative to the package directory.
+    env = {
+        "CARGO_MANIFEST_DIR": ".",
+        "INSTA_WORKSPACE_ROOT": ".",
+    },
+    run_env = {
+        "CARGO_MANIFEST_DIR": "crates/xbox360-image",
+    },
+    deps = [
+        "//crates/xbox360-draw:xbox360-draw",
+        "//third-party/rust:thiserror",
+        "//third-party/rust:zune-core",
+        "//third-party/rust:zune-jpeg",
+        "//third-party/rust:zune-png",
+        "//third-party/rust:insta",
+        "//third-party/rust:jpeg-encoder",
+        "//third-party/rust:png",
+    ],
+)

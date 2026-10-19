@@ -93,6 +93,40 @@ cargo.rust_library(
 )
 
 http_archive(
+    name = "adler2-2.0.1.crate",
+    sha256 = "320119579fcad9c21884f5c4861d16174d0e06250625266f50fe6898340abefa",
+    strip_prefix = "adler2-2.0.1",
+    urls = ["https://static.crates.io/crates/adler2/2.0.1/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "adler2-2",
+    srcs = [":adler2-2.0.1.crate"],
+    crate = "adler2",
+    crate_root = "adler2-2.0.1.crate/src/lib.rs",
+    edition = "2021",
+    env = {
+        "CARGO_BIN_NAME": "adler2",
+        "CARGO_CRATE_NAME": "adler2",
+        "CARGO_MANIFEST_DIR": "adler2-2.0.1.crate",
+        "CARGO_PKG_AUTHORS": "Jonas Schievink <jonasschievink@gmail.com>:oyvindln <oyvindln@users.noreply.github.com>",
+        "CARGO_PKG_DESCRIPTION": "A simple clean-room implementation of the Adler-32 checksum",
+        "CARGO_PKG_HOMEPAGE": "",
+        "CARGO_PKG_NAME": "adler2",
+        "CARGO_PKG_README": "README.md",
+        "CARGO_PKG_REPOSITORY": "https://github.com/oyvindln/adler2",
+        "CARGO_PKG_RUST_VERSION": "",
+        "CARGO_PKG_VERSION": "2.0.1",
+        "CARGO_PKG_VERSION_MAJOR": "2",
+        "CARGO_PKG_VERSION_MINOR": "0",
+        "CARGO_PKG_VERSION_PATCH": "1",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    visibility = [],
+)
+
+http_archive(
     name = "aes-0.9.2.crate",
     sha256 = "f8eb277bec05f56a0e0591f155a484cbd0f4f07ff2905051a48c72f004f7ed58",
     strip_prefix = "aes-0.9.2",
@@ -1199,6 +1233,100 @@ cargo.rust_library(
 )
 
 http_archive(
+    name = "crc32fast-1.5.2.crate",
+    sha256 = "01a7799fd6b852db0e61728dde9a204c423b44d689dbd432522543614b490e78",
+    strip_prefix = "crc32fast-1.5.2",
+    urls = ["https://static.crates.io/crates/crc32fast/1.5.2/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "crc32fast-1",
+    srcs = [":crc32fast-1.5.2.crate"],
+    crate = "crc32fast",
+    crate_root = "crc32fast-1.5.2.crate/src/lib.rs",
+    edition = "2021",
+    env = {
+        "CARGO_BIN_NAME": "crc32fast",
+        "CARGO_CRATE_NAME": "crc32fast",
+        "CARGO_MANIFEST_DIR": "crc32fast-1.5.2.crate",
+        "CARGO_PKG_AUTHORS": "Sam Rijs <srijs@airpost.net>:Alex Crichton <alex@alexcrichton.com>",
+        "CARGO_PKG_DESCRIPTION": "Fast, SIMD-accelerated CRC32 (IEEE) checksum computation",
+        "CARGO_PKG_HOMEPAGE": "",
+        "CARGO_PKG_NAME": "crc32fast",
+        "CARGO_PKG_README": "README.md",
+        "CARGO_PKG_REPOSITORY": "https://github.com/srijs/rust-crc32fast",
+        "CARGO_PKG_RUST_VERSION": "1.63",
+        "CARGO_PKG_VERSION": "1.5.2",
+        "CARGO_PKG_VERSION_MAJOR": "1",
+        "CARGO_PKG_VERSION_MINOR": "5",
+        "CARGO_PKG_VERSION_PATCH": "2",
+        "CARGO_PKG_VERSION_PRE": "",
+        "OUT_DIR": "$(location :crc32fast-1-build-script-run[out_dir])",
+    },
+    features = [
+        "default",
+        "std",
+    ],
+    rustc_flags = ["@$(location :crc32fast-1-build-script-run[rustc_flags])"],
+    visibility = [],
+    deps = [":cfg-if-1"],
+)
+
+cargo.rust_binary(
+    name = "crc32fast-1-build-script-build",
+    srcs = [":crc32fast-1.5.2.crate"],
+    crate = "build_script_build",
+    crate_root = "crc32fast-1.5.2.crate/build.rs",
+    edition = "2021",
+    env = {
+        "CARGO_BIN_NAME": "build-script-build",
+        "CARGO_CRATE_NAME": "build_script_build",
+        "CARGO_MANIFEST_DIR": "crc32fast-1.5.2.crate",
+        "CARGO_PKG_AUTHORS": "Sam Rijs <srijs@airpost.net>:Alex Crichton <alex@alexcrichton.com>",
+        "CARGO_PKG_DESCRIPTION": "Fast, SIMD-accelerated CRC32 (IEEE) checksum computation",
+        "CARGO_PKG_HOMEPAGE": "",
+        "CARGO_PKG_NAME": "crc32fast",
+        "CARGO_PKG_README": "README.md",
+        "CARGO_PKG_REPOSITORY": "https://github.com/srijs/rust-crc32fast",
+        "CARGO_PKG_RUST_VERSION": "1.63",
+        "CARGO_PKG_VERSION": "1.5.2",
+        "CARGO_PKG_VERSION_MAJOR": "1",
+        "CARGO_PKG_VERSION_MINOR": "5",
+        "CARGO_PKG_VERSION_PATCH": "2",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    features = [
+        "default",
+        "std",
+    ],
+    visibility = [],
+)
+
+buildscript_run(
+    name = "crc32fast-1-build-script-run",
+    package_name = "crc32fast",
+    buildscript_rule = ":crc32fast-1-build-script-build",
+    env = {
+        "CARGO_PKG_AUTHORS": "Sam Rijs <srijs@airpost.net>:Alex Crichton <alex@alexcrichton.com>",
+        "CARGO_PKG_DESCRIPTION": "Fast, SIMD-accelerated CRC32 (IEEE) checksum computation",
+        "CARGO_PKG_HOMEPAGE": "",
+        "CARGO_PKG_README": "README.md",
+        "CARGO_PKG_REPOSITORY": "https://github.com/srijs/rust-crc32fast",
+        "CARGO_PKG_RUST_VERSION": "1.63",
+        "CARGO_PKG_VERSION_MAJOR": "1",
+        "CARGO_PKG_VERSION_MINOR": "5",
+        "CARGO_PKG_VERSION_PATCH": "2",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    features = [
+        "default",
+        "std",
+    ],
+    version = "1.5.2",
+)
+
+http_archive(
     name = "crypto-common-0.1.7.crate",
     sha256 = "78c8292055d1c1df0cce5d180393dc8cce0abec0a7102adb6c7b1eef6016d60a",
     strip_prefix = "crypto-common-0.1.7",
@@ -1763,6 +1891,86 @@ cargo.rust_library(
 )
 
 http_archive(
+    name = "fdeflate-0.3.7.crate",
+    sha256 = "1e6853b52649d4ac5c0bd02320cddc5ba956bdb407c4b75a2c6b75bf51500f8c",
+    strip_prefix = "fdeflate-0.3.7",
+    urls = ["https://static.crates.io/crates/fdeflate/0.3.7/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "fdeflate-0.3",
+    srcs = [":fdeflate-0.3.7.crate"],
+    crate = "fdeflate",
+    crate_root = "fdeflate-0.3.7.crate/src/lib.rs",
+    edition = "2021",
+    env = {
+        "CARGO_BIN_NAME": "fdeflate",
+        "CARGO_CRATE_NAME": "fdeflate",
+        "CARGO_MANIFEST_DIR": "fdeflate-0.3.7.crate",
+        "CARGO_PKG_AUTHORS": "The image-rs Developers",
+        "CARGO_PKG_DESCRIPTION": "Fast specialized deflate implementation",
+        "CARGO_PKG_HOMEPAGE": "https://github.com/image-rs/fdeflate",
+        "CARGO_PKG_NAME": "fdeflate",
+        "CARGO_PKG_README": "README.md",
+        "CARGO_PKG_REPOSITORY": "https://github.com/image-rs/fdeflate",
+        "CARGO_PKG_RUST_VERSION": "1.67.0",
+        "CARGO_PKG_VERSION": "0.3.7",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "3",
+        "CARGO_PKG_VERSION_PATCH": "7",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    visibility = [],
+    deps = [":simd-adler32-0.3"],
+)
+
+http_archive(
+    name = "flate2-1.1.10.crate",
+    sha256 = "6e634e2e0ebac1ee034020da1ca582e17ffe4e0f5e985823721e168928136dcb",
+    strip_prefix = "flate2-1.1.10",
+    urls = ["https://static.crates.io/crates/flate2/1.1.10/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "flate2-1",
+    srcs = [":flate2-1.1.10.crate"],
+    crate = "flate2",
+    crate_root = "flate2-1.1.10.crate/src/lib.rs",
+    edition = "2018",
+    env = {
+        "CARGO_BIN_NAME": "flate2",
+        "CARGO_CRATE_NAME": "flate2",
+        "CARGO_MANIFEST_DIR": "flate2-1.1.10.crate",
+        "CARGO_PKG_AUTHORS": "Alex Crichton <alex@alexcrichton.com>:Josh Triplett <josh@joshtriplett.org>",
+        "CARGO_PKG_DESCRIPTION": "DEFLATE compression and decompression exposed as Read/BufRead/Write streams.\nSupports miniz_oxide and multiple zlib implementations. Supports zlib, gzip,\nand raw deflate streams.\n",
+        "CARGO_PKG_HOMEPAGE": "https://github.com/rust-lang/flate2-rs",
+        "CARGO_PKG_NAME": "flate2",
+        "CARGO_PKG_README": "README.md",
+        "CARGO_PKG_REPOSITORY": "https://github.com/rust-lang/flate2-rs",
+        "CARGO_PKG_RUST_VERSION": "1.67.0",
+        "CARGO_PKG_VERSION": "1.1.10",
+        "CARGO_PKG_VERSION_MAJOR": "1",
+        "CARGO_PKG_VERSION_MINOR": "1",
+        "CARGO_PKG_VERSION_PATCH": "10",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    features = [
+        "any_impl",
+        "default",
+        "miniz_oxide",
+        "runtime_detection",
+        "rust_backend",
+    ],
+    visibility = [],
+    deps = [
+        ":crc32fast-1",
+        ":miniz_oxide-0.9",
+    ],
+)
+
+http_archive(
     name = "generic-array-0.14.7.crate",
     sha256 = "85649ca51fd72272d7821adaf274ad91c288277713d9c18820d8499a7ff69e9a",
     strip_prefix = "generic-array-0.14.7",
@@ -2286,6 +2494,50 @@ cargo.rust_library(
     visibility = [],
 )
 
+alias(
+    name = "jpeg-encoder",
+    actual = ":jpeg-encoder-0.7",
+    visibility = ["PUBLIC"],
+)
+
+http_archive(
+    name = "jpeg-encoder-0.7.1.crate",
+    sha256 = "a0370574b86f7eca156b9f298392b5e69a23f8c86f3f865add60bbc2e79467a6",
+    strip_prefix = "jpeg-encoder-0.7.1",
+    urls = ["https://static.crates.io/crates/jpeg-encoder/0.7.1/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "jpeg-encoder-0.7",
+    srcs = [":jpeg-encoder-0.7.1.crate"],
+    crate = "jpeg_encoder",
+    crate_root = "jpeg-encoder-0.7.1.crate/src/lib.rs",
+    edition = "2024",
+    env = {
+        "CARGO_BIN_NAME": "jpeg_encoder",
+        "CARGO_CRATE_NAME": "jpeg_encoder",
+        "CARGO_MANIFEST_DIR": "jpeg-encoder-0.7.1.crate",
+        "CARGO_PKG_AUTHORS": "Volker Ströbel <volkerstroebel@mysurdity.de>",
+        "CARGO_PKG_DESCRIPTION": "JPEG encoder",
+        "CARGO_PKG_HOMEPAGE": "",
+        "CARGO_PKG_NAME": "jpeg-encoder",
+        "CARGO_PKG_README": "README.md",
+        "CARGO_PKG_REPOSITORY": "https://github.com/vstroebel/jpeg-encoder",
+        "CARGO_PKG_RUST_VERSION": "1.87",
+        "CARGO_PKG_VERSION": "0.7.1",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "7",
+        "CARGO_PKG_VERSION_PATCH": "1",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    features = [
+        "default",
+        "std",
+    ],
+    visibility = [],
+)
+
 http_archive(
     name = "lazy_static-1.5.0.crate",
     sha256 = "bbd2bcb4c963f2ddae06a2efc7e9f3591312473c50c6685e1f298068316e66fe",
@@ -2689,6 +2941,94 @@ cargo.rust_library(
         "std",
     ],
     visibility = [],
+)
+
+http_archive(
+    name = "miniz_oxide-0.8.9.crate",
+    sha256 = "1fa76a2c86f704bdb222d66965fb3d63269ce38518b83cb0575fca855ebb6316",
+    strip_prefix = "miniz_oxide-0.8.9",
+    urls = ["https://static.crates.io/crates/miniz_oxide/0.8.9/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "miniz_oxide-0.8",
+    srcs = [":miniz_oxide-0.8.9.crate"],
+    crate = "miniz_oxide",
+    crate_root = "miniz_oxide-0.8.9.crate/src/lib.rs",
+    edition = "2021",
+    env = {
+        "CARGO_BIN_NAME": "miniz_oxide",
+        "CARGO_CRATE_NAME": "miniz_oxide",
+        "CARGO_MANIFEST_DIR": "miniz_oxide-0.8.9.crate",
+        "CARGO_PKG_AUTHORS": "Frommi <daniil.liferenko@gmail.com>:oyvindln <oyvindln@users.noreply.github.com>:Rich Geldreich richgel99@gmail.com",
+        "CARGO_PKG_DESCRIPTION": "DEFLATE compression and decompression library rewritten in Rust based on miniz",
+        "CARGO_PKG_HOMEPAGE": "https://github.com/Frommi/miniz_oxide/tree/master/miniz_oxide",
+        "CARGO_PKG_NAME": "miniz_oxide",
+        "CARGO_PKG_README": "Readme.md",
+        "CARGO_PKG_REPOSITORY": "https://github.com/Frommi/miniz_oxide/tree/master/miniz_oxide",
+        "CARGO_PKG_RUST_VERSION": "",
+        "CARGO_PKG_VERSION": "0.8.9",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "8",
+        "CARGO_PKG_VERSION_PATCH": "9",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    features = [
+        "default",
+        "simd",
+        "simd-adler32",
+        "with-alloc",
+    ],
+    visibility = [],
+    deps = [
+        ":adler2-2",
+        ":simd-adler32-0.3",
+    ],
+)
+
+http_archive(
+    name = "miniz_oxide-0.9.1.crate",
+    sha256 = "b63fbc4a50860e98e7b2aa7804ded1db5cbc3aff9193adaff57a6931bf7c4b4c",
+    strip_prefix = "miniz_oxide-0.9.1",
+    urls = ["https://static.crates.io/crates/miniz_oxide/0.9.1/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "miniz_oxide-0.9",
+    srcs = [":miniz_oxide-0.9.1.crate"],
+    crate = "miniz_oxide",
+    crate_root = "miniz_oxide-0.9.1.crate/src/lib.rs",
+    edition = "2021",
+    env = {
+        "CARGO_BIN_NAME": "miniz_oxide",
+        "CARGO_CRATE_NAME": "miniz_oxide",
+        "CARGO_MANIFEST_DIR": "miniz_oxide-0.9.1.crate",
+        "CARGO_PKG_AUTHORS": "Frommi <daniil.liferenko@gmail.com>:oyvindln <oyvindln@users.noreply.github.com>:Rich Geldreich richgel99@gmail.com",
+        "CARGO_PKG_DESCRIPTION": "DEFLATE compression and decompression library rewritten in Rust based on miniz",
+        "CARGO_PKG_HOMEPAGE": "https://github.com/Frommi/miniz_oxide/tree/master/miniz_oxide",
+        "CARGO_PKG_NAME": "miniz_oxide",
+        "CARGO_PKG_README": "Readme.md",
+        "CARGO_PKG_REPOSITORY": "https://github.com/Frommi/miniz_oxide/tree/master/miniz_oxide",
+        "CARGO_PKG_RUST_VERSION": "",
+        "CARGO_PKG_VERSION": "0.9.1",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "9",
+        "CARGO_PKG_VERSION_PATCH": "1",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    features = [
+        "default",
+        "simd",
+        "simd-adler32",
+        "with-alloc",
+    ],
+    visibility = [],
+    deps = [
+        ":adler2-2",
+        ":simd-adler32-0.3",
+    ],
 )
 
 http_archive(
@@ -3584,6 +3924,53 @@ cargo.rust_library(
     deps = [
         ":der-0.7",
         ":spki-0.7",
+    ],
+)
+
+alias(
+    name = "png",
+    actual = ":png-0.18",
+    visibility = ["PUBLIC"],
+)
+
+http_archive(
+    name = "png-0.18.1.crate",
+    sha256 = "60769b8b31b2a9f263dae2776c37b1b28ae246943cf719eb6946a1db05128a61",
+    strip_prefix = "png-0.18.1",
+    urls = ["https://static.crates.io/crates/png/0.18.1/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "png-0.18",
+    srcs = [":png-0.18.1.crate"],
+    crate = "png",
+    crate_root = "png-0.18.1.crate/src/lib.rs",
+    edition = "2021",
+    env = {
+        "CARGO_BIN_NAME": "png",
+        "CARGO_CRATE_NAME": "png",
+        "CARGO_MANIFEST_DIR": "png-0.18.1.crate",
+        "CARGO_PKG_AUTHORS": "The image-rs Developers",
+        "CARGO_PKG_DESCRIPTION": "PNG decoding and encoding library in pure Rust",
+        "CARGO_PKG_HOMEPAGE": "",
+        "CARGO_PKG_NAME": "png",
+        "CARGO_PKG_README": "README.md",
+        "CARGO_PKG_REPOSITORY": "https://github.com/image-rs/image-png",
+        "CARGO_PKG_RUST_VERSION": "1.73",
+        "CARGO_PKG_VERSION": "0.18.1",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "18",
+        "CARGO_PKG_VERSION_PATCH": "1",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    visibility = [],
+    deps = [
+        ":bitflags-2",
+        ":crc32fast-1",
+        ":fdeflate-0.3",
+        ":flate2-1",
+        ":miniz_oxide-0.8",
     ],
 )
 
@@ -4857,6 +5244,45 @@ cargo.rust_library(
         ":digest-0.10",
         ":rand_core-0.6",
     ],
+)
+
+http_archive(
+    name = "simd-adler32-0.3.10.crate",
+    sha256 = "3a219298ac11a56ea9a6d2120044824d6f01aeb034955e7af7bc16858527deea",
+    strip_prefix = "simd-adler32-0.3.10",
+    urls = ["https://static.crates.io/crates/simd-adler32/0.3.10/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "simd-adler32-0.3",
+    srcs = [":simd-adler32-0.3.10.crate"],
+    crate = "simd_adler32",
+    crate_root = "simd-adler32-0.3.10.crate/src/lib.rs",
+    edition = "2018",
+    env = {
+        "CARGO_BIN_NAME": "simd_adler32",
+        "CARGO_CRATE_NAME": "simd_adler32",
+        "CARGO_MANIFEST_DIR": "simd-adler32-0.3.10.crate",
+        "CARGO_PKG_AUTHORS": "Marvin Countryman <me@maar.vin>",
+        "CARGO_PKG_DESCRIPTION": "A SIMD-accelerated Adler-32 hash algorithm implementation.",
+        "CARGO_PKG_HOMEPAGE": "",
+        "CARGO_PKG_NAME": "simd-adler32",
+        "CARGO_PKG_README": "README.md",
+        "CARGO_PKG_REPOSITORY": "https://github.com/mcountryman/simd-adler32",
+        "CARGO_PKG_RUST_VERSION": "",
+        "CARGO_PKG_VERSION": "0.3.10",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "3",
+        "CARGO_PKG_VERSION_PATCH": "10",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    features = [
+        "const-generics",
+        "default",
+        "std",
+    ],
+    visibility = [],
 )
 
 http_archive(
@@ -6236,4 +6662,168 @@ cargo.rust_library(
         "default",
     ],
     visibility = [],
+)
+
+alias(
+    name = "zune-core",
+    actual = ":zune-core-0.5",
+    visibility = ["PUBLIC"],
+)
+
+http_archive(
+    name = "zune-core-0.5.3.crate",
+    sha256 = "d56377fd46368984a170bc5aac5567e52ca5da874caa60bea39fcbca78fb658b",
+    strip_prefix = "zune-core-0.5.3",
+    urls = ["https://static.crates.io/crates/zune-core/0.5.3/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "zune-core-0.5",
+    srcs = [":zune-core-0.5.3.crate"],
+    crate = "zune_core",
+    crate_root = "zune-core-0.5.3.crate/src/lib.rs",
+    edition = "2021",
+    env = {
+        "CARGO_BIN_NAME": "zune_core",
+        "CARGO_CRATE_NAME": "zune_core",
+        "CARGO_MANIFEST_DIR": "zune-core-0.5.3.crate",
+        "CARGO_PKG_AUTHORS": "",
+        "CARGO_PKG_DESCRIPTION": "Core utilities for image processing in the zune family of crates",
+        "CARGO_PKG_HOMEPAGE": "",
+        "CARGO_PKG_NAME": "zune-core",
+        "CARGO_PKG_README": "README.md",
+        "CARGO_PKG_REPOSITORY": "https://github.com/etemesi254/zune-image",
+        "CARGO_PKG_RUST_VERSION": "1.75.0",
+        "CARGO_PKG_VERSION": "0.5.3",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "5",
+        "CARGO_PKG_VERSION_PATCH": "3",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    visibility = [],
+)
+
+http_archive(
+    name = "zune-inflate-0.2.54.crate",
+    sha256 = "73ab332fe2f6680068f3582b16a24f90ad7096d5d39b974d1c0aff0125116f02",
+    strip_prefix = "zune-inflate-0.2.54",
+    urls = ["https://static.crates.io/crates/zune-inflate/0.2.54/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "zune-inflate-0.2",
+    srcs = [":zune-inflate-0.2.54.crate"],
+    crate = "zune_inflate",
+    crate_root = "zune-inflate-0.2.54.crate/src/lib.rs",
+    edition = "2021",
+    env = {
+        "CARGO_BIN_NAME": "zune_inflate",
+        "CARGO_CRATE_NAME": "zune_inflate",
+        "CARGO_MANIFEST_DIR": "zune-inflate-0.2.54.crate",
+        "CARGO_PKG_AUTHORS": "",
+        "CARGO_PKG_DESCRIPTION": "A heavily optimized deflate decompressor in Pure Rust",
+        "CARGO_PKG_HOMEPAGE": "https://github.com/etemesi254/zune-image/tree/main/zune-inflate",
+        "CARGO_PKG_NAME": "zune-inflate",
+        "CARGO_PKG_README": "README.md",
+        "CARGO_PKG_REPOSITORY": "",
+        "CARGO_PKG_RUST_VERSION": "",
+        "CARGO_PKG_VERSION": "0.2.54",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "2",
+        "CARGO_PKG_VERSION_PATCH": "54",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    features = [
+        "simd-adler32",
+        "zlib",
+    ],
+    visibility = [],
+    deps = [":simd-adler32-0.3"],
+)
+
+alias(
+    name = "zune-jpeg",
+    actual = ":zune-jpeg-0.5",
+    visibility = ["PUBLIC"],
+)
+
+http_archive(
+    name = "zune-jpeg-0.5.15.crate",
+    sha256 = "27bc9d5b815bc103f142aa054f561d9187d191692ec7c2d1e2b4737f8dbd7296",
+    strip_prefix = "zune-jpeg-0.5.15",
+    urls = ["https://static.crates.io/crates/zune-jpeg/0.5.15/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "zune-jpeg-0.5",
+    srcs = [":zune-jpeg-0.5.15.crate"],
+    crate = "zune_jpeg",
+    crate_root = "zune-jpeg-0.5.15.crate/src/lib.rs",
+    edition = "2021",
+    env = {
+        "CARGO_BIN_NAME": "zune_jpeg",
+        "CARGO_CRATE_NAME": "zune_jpeg",
+        "CARGO_MANIFEST_DIR": "zune-jpeg-0.5.15.crate",
+        "CARGO_PKG_AUTHORS": "caleb <etemesicaleb@gmail.com>",
+        "CARGO_PKG_DESCRIPTION": "A fast, correct and safe jpeg decoder",
+        "CARGO_PKG_HOMEPAGE": "",
+        "CARGO_PKG_NAME": "zune-jpeg",
+        "CARGO_PKG_README": "README.md",
+        "CARGO_PKG_REPOSITORY": "https://github.com/etemesi254/zune-image/tree/dev/crates/zune-jpeg",
+        "CARGO_PKG_RUST_VERSION": "1.75.0",
+        "CARGO_PKG_VERSION": "0.5.15",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "5",
+        "CARGO_PKG_VERSION_PATCH": "15",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    visibility = [],
+    deps = [":zune-core-0.5"],
+)
+
+alias(
+    name = "zune-png",
+    actual = ":zune-png-0.5",
+    visibility = ["PUBLIC"],
+)
+
+http_archive(
+    name = "zune-png-0.5.2.crate",
+    sha256 = "5a321146329f7617ba0a5b26982cba45b7ce78163135aba78be25850aefcea80",
+    strip_prefix = "zune-png-0.5.2",
+    urls = ["https://static.crates.io/crates/zune-png/0.5.2/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "zune-png-0.5",
+    srcs = [":zune-png-0.5.2.crate"],
+    crate = "zune_png",
+    crate_root = "zune-png-0.5.2.crate/src/lib.rs",
+    edition = "2021",
+    env = {
+        "CARGO_BIN_NAME": "zune_png",
+        "CARGO_CRATE_NAME": "zune_png",
+        "CARGO_MANIFEST_DIR": "zune-png-0.5.2.crate",
+        "CARGO_PKG_AUTHORS": "caleb <etemesicaleb@gmail.com>",
+        "CARGO_PKG_DESCRIPTION": "A fast, correct and safe png decoder",
+        "CARGO_PKG_HOMEPAGE": "",
+        "CARGO_PKG_NAME": "zune-png",
+        "CARGO_PKG_README": "README.md",
+        "CARGO_PKG_REPOSITORY": "https://github.com/etemesi254/zune-image/tree/dev/zune-png",
+        "CARGO_PKG_RUST_VERSION": "1.87.0",
+        "CARGO_PKG_VERSION": "0.5.2",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "5",
+        "CARGO_PKG_VERSION_PATCH": "2",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    visibility = [],
+    deps = [
+        ":zune-core-0.5",
+        ":zune-inflate-0.2",
+    ],
 )

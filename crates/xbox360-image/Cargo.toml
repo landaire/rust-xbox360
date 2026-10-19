@@ -1,0 +1,34 @@
+[package]
+name = "xbox360-image"
+version = "0.2.0"
+edition = "2024"
+rust-version = "1.95"
+description = "PNG and JPEG decoding into xbox360-draw images"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/landaire/rust-xbox360"
+keywords = ["xbox360", "xenon", "no_std", "graphics"]
+categories = ["no-std", "graphics"]
+exclude = ["BUCK"]
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+thiserror = { version = "2", default-features = false }
+xbox360-draw = { path = "../xbox360-draw", version = "0.2.0" }
+zune-core = { version = "0.5", default-features = false }
+zune-jpeg = { version = "0.5", default-features = false }
+zune-png = { version = "0.5", default-features = false }
+
+[dev-dependencies]
+insta = "1.47"
+jpeg-encoder = "0.7"
+png = "0.18"
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(xbox360_docs)', 'cfg(target_os, values("xbox360"))'] }
+
+[package.metadata.docs.rs]
+targets = ["powerpc-unknown-linux-gnu"]
+rustc-args = ["--cfg", "xbox360_docs"]
+rustdoc-args = ["--cfg", "xbox360_docs"]
