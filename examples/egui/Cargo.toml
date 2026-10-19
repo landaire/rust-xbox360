@@ -1,0 +1,20 @@
+[package]
+name = "egui"
+version = "0.1.0"
+edition = "2024"
+
+[[bin]]
+name = "egui"
+path = "src/main.rs"
+
+[dependencies]
+xbox360 = { path = "../../crates/xbox360" }
+xbox360-draw = { path = "../../crates/xbox360-draw" }
+xbox360-egui = { path = "../../crates/xbox360-egui" }
+egui = { version = "0.32", default-features = false }
+xbox360-gpu = { path = "../../crates/xbox360-gpu" }
+xbox360-video = { path = "../../crates/xbox360-video" }
+
+[profile.release]
+panic = "abort"
+opt-level = "s"

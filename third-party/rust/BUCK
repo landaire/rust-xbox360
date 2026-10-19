@@ -11,6 +11,88 @@ git_fetch(
 )
 
 http_archive(
+    name = "ab_glyph-0.2.32.crate",
+    sha256 = "01c0457472c38ea5bd1c3b5ada5e368271cb550be7a4ca4a0b4634e9913f6cc2",
+    strip_prefix = "ab_glyph-0.2.32",
+    urls = ["https://static.crates.io/crates/ab_glyph/0.2.32/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "ab_glyph-0.2",
+    srcs = [":ab_glyph-0.2.32.crate"],
+    crate = "ab_glyph",
+    crate_root = "ab_glyph-0.2.32.crate/src/lib.rs",
+    edition = "2021",
+    env = {
+        "CARGO_BIN_NAME": "ab_glyph",
+        "CARGO_CRATE_NAME": "ab_glyph",
+        "CARGO_MANIFEST_DIR": "ab_glyph-0.2.32.crate",
+        "CARGO_PKG_AUTHORS": "Alex Butler <alexheretic@gmail.com>",
+        "CARGO_PKG_DESCRIPTION": "API for loading, scaling, positioning and rasterizing OpenType font glyphs.",
+        "CARGO_PKG_HOMEPAGE": "",
+        "CARGO_PKG_NAME": "ab_glyph",
+        "CARGO_PKG_README": "README.md",
+        "CARGO_PKG_REPOSITORY": "https://github.com/alexheretic/ab-glyph",
+        "CARGO_PKG_RUST_VERSION": "",
+        "CARGO_PKG_VERSION": "0.2.32",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "2",
+        "CARGO_PKG_VERSION_PATCH": "32",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    features = [
+        "default",
+        "gvar-alloc",
+        "std",
+        "variable-fonts",
+    ],
+    visibility = [],
+    deps = [
+        ":ab_glyph_rasterizer-0.1",
+        ":owned_ttf_parser-0.25",
+    ],
+)
+
+http_archive(
+    name = "ab_glyph_rasterizer-0.1.10.crate",
+    sha256 = "366ffbaa4442f4684d91e2cd7c5ea7c4ed8add41959a31447066e279e432b618",
+    strip_prefix = "ab_glyph_rasterizer-0.1.10",
+    urls = ["https://static.crates.io/crates/ab_glyph_rasterizer/0.1.10/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "ab_glyph_rasterizer-0.1",
+    srcs = [":ab_glyph_rasterizer-0.1.10.crate"],
+    crate = "ab_glyph_rasterizer",
+    crate_root = "ab_glyph_rasterizer-0.1.10.crate/src/lib.rs",
+    edition = "2021",
+    env = {
+        "CARGO_BIN_NAME": "ab_glyph_rasterizer",
+        "CARGO_CRATE_NAME": "ab_glyph_rasterizer",
+        "CARGO_MANIFEST_DIR": "ab_glyph_rasterizer-0.1.10.crate",
+        "CARGO_PKG_AUTHORS": "Alex Butler <alexheretic@gmail.com>",
+        "CARGO_PKG_DESCRIPTION": "Coverage rasterization for lines, quadratic & cubic beziers",
+        "CARGO_PKG_HOMEPAGE": "",
+        "CARGO_PKG_NAME": "ab_glyph_rasterizer",
+        "CARGO_PKG_README": "README.md",
+        "CARGO_PKG_REPOSITORY": "https://github.com/alexheretic/ab-glyph",
+        "CARGO_PKG_RUST_VERSION": "",
+        "CARGO_PKG_VERSION": "0.1.10",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "1",
+        "CARGO_PKG_VERSION_PATCH": "10",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    features = [
+        "default",
+        "std",
+    ],
+    visibility = [],
+)
+
+http_archive(
     name = "aes-0.9.2.crate",
     sha256 = "f8eb277bec05f56a0e0591f155a484cbd0f4f07ff2905051a48c72f004f7ed58",
     strip_prefix = "aes-0.9.2",
@@ -46,6 +128,49 @@ cargo.rust_library(
         ":cipher-0.5",
         ":cpubits-0.1",
         ":cpufeatures-0.3",
+    ],
+)
+
+http_archive(
+    name = "ahash-0.8.12.crate",
+    sha256 = "5a15f179cd60c4584b8a8c596927aadc462e27f2ca70c04e0071964a73ba7a75",
+    strip_prefix = "ahash-0.8.12",
+    urls = ["https://static.crates.io/crates/ahash/0.8.12/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "ahash-0.8",
+    srcs = [":ahash-0.8.12.crate"],
+    crate = "ahash",
+    crate_root = "ahash-0.8.12.crate/src/lib.rs",
+    edition = "2018",
+    env = {
+        "CARGO_BIN_NAME": "ahash",
+        "CARGO_CRATE_NAME": "ahash",
+        "CARGO_MANIFEST_DIR": "ahash-0.8.12.crate",
+        "CARGO_PKG_AUTHORS": "Tom Kaitchuck <Tom.Kaitchuck@gmail.com>",
+        "CARGO_PKG_DESCRIPTION": "A non-cryptographic hash function using AES-NI for high performance",
+        "CARGO_PKG_HOMEPAGE": "",
+        "CARGO_PKG_NAME": "ahash",
+        "CARGO_PKG_README": "README.md",
+        "CARGO_PKG_REPOSITORY": "https://github.com/tkaitchuck/ahash",
+        "CARGO_PKG_RUST_VERSION": "1.60.0",
+        "CARGO_PKG_VERSION": "0.8.12",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "8",
+        "CARGO_PKG_VERSION_PATCH": "12",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    features = [
+        "no-rng",
+        "std",
+    ],
+    visibility = [],
+    deps = [
+        ":cfg-if-1",
+        ":once_cell-1",
+        ":zerocopy-0.8",
     ],
 )
 
@@ -1289,6 +1414,126 @@ cargo.rust_library(
 )
 
 http_archive(
+    name = "ecolor-0.32.3.crate",
+    sha256 = "94bdf37f8d5bd9aa7f753573fdda9cf7343afa73dd28d7bfe9593bd9798fc07e",
+    strip_prefix = "ecolor-0.32.3",
+    urls = ["https://static.crates.io/crates/ecolor/0.32.3/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "ecolor-0.32",
+    srcs = [":ecolor-0.32.3.crate"],
+    crate = "ecolor",
+    crate_root = "ecolor-0.32.3.crate/src/lib.rs",
+    edition = "2024",
+    env = {
+        "CARGO_BIN_NAME": "ecolor",
+        "CARGO_CRATE_NAME": "ecolor",
+        "CARGO_MANIFEST_DIR": "ecolor-0.32.3.crate",
+        "CARGO_PKG_AUTHORS": "Emil Ernerfeldt <emil.ernerfeldt@gmail.com>:Andreas Reich <reichandreas@gmx.de>",
+        "CARGO_PKG_DESCRIPTION": "Color structs and color conversion utilities",
+        "CARGO_PKG_HOMEPAGE": "https://github.com/emilk/egui",
+        "CARGO_PKG_NAME": "ecolor",
+        "CARGO_PKG_README": "README.md",
+        "CARGO_PKG_REPOSITORY": "https://github.com/emilk/egui",
+        "CARGO_PKG_RUST_VERSION": "1.85",
+        "CARGO_PKG_VERSION": "0.32.3",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "32",
+        "CARGO_PKG_VERSION_PATCH": "3",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    visibility = [],
+    deps = [":emath-0.32"],
+)
+
+alias(
+    name = "egui",
+    actual = ":egui-0.32",
+    visibility = ["PUBLIC"],
+)
+
+http_archive(
+    name = "egui-0.32.3.crate",
+    sha256 = "5d5d0306cd61ca75e29682926d71f2390160247f135965242e904a636f51c0dc",
+    strip_prefix = "egui-0.32.3",
+    urls = ["https://static.crates.io/crates/egui/0.32.3/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "egui-0.32",
+    srcs = [":egui-0.32.3.crate"],
+    crate = "egui",
+    crate_root = "egui-0.32.3.crate/src/lib.rs",
+    edition = "2024",
+    env = {
+        "CARGO_BIN_NAME": "egui",
+        "CARGO_CRATE_NAME": "egui",
+        "CARGO_MANIFEST_DIR": "egui-0.32.3.crate",
+        "CARGO_PKG_AUTHORS": "Emil Ernerfeldt <emil.ernerfeldt@gmail.com>",
+        "CARGO_PKG_DESCRIPTION": "An easy-to-use immediate mode GUI that runs on both web and native",
+        "CARGO_PKG_HOMEPAGE": "https://github.com/emilk/egui",
+        "CARGO_PKG_NAME": "egui",
+        "CARGO_PKG_README": "README.md",
+        "CARGO_PKG_REPOSITORY": "https://github.com/emilk/egui",
+        "CARGO_PKG_RUST_VERSION": "1.85",
+        "CARGO_PKG_VERSION": "0.32.3",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "32",
+        "CARGO_PKG_VERSION_PATCH": "3",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    features = ["default_fonts"],
+    visibility = [],
+    deps = [
+        ":ahash-0.8",
+        ":bitflags-2",
+        ":emath-0.32",
+        ":epaint-0.32",
+        ":nohash-hasher-0.2",
+        ":profiling-1",
+        ":smallvec-1",
+        ":unicode-segmentation-1",
+    ],
+)
+
+http_archive(
+    name = "emath-0.32.3.crate",
+    sha256 = "45fd7bc25f769a3c198fe1cf183124bf4de3bd62ef7b4f1eaf6b08711a3af8db",
+    strip_prefix = "emath-0.32.3",
+    urls = ["https://static.crates.io/crates/emath/0.32.3/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "emath-0.32",
+    srcs = [":emath-0.32.3.crate"],
+    crate = "emath",
+    crate_root = "emath-0.32.3.crate/src/lib.rs",
+    edition = "2024",
+    env = {
+        "CARGO_BIN_NAME": "emath",
+        "CARGO_CRATE_NAME": "emath",
+        "CARGO_MANIFEST_DIR": "emath-0.32.3.crate",
+        "CARGO_PKG_AUTHORS": "Emil Ernerfeldt <emil.ernerfeldt@gmail.com>",
+        "CARGO_PKG_DESCRIPTION": "Minimal 2D math library for GUI work",
+        "CARGO_PKG_HOMEPAGE": "https://github.com/emilk/egui/tree/main/crates/emath",
+        "CARGO_PKG_NAME": "emath",
+        "CARGO_PKG_README": "README.md",
+        "CARGO_PKG_REPOSITORY": "https://github.com/emilk/egui/tree/main/crates/emath",
+        "CARGO_PKG_RUST_VERSION": "1.85",
+        "CARGO_PKG_VERSION": "0.32.3",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "32",
+        "CARGO_PKG_VERSION_PATCH": "3",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    visibility = [],
+)
+
+http_archive(
     name = "encode_unicode-1.0.0.crate",
     sha256 = "34aa73646ffb006b8f5147f3dc182bd4bcb190227ce861fc4a4844bf8e3cb2c0",
     strip_prefix = "encode_unicode-1.0.0",
@@ -1323,6 +1568,88 @@ cargo.rust_library(
         "default",
         "std",
     ],
+    visibility = [],
+)
+
+http_archive(
+    name = "epaint-0.32.3.crate",
+    sha256 = "63adcea970b7a13094fe97a36ab9307c35a750f9e24bf00bb7ef3de573e0fddb",
+    strip_prefix = "epaint-0.32.3",
+    urls = ["https://static.crates.io/crates/epaint/0.32.3/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "epaint-0.32",
+    srcs = [":epaint-0.32.3.crate"],
+    crate = "epaint",
+    crate_root = "epaint-0.32.3.crate/src/lib.rs",
+    edition = "2024",
+    env = {
+        "CARGO_BIN_NAME": "epaint",
+        "CARGO_CRATE_NAME": "epaint",
+        "CARGO_MANIFEST_DIR": "epaint-0.32.3.crate",
+        "CARGO_PKG_AUTHORS": "Emil Ernerfeldt <emil.ernerfeldt@gmail.com>",
+        "CARGO_PKG_DESCRIPTION": "Minimal 2D graphics library for GUI work",
+        "CARGO_PKG_HOMEPAGE": "https://github.com/emilk/egui/tree/main/crates/epaint",
+        "CARGO_PKG_NAME": "epaint",
+        "CARGO_PKG_README": "README.md",
+        "CARGO_PKG_REPOSITORY": "https://github.com/emilk/egui/tree/main/crates/epaint",
+        "CARGO_PKG_RUST_VERSION": "1.85",
+        "CARGO_PKG_VERSION": "0.32.3",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "32",
+        "CARGO_PKG_VERSION_PATCH": "3",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    features = [
+        "default_fonts",
+        "epaint_default_fonts",
+    ],
+    visibility = [],
+    deps = [
+        ":ab_glyph-0.2",
+        ":ahash-0.8",
+        ":ecolor-0.32",
+        ":emath-0.32",
+        ":epaint_default_fonts-0.32",
+        ":nohash-hasher-0.2",
+        ":parking_lot-0.12",
+        ":profiling-1",
+    ],
+)
+
+http_archive(
+    name = "epaint_default_fonts-0.32.3.crate",
+    sha256 = "1537accc50c9cab5a272c39300bdd0dd5dca210f6e5e8d70be048df9596e7ca2",
+    strip_prefix = "epaint_default_fonts-0.32.3",
+    urls = ["https://static.crates.io/crates/epaint_default_fonts/0.32.3/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "epaint_default_fonts-0.32",
+    srcs = [":epaint_default_fonts-0.32.3.crate"],
+    crate = "epaint_default_fonts",
+    crate_root = "epaint_default_fonts-0.32.3.crate/src/lib.rs",
+    edition = "2024",
+    env = {
+        "CARGO_BIN_NAME": "epaint_default_fonts",
+        "CARGO_CRATE_NAME": "epaint_default_fonts",
+        "CARGO_MANIFEST_DIR": "epaint_default_fonts-0.32.3.crate",
+        "CARGO_PKG_AUTHORS": "Emil Ernerfeldt <emil.ernerfeldt@gmail.com>",
+        "CARGO_PKG_DESCRIPTION": "Default fonts for use in epaint / egui",
+        "CARGO_PKG_HOMEPAGE": "https://github.com/emilk/egui/tree/main/crates/epaint_default_fonts",
+        "CARGO_PKG_NAME": "epaint_default_fonts",
+        "CARGO_PKG_README": "README.md",
+        "CARGO_PKG_REPOSITORY": "https://github.com/emilk/egui/tree/main/crates/epaint_default_fonts",
+        "CARGO_PKG_RUST_VERSION": "1.85",
+        "CARGO_PKG_VERSION": "0.32.3",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "32",
+        "CARGO_PKG_VERSION_PATCH": "3",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
     visibility = [],
 )
 
@@ -2227,6 +2554,45 @@ cargo.rust_library(
     visibility = [],
 )
 
+http_archive(
+    name = "lock_api-0.4.14.crate",
+    sha256 = "224399e74b87b5f3557511d98dff8b14089b3dadafcab6bb93eab67d3aace965",
+    strip_prefix = "lock_api-0.4.14",
+    urls = ["https://static.crates.io/crates/lock_api/0.4.14/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "lock_api-0.4",
+    srcs = [":lock_api-0.4.14.crate"],
+    crate = "lock_api",
+    crate_root = "lock_api-0.4.14.crate/src/lib.rs",
+    edition = "2021",
+    env = {
+        "CARGO_BIN_NAME": "lock_api",
+        "CARGO_CRATE_NAME": "lock_api",
+        "CARGO_MANIFEST_DIR": "lock_api-0.4.14.crate",
+        "CARGO_PKG_AUTHORS": "Amanieu d'Antras <amanieu@gmail.com>",
+        "CARGO_PKG_DESCRIPTION": "Wrappers to create fully-featured Mutex and RwLock types. Compatible with no_std.",
+        "CARGO_PKG_HOMEPAGE": "",
+        "CARGO_PKG_NAME": "lock_api",
+        "CARGO_PKG_README": "",
+        "CARGO_PKG_REPOSITORY": "https://github.com/Amanieu/parking_lot",
+        "CARGO_PKG_RUST_VERSION": "1.71.0",
+        "CARGO_PKG_VERSION": "0.4.14",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "4",
+        "CARGO_PKG_VERSION_PATCH": "14",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    features = [
+        "atomic_usize",
+        "default",
+    ],
+    visibility = [],
+    deps = [":scopeguard-1"],
+)
+
 cargo.rust_library(
     name = "lzxc-0.2",
     srcs = [":acceleration-2db5a2638de2d497.git"],
@@ -2320,6 +2686,44 @@ cargo.rust_library(
     },
     features = [
         "alloc",
+        "std",
+    ],
+    visibility = [],
+)
+
+http_archive(
+    name = "nohash-hasher-0.2.0.crate",
+    sha256 = "2bf50223579dc7cdcfb3bfcacf7069ff68243f8c363f62ffa99cf000a6b9c451",
+    strip_prefix = "nohash-hasher-0.2.0",
+    urls = ["https://static.crates.io/crates/nohash-hasher/0.2.0/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "nohash-hasher-0.2",
+    srcs = [":nohash-hasher-0.2.0.crate"],
+    crate = "nohash_hasher",
+    crate_root = "nohash-hasher-0.2.0.crate/src/lib.rs",
+    edition = "2018",
+    env = {
+        "CARGO_BIN_NAME": "nohash_hasher",
+        "CARGO_CRATE_NAME": "nohash_hasher",
+        "CARGO_MANIFEST_DIR": "nohash-hasher-0.2.0.crate",
+        "CARGO_PKG_AUTHORS": "Parity Technologies <admin@parity.io>",
+        "CARGO_PKG_DESCRIPTION": "An implementation of `std::hash::Hasher` which does not hash at all.",
+        "CARGO_PKG_HOMEPAGE": "",
+        "CARGO_PKG_NAME": "nohash-hasher",
+        "CARGO_PKG_README": "README.md",
+        "CARGO_PKG_REPOSITORY": "https://github.com/paritytech/nohash-hasher",
+        "CARGO_PKG_RUST_VERSION": "",
+        "CARGO_PKG_VERSION": "0.2.0",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "2",
+        "CARGO_PKG_VERSION_PATCH": "0",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    features = [
+        "default",
         "std",
     ],
     visibility = [],
@@ -2893,6 +3297,138 @@ cargo.rust_library(
 )
 
 http_archive(
+    name = "owned_ttf_parser-0.25.1.crate",
+    sha256 = "36820e9051aca1014ddc75770aab4d68bc1e9e632f0f5627c4086bc216fb583b",
+    strip_prefix = "owned_ttf_parser-0.25.1",
+    urls = ["https://static.crates.io/crates/owned_ttf_parser/0.25.1/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "owned_ttf_parser-0.25",
+    srcs = [":owned_ttf_parser-0.25.1.crate"],
+    crate = "owned_ttf_parser",
+    crate_root = "owned_ttf_parser-0.25.1.crate/src/lib.rs",
+    edition = "2021",
+    env = {
+        "CARGO_BIN_NAME": "owned_ttf_parser",
+        "CARGO_CRATE_NAME": "owned_ttf_parser",
+        "CARGO_MANIFEST_DIR": "owned_ttf_parser-0.25.1.crate",
+        "CARGO_PKG_AUTHORS": "Alex Butler <alexheretic@gmail.com>",
+        "CARGO_PKG_DESCRIPTION": "ttf-parser plus support for owned data",
+        "CARGO_PKG_HOMEPAGE": "",
+        "CARGO_PKG_NAME": "owned_ttf_parser",
+        "CARGO_PKG_README": "README.md",
+        "CARGO_PKG_REPOSITORY": "https://github.com/alexheretic/owned-ttf-parser",
+        "CARGO_PKG_RUST_VERSION": "",
+        "CARGO_PKG_VERSION": "0.25.1",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "25",
+        "CARGO_PKG_VERSION_PATCH": "1",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    features = [
+        "apple-layout",
+        "default",
+        "glyph-names",
+        "gvar-alloc",
+        "opentype-layout",
+        "std",
+        "variable-fonts",
+    ],
+    visibility = [],
+    deps = [":ttf-parser-0.25"],
+)
+
+http_archive(
+    name = "parking_lot-0.12.5.crate",
+    sha256 = "93857453250e3077bd71ff98b6a65ea6621a19bb0f559a85248955ac12c45a1a",
+    strip_prefix = "parking_lot-0.12.5",
+    urls = ["https://static.crates.io/crates/parking_lot/0.12.5/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "parking_lot-0.12",
+    srcs = [":parking_lot-0.12.5.crate"],
+    crate = "parking_lot",
+    crate_root = "parking_lot-0.12.5.crate/src/lib.rs",
+    edition = "2021",
+    env = {
+        "CARGO_BIN_NAME": "parking_lot",
+        "CARGO_CRATE_NAME": "parking_lot",
+        "CARGO_MANIFEST_DIR": "parking_lot-0.12.5.crate",
+        "CARGO_PKG_AUTHORS": "Amanieu d'Antras <amanieu@gmail.com>",
+        "CARGO_PKG_DESCRIPTION": "More compact and efficient implementations of the standard synchronization primitives.",
+        "CARGO_PKG_HOMEPAGE": "",
+        "CARGO_PKG_NAME": "parking_lot",
+        "CARGO_PKG_README": "README.md",
+        "CARGO_PKG_REPOSITORY": "https://github.com/Amanieu/parking_lot",
+        "CARGO_PKG_RUST_VERSION": "1.71",
+        "CARGO_PKG_VERSION": "0.12.5",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "12",
+        "CARGO_PKG_VERSION_PATCH": "5",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    features = ["default"],
+    visibility = [],
+    deps = [
+        ":lock_api-0.4",
+        ":parking_lot_core-0.9",
+    ],
+)
+
+http_archive(
+    name = "parking_lot_core-0.9.12.crate",
+    sha256 = "2621685985a2ebf1c516881c026032ac7deafcda1a2c9b7850dc81e3dfcb64c1",
+    strip_prefix = "parking_lot_core-0.9.12",
+    urls = ["https://static.crates.io/crates/parking_lot_core/0.9.12/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "parking_lot_core-0.9",
+    srcs = [":parking_lot_core-0.9.12.crate"],
+    crate = "parking_lot_core",
+    crate_root = "parking_lot_core-0.9.12.crate/src/lib.rs",
+    edition = "2021",
+    env = {
+        "CARGO_BIN_NAME": "parking_lot_core",
+        "CARGO_CRATE_NAME": "parking_lot_core",
+        "CARGO_MANIFEST_DIR": "parking_lot_core-0.9.12.crate",
+        "CARGO_PKG_AUTHORS": "Amanieu d'Antras <amanieu@gmail.com>",
+        "CARGO_PKG_DESCRIPTION": "An advanced API for creating custom synchronization primitives.",
+        "CARGO_PKG_HOMEPAGE": "",
+        "CARGO_PKG_NAME": "parking_lot_core",
+        "CARGO_PKG_README": "",
+        "CARGO_PKG_REPOSITORY": "https://github.com/Amanieu/parking_lot",
+        "CARGO_PKG_RUST_VERSION": "1.71.0",
+        "CARGO_PKG_VERSION": "0.9.12",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "9",
+        "CARGO_PKG_VERSION_PATCH": "12",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    platform = {
+        "linux-x86_64": dict(
+            deps = [":libc-0.2"],
+        ),
+        "macos-arm64": dict(
+            deps = [":libc-0.2"],
+        ),
+        "windows-msvc": dict(
+            deps = [":windows-link-0.2"],
+        ),
+    },
+    visibility = [],
+    deps = [
+        ":cfg-if-1",
+        ":smallvec-1",
+    ],
+)
+
+http_archive(
     name = "pem-rfc7468-0.7.0.crate",
     sha256 = "88b39c9bfcfc231068454382784bb460aae594343fb030d46e9f50a645418412",
     strip_prefix = "pem-rfc7468-0.7.0",
@@ -3214,6 +3750,40 @@ buildscript_run(
         "proc-macro",
     ],
     version = "1.0.107",
+)
+
+http_archive(
+    name = "profiling-1.0.18.crate",
+    sha256 = "3d595e54a326bc53c1c197b32d295e14b169e3cfeaa8dc82b529f947fba6bcf5",
+    strip_prefix = "profiling-1.0.18",
+    urls = ["https://static.crates.io/crates/profiling/1.0.18/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "profiling-1",
+    srcs = [":profiling-1.0.18.crate"],
+    crate = "profiling",
+    crate_root = "profiling-1.0.18.crate/src/lib.rs",
+    edition = "2018",
+    env = {
+        "CARGO_BIN_NAME": "profiling",
+        "CARGO_CRATE_NAME": "profiling",
+        "CARGO_MANIFEST_DIR": "profiling-1.0.18.crate",
+        "CARGO_PKG_AUTHORS": "Philip Degarmo <aclysma@gmail.com>",
+        "CARGO_PKG_DESCRIPTION": "This crate provides a very thin abstraction over other profiler crates.",
+        "CARGO_PKG_HOMEPAGE": "https://github.com/aclysma/profiling",
+        "CARGO_PKG_NAME": "profiling",
+        "CARGO_PKG_README": "README.md",
+        "CARGO_PKG_REPOSITORY": "https://github.com/aclysma/profiling",
+        "CARGO_PKG_RUST_VERSION": "1.60",
+        "CARGO_PKG_VERSION": "1.0.18",
+        "CARGO_PKG_VERSION_MAJOR": "1",
+        "CARGO_PKG_VERSION_MINOR": "0",
+        "CARGO_PKG_VERSION_PATCH": "18",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    visibility = [],
 )
 
 http_archive(
@@ -3796,6 +4366,40 @@ buildscript_run(
         "CARGO_PKG_VERSION_PRE": "",
     },
     version = "1.0.23",
+)
+
+http_archive(
+    name = "scopeguard-1.2.0.crate",
+    sha256 = "94143f37725109f92c262ed2cf5e59bce7498c01bcc1502d7b9afe439a4e9f49",
+    strip_prefix = "scopeguard-1.2.0",
+    urls = ["https://static.crates.io/crates/scopeguard/1.2.0/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "scopeguard-1",
+    srcs = [":scopeguard-1.2.0.crate"],
+    crate = "scopeguard",
+    crate_root = "scopeguard-1.2.0.crate/src/lib.rs",
+    edition = "2015",
+    env = {
+        "CARGO_BIN_NAME": "scopeguard",
+        "CARGO_CRATE_NAME": "scopeguard",
+        "CARGO_MANIFEST_DIR": "scopeguard-1.2.0.crate",
+        "CARGO_PKG_AUTHORS": "bluss",
+        "CARGO_PKG_DESCRIPTION": "A RAII scope guard that will run a given closure when it goes out of scope,\neven if the code between panics (assuming unwinding panic).\n\nDefines the macros `defer!`, `defer_on_unwind!`, `defer_on_success!` as\nshorthands for guards with one of the implemented strategies.\n",
+        "CARGO_PKG_HOMEPAGE": "",
+        "CARGO_PKG_NAME": "scopeguard",
+        "CARGO_PKG_README": "README.md",
+        "CARGO_PKG_REPOSITORY": "https://github.com/bluss/scopeguard",
+        "CARGO_PKG_RUST_VERSION": "",
+        "CARGO_PKG_VERSION": "1.2.0",
+        "CARGO_PKG_VERSION_MAJOR": "1",
+        "CARGO_PKG_VERSION_MINOR": "2",
+        "CARGO_PKG_VERSION_PATCH": "0",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    visibility = [],
 )
 
 alias(
@@ -5061,6 +5665,48 @@ cargo.rust_library(
 )
 
 http_archive(
+    name = "ttf-parser-0.25.1.crate",
+    sha256 = "d2df906b07856748fa3f6e0ad0cbaa047052d4a7dd609e231c4f72cee8c36f31",
+    strip_prefix = "ttf-parser-0.25.1",
+    urls = ["https://static.crates.io/crates/ttf-parser/0.25.1/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "ttf-parser-0.25",
+    srcs = [":ttf-parser-0.25.1.crate"],
+    crate = "ttf_parser",
+    crate_root = "ttf-parser-0.25.1.crate/src/lib.rs",
+    edition = "2018",
+    env = {
+        "CARGO_BIN_NAME": "ttf_parser",
+        "CARGO_CRATE_NAME": "ttf_parser",
+        "CARGO_MANIFEST_DIR": "ttf-parser-0.25.1.crate",
+        "CARGO_PKG_AUTHORS": "Caleb Maclennan <caleb@alerque.com>:Laurenz Stampfl <laurenz.stampfl@gmail.com>:Yevhenii Reizner <razrfalcon@gmail.com>:خالد حسني (Khaled Hosny) <khaled@aliftype.com>",
+        "CARGO_PKG_DESCRIPTION": "A high-level, safe, zero-allocation font parser for TrueType, OpenType, and AAT.",
+        "CARGO_PKG_HOMEPAGE": "",
+        "CARGO_PKG_NAME": "ttf-parser",
+        "CARGO_PKG_README": "README.md",
+        "CARGO_PKG_REPOSITORY": "https://github.com/harfbuzz/ttf-parser",
+        "CARGO_PKG_RUST_VERSION": "1.63.0",
+        "CARGO_PKG_VERSION": "0.25.1",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "25",
+        "CARGO_PKG_VERSION_PATCH": "1",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    features = [
+        "apple-layout",
+        "glyph-names",
+        "gvar-alloc",
+        "opentype-layout",
+        "std",
+        "variable-fonts",
+    ],
+    visibility = [],
+)
+
+http_archive(
     name = "typenum-1.20.1.crate",
     sha256 = "b6f5e870be6c3b371b77fe0ee0bafb859fa4964b4404c27de1d380043c4dda20",
     strip_prefix = "typenum-1.20.1",
@@ -5124,6 +5770,40 @@ cargo.rust_library(
         "CARGO_PKG_VERSION_MAJOR": "1",
         "CARGO_PKG_VERSION_MINOR": "0",
         "CARGO_PKG_VERSION_PATCH": "24",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    visibility = [],
+)
+
+http_archive(
+    name = "unicode-segmentation-1.13.3.crate",
+    sha256 = "c6f5d3c3b1bf09027a88a6bc961fc00497d651009560b5463668dc81b0fa87a8",
+    strip_prefix = "unicode-segmentation-1.13.3",
+    urls = ["https://static.crates.io/crates/unicode-segmentation/1.13.3/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "unicode-segmentation-1",
+    srcs = [":unicode-segmentation-1.13.3.crate"],
+    crate = "unicode_segmentation",
+    crate_root = "unicode-segmentation-1.13.3.crate/src/lib.rs",
+    edition = "2018",
+    env = {
+        "CARGO_BIN_NAME": "unicode_segmentation",
+        "CARGO_CRATE_NAME": "unicode_segmentation",
+        "CARGO_MANIFEST_DIR": "unicode-segmentation-1.13.3.crate",
+        "CARGO_PKG_AUTHORS": "kwantam <kwantam@gmail.com>:Manish Goregaokar <manishsmail@gmail.com>",
+        "CARGO_PKG_DESCRIPTION": "This crate provides Grapheme Cluster, Word and Sentence boundaries\naccording to Unicode Standard Annex #29 rules.\n",
+        "CARGO_PKG_HOMEPAGE": "https://github.com/unicode-rs/unicode-segmentation",
+        "CARGO_PKG_NAME": "unicode-segmentation",
+        "CARGO_PKG_README": "README.md",
+        "CARGO_PKG_REPOSITORY": "https://github.com/unicode-rs/unicode-segmentation",
+        "CARGO_PKG_RUST_VERSION": "1.85.0",
+        "CARGO_PKG_VERSION": "1.13.3",
+        "CARGO_PKG_VERSION_MAJOR": "1",
+        "CARGO_PKG_VERSION_MINOR": "13",
+        "CARGO_PKG_VERSION_PATCH": "3",
         "CARGO_PKG_VERSION_PRE": "",
     },
     visibility = [],

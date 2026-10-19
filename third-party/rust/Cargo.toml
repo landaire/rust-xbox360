@@ -16,5 +16,7 @@ path = "lib.rs"
 
 [dependencies]
 insta = "1.47"
+# The egui backend (crates/xbox360-egui).
+egui = { version = "0.32", default-features = false, features = ["default_fonts"] }
 # The features of examples/tokweb.
 tokio = { version = "1", default-features = false, features = ["rt", "rt-multi-thread", "time", "macros"] }

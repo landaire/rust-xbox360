@@ -1,0 +1,2 @@
+# The build script only probes optional target features.
+buildscript.run = false

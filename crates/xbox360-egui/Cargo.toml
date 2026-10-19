@@ -1,0 +1,27 @@
+[package]
+name = "xbox360-egui"
+version = "0.2.0"
+edition = "2024"
+rust-version = "1.95"
+description = "egui painter and input for the Xbox 360"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/landaire/rust-xbox360"
+keywords = ["xbox360", "xenon", "no_std", "graphics"]
+categories = ["no-std", "graphics"]
+exclude = ["BUCK"]
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+egui = { version = "0.32", default-features = false, features = ["default_fonts"] }
+xbox360-draw = { path = "../xbox360-draw", version = "0.2.0" }
+xbox360-sys = { path = "../xbox360-sys", version = "0.2.0" }
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(xbox360_docs)', 'cfg(target_os, values("xbox360"))'] }
+
+[package.metadata.docs.rs]
+targets = ["powerpc-unknown-linux-gnu"]
+rustc-args = ["--cfg", "xbox360_docs"]
+rustdoc-args = ["--cfg", "xbox360_docs"]

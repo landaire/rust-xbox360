@@ -1,0 +1,13 @@
+rust_library(
+    name = "xbox360-egui",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "xbox360_egui",
+    crate_root = "src/lib.rs",
+    edition = "2024",
+    visibility = ["PUBLIC"],
+    deps = [
+        "//crates/xbox360-draw:xbox360-draw",
+        "//crates/xbox360-sys:xbox360-sys",
+        "//third-party/rust:egui",
+    ],
+)
