@@ -1,16 +1,25 @@
 load("//buck:platforms.bzl", "sysroot_build_transition")
 
-# Targets configured with `console = xbox360` build for
-# powerpc-unknown-xbox360 (see buck/rust.bzl). No platform sets it; titles
-# enter the configuration through the transitions in buck/platforms.bzl.
-constraint_setting(
-    name = "console",
+# Host targets use the detected host platform. Xbox targets enter the
+# configuration through the transitions in buck/platforms.bzl.
+constraint(
+    name = "target",
+    default = "host",
+    values = [
+        "host",
+        "xbox",
+    ],
     visibility = ["PUBLIC"],
 )
 
-constraint_value(
-    name = "xbox360",
-    constraint_setting = ":console",
+constraint(
+    name = "mode",
+    default = "dev",
+    values = [
+        "dev",
+        "release",
+        "release-no-symbols",
+    ],
     visibility = ["PUBLIC"],
 )
 
@@ -55,7 +64,7 @@ platform(
     name = "xbox360-core",
     constraint_values = [
         ":sysroot-core",
-        ":xbox360",
+        ":target[xbox]",
     ],
     visibility = ["PUBLIC"],
 )
@@ -64,7 +73,7 @@ platform(
     name = "xbox360-std",
     constraint_values = [
         ":sysroot-std",
-        ":xbox360",
+        ":target[xbox]",
     ],
     visibility = ["PUBLIC"],
 )
@@ -73,7 +82,7 @@ platform(
     name = "xbox360-std-system",
     constraint_values = [
         ":sysroot-std-system",
-        ":xbox360",
+        ":target[xbox]",
     ],
     visibility = ["PUBLIC"],
 )
@@ -82,7 +91,7 @@ platform(
     name = "xbox360-sysroot",
     constraint_values = [
         ":sysroot-none",
-        ":xbox360",
+        ":target[xbox]",
     ],
     visibility = ["PUBLIC"],
 )

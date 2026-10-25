@@ -22,3 +22,8 @@ export_file(
     name = "run_clang.py",
     visibility = ["PUBLIC"],
 )
+
+export_file(
+    name = "split_debug.py",
+    visibility = ["PUBLIC"],
+)

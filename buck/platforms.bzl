@@ -1,7 +1,7 @@
 """Configuration transitions into the Xbox 360 target."""
 
 _REFS = {
-    "console": "xbox360//platforms:console",
+    "target": "xbox360//platforms:target",
     "cpu": "prelude//cpu/constraints:cpu",
     "os": "prelude//os/constraints:os",
     "sysroot": "xbox360//platforms:sysroot",
@@ -9,7 +9,7 @@ _REFS = {
     "sysroot_none": "xbox360//platforms:sysroot-none",
     "sysroot_std": "xbox360//platforms:sysroot-std",
     "sysroot_std_system": "xbox360//platforms:sysroot-std-system",
-    "xbox360": "xbox360//platforms:xbox360",
+    "xbox": "xbox360//platforms:target[xbox]",
 }
 
 def _with_constraints(platform: PlatformInfo, label: str, remove: list, add: list) -> PlatformInfo:
@@ -37,7 +37,7 @@ def _title(platform: PlatformInfo, refs: struct, sysroot, label: str) -> Platfor
         platform,
         label,
         remove = [refs.os, refs.cpu],
-        add = [refs.xbox360, sysroot],
+        add = [refs.xbox, sysroot],
     )
 
 def _core_impl(platform: PlatformInfo, refs: struct) -> PlatformInfo:

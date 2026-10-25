@@ -13,17 +13,17 @@ load(":flags.bzl", "XBOX360_RUSTC_FLAGS")
 load(":python.bzl", "exec_python_bootstrap_toolchain")
 load(":rust.bzl", "release_tool", "rust_release", "rust_release_toolchain")
 
-_XBOX360 = "xbox360//platforms:xbox360"
+_XBOX360 = "xbox360//platforms:target[xbox]"
 _SYSROOT_CORE = "xbox360//platforms:sysroot-core"
 _SYSROOT_STD = "xbox360//platforms:sysroot-std"
 _SYSROOT_STD_SYSTEM = "xbox360//platforms:sysroot-std-system"
 
 def xbox360_toolchains(
-        rustc_flags: list[str] = [],
-        rustc_binary_flags: list[str] = [],
+        rustc_flags = [],
+        rustc_binary_flags = [],
         rustdoc_flags: list[str] = [],
-        xbox360_rustc_flags: list[str] = [],
-        xbox360_rustc_binary_flags: list[str] = []):
+        xbox360_rustc_flags = [],
+        xbox360_rustc_binary_flags = []):
     """Declares the toolchains.
 
     `rustc_flags` and `rustc_binary_flags` (for binaries and tests) apply
@@ -44,6 +44,13 @@ def xbox360_toolchains(
     release_tool(
         name = "llvm-objdump",
         path = "lib/rustlib/{host_triple}/bin/llvm-objdump",
+        release = ":llvm-tools",
+        visibility = ["PUBLIC"],
+    )
+
+    release_tool(
+        name = "llvm-objcopy",
+        path = "lib/rustlib/{host_triple}/bin/llvm-objcopy",
         release = ":llvm-tools",
         visibility = ["PUBLIC"],
     )

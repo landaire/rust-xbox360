@@ -4,7 +4,7 @@ rust_library(
     crate = "xbox360_atomic",
     crate_root = "src/lib.rs",
     edition = "2024",
-    target_compatible_with = ["//platforms:xbox360"],
+    target_compatible_with = ["//platforms:target[xbox]"],
     visibility = ["PUBLIC"],
     deps = ["//crates/xbox360-sys:xbox360-sys"],
 )

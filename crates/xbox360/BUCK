@@ -4,7 +4,7 @@ rust_library(
     crate = "xbox360",
     crate_root = "src/lib.rs",
     edition = "2024",
-    target_compatible_with = ["//platforms:xbox360"],
+    target_compatible_with = ["//platforms:target[xbox]"],
     visibility = ["PUBLIC"],
     deps = ["//crates/xbox360-sys:xbox360-sys", "//crates/xbox360-atomic:xbox360-atomic", "//crates/xbox360-status:xbox360-status", "//crates/xbox360-sync:xbox360-sync", "//crates/xbox360-system:xbox360-system", "//crates/xbox360-time:xbox360-time", "//crates/xbox360-xam:xbox360-xam", "//crates/xbox360-thread:xbox360-thread"],
 )
@@ -17,7 +17,7 @@ rust_library(
     crate_root = "src/lib.rs",
     edition = "2024",
     features = ["alloc"],
-    target_compatible_with = ["//platforms:xbox360"],
+    target_compatible_with = ["//platforms:target[xbox]"],
     visibility = ["PUBLIC"],
     deps = ["//crates/xbox360-sys:xbox360-sys", "//crates/xbox360-atomic:xbox360-atomic", "//crates/xbox360-status:xbox360-status", "//crates/xbox360-sync:xbox360-sync", "//crates/xbox360-system:xbox360-system", "//crates/xbox360-time:xbox360-time", "//crates/xbox360-xam:xbox360-xam", "//crates/xbox360-thread:xbox360-thread-alloc"],
 )

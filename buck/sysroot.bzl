@@ -12,8 +12,13 @@ load("//sysroot:crates.bzl", "SYSROOT_CRATES")
 _RUSTC_FLAGS = [
     "-Zforce-unstable-if-unmarked",
     "--cap-lints=allow",
-    XBOX360_SYSROOT_DEBUGINFO,
 ]
+
+def _sysroot_debug_info():
+    return select({
+        "//platforms:mode[release-no-symbols]": ["-Cdebuginfo=none"],
+        "DEFAULT": [XBOX360_SYSROOT_DEBUGINFO],
+    })
 
 # Crates built a second time with extra rustc flags, by target name. The
 # standard library of system modules starts its threads in the system
@@ -135,9 +140,9 @@ def sysroot_crates(library_source: str):
                 extern: ":" + _target_name(dep)
                 for extern, dep in crate["deps"].items()
             },
-            rustc_flags = rustc_flags,
+            rustc_flags = rustc_flags + _sysroot_debug_info(),
             # Skipped by host builds such as `buck2 build xbox360//...`.
-            target_compatible_with = ["//platforms:xbox360"],
+            target_compatible_with = ["//platforms:target[xbox]"],
         )
         native.rust_library(name = name, **libraries[key])
 

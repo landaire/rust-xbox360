@@ -102,13 +102,9 @@ the `xbox360` external cell, pinned to a commit:
   commit_hash = <commit>
 ```
 
-Its `toolchains/BUCK` calls `xbox360_toolchains()` from
-`@xbox360//buck:toolchains.bzl`, which takes the project's rustc and
-rustdoc flags for host and console crates. Console targets use
-`xbox360_title`, or the `xbox360//platforms:xbox360-core`, `-std` and
-`-std-system` configurations through the transitions in `buck/platforms.bzl`. The project's
-`rust-toolchain.toml` should name the release in `buck/rust_release.bzl`;
-`buck/update_rust_release.py --check PATH` compares them.
+Its `toolchains/BUCK` calls `xbox360_toolchains()` from `@xbox360//buck:toolchains.bzl`, which takes the project's rustc and rustdoc flags for host and console crates. The target constraint is `xbox360//platforms:target`, with the generated `[host]` and `[xbox]` values. Console targets use `xbox360_title`, or the `xbox360//platforms:xbox360-core`, `-std` and `-std-system` configurations through the transitions in `buck/platforms.bzl`.
+
+`@xbox360//buck:profiles.bzl` provides dev, release and symbol-free release flags for the shared `xbox360//platforms:mode` constraint. A project may expose it as `//config:mode` with an `alias`, but its `PACKAGE` modifier aliases must name `xbox360//platforms:mode[dev]`, `[release]` and `[release-no-symbols]` directly. Its `profiled_rust_binary` keeps Linux debug information in the `[symbols]` subtarget and leaves the executable stripped. The project's `rust-toolchain.toml` should name the release in `buck/rust_release.bzl`; `buck/update_rust_release.py --check PATH` compares them.
 
 ## Getting started with Cargo
 

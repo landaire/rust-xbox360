@@ -658,7 +658,7 @@ def xbox360_title(
             "-Clink-arg=-T$(location :{}-link-script)".format(name),
             "-Clink-arg=--no-rosegment",
         ] + rustc_flags,
-        target_compatible_with = ["xbox360//platforms:xbox360"],
+        target_compatible_with = ["xbox360//platforms:target[xbox]"],
         **kwargs
     )
     _XEX_RULES[sysroot](
