@@ -71,6 +71,11 @@ impl Enumerator {
         Ok(Self { handle, buffer_size: None })
     }
 
+    /// Takes ownership of an open enumeration `handle`.
+    pub(crate) fn from_handle(handle: Handle) -> Self {
+        Self { handle, buffer_size: None }
+    }
+
     /// The buffer size the create call reported, `None` when it reports none.
     pub fn buffer_size(&self) -> Option<NonZeroU32> {
         self.buffer_size
@@ -87,6 +92,17 @@ impl Enumerator {
     pub unsafe fn enumerate(&self, flags: u32, buffer: *mut u8, size: u32, overlapped: *mut Overlapped) -> Win32ErrorCode {
         // SAFETY: the caller keeps the addresses valid; `handle` is open.
         unsafe { xam::XamEnumerate(self.handle, flags, buffer, size, core::ptr::null_mut(), overlapped) }
+    }
+
+    /// `XamEnumerate(handle, flags, buffer, size, items, NULL)`: the next
+    /// records, waiting for them. XAM stores the record count at `items`.
+    ///
+    /// # Safety
+    ///
+    /// `buffer` holds `size` bytes.
+    pub unsafe fn enumerate_counted(&self, flags: u32, buffer: *mut u8, size: u32, items: &mut u32) -> Win32ErrorCode {
+        // SAFETY: the call completes before it returns; `handle` is open.
+        unsafe { xam::XamEnumerate(self.handle, flags, buffer, size, items, core::ptr::null_mut()) }
     }
 }
 

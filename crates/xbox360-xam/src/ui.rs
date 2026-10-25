@@ -1,5 +1,7 @@
-//! XAM message boxes, the virtual keyboard, the device selector and the
-//! sign-in UI.
+//! XAM message boxes, the virtual keyboard, the device selector, the
+//! sign-in UI and the system UIs a title opens without waiting for them
+//! (profile creation, gamer cards, achievements, marketplace, Xbox LIVE
+//! signup and upsell).
 //!
 //! The blocking [`show_message_box`] is checked only against Xenia:
 //! the ordinal (0x2CA `XamShowMessageBoxUI`),
@@ -14,6 +16,11 @@
 //! `XamShowDeviceSelectorUI`, 0x2BC `XamShowSigninUI`, 0x2EC
 //! `XamIsUIActive`), the argument order and the passcode flags. Not run on
 //! hardware.
+//!
+//! The calls without an overlapped block are checked against the call
+//! sites of the 2.0.6717 dashboard and the exports of `xam.xex`
+//! 2.0.21256.0 on hardware: the ordinals, the registers each export reads
+//! and the user index checks that reach `RtlRip`.
 
 use core::pin::Pin;
 
@@ -236,6 +243,79 @@ pub fn show_signin(panes: u32, flags: SigninFlags) -> Result<(), Win32Error> {
 pub fn show_signin_for(user: UserIndex, panes: u32, flags: SigninFlags) -> Result<(), Win32Error> {
     // SAFETY: no pointers are passed.
     unsafe { xam::XamShowSigninUIp(user, panes, flags) }.result()
+}
+
+/// `XamShowCreateProfileUI` with 0 for the second argument: the request
+/// field the 2.0.6717.0 export, which takes only the user, sets to 0.
+pub fn show_create_profile(user: UserIndex) -> Result<(), Win32Error> {
+    // SAFETY: no pointers are passed.
+    unsafe { xam::XamShowCreateProfileUI(user, 0) }.result()
+}
+
+/// `XamShowLiveUpsellUIEx`.
+pub fn show_live_upsell(user: UserIndex) -> Result<(), Win32Error> {
+    // SAFETY: no pointers are passed.
+    unsafe { xam::XamShowLiveUpsellUIEx(user) }.result()
+}
+
+/// `XamShowLiveSignupUI` with `mode` 1 (`recover`) or 0.
+pub fn show_live_signup(user: UserIndex, recover: bool) -> Result<(), Win32Error> {
+    // SAFETY: no pointers are passed.
+    unsafe { xam::XamShowLiveSignupUI(user, u32::from(recover)) }.result()
+}
+
+/// `XamShowGamerCardUI`.
+pub fn show_gamer_card(user: UserIndex) -> Result<(), Win32Error> {
+    // SAFETY: no pointers are passed.
+    unsafe { xam::XamShowGamerCardUI(user) }.result()
+}
+
+/// `XamShowGamerCardUIForXUID` with flags 0.
+pub fn show_gamer_card_for_xuid(user: UserIndex, xuid: u64) -> Result<(), Win32Error> {
+    // SAFETY: no pointers are passed.
+    unsafe { xam::XamShowGamerCardUIForXUID(user, xuid, 0) }.result()
+}
+
+/// `XamShowJoinSessionInProgressUI`.
+pub fn show_join_session_in_progress(user: UserIndex, xuid: u64) -> Result<(), Win32Error> {
+    // SAFETY: no pointers are passed.
+    unsafe { xam::XamShowJoinSessionInProgressUI(user, xuid) }.result()
+}
+
+/// `XamShowAchievementsUI`.
+pub fn show_achievements(user: UserIndex, title: u32) -> Result<(), Win32Error> {
+    // SAFETY: no pointers are passed.
+    unsafe { xam::XamShowAchievementsUI(user, title) }.result()
+}
+
+/// `XamShowAchievementDetailsUI`.
+pub fn show_achievement_details(
+    user: UserIndex,
+    title: u32,
+    achievement: u32,
+) -> Result<(), Win32Error> {
+    // SAFETY: no pointers are passed.
+    unsafe { xam::XamShowAchievementDetailsUI(user, title, achievement) }.result()
+}
+
+/// `XamShowGamesUI` with 0 for the second argument, as the 2.0.6717
+/// dashboard passes.
+pub fn show_games(user: UserIndex) -> Result<(), Win32Error> {
+    // SAFETY: no pointers are passed.
+    unsafe { xam::XamShowGamesUI(user, 0) }.result()
+}
+
+/// `XamShowMarketplaceUIEx` with the unknown arguments the 2.0.6717
+/// dashboard passes (0xFFFFFFFF, 0xFFFFFFFF, 0, 0).
+pub fn show_marketplace(
+    user: UserIndex,
+    entry: u32,
+    offer: u64,
+    title: u32,
+) -> Result<(), Win32Error> {
+    // SAFETY: no pointers are passed.
+    unsafe { xam::XamShowMarketplaceUIEx(user, entry, offer, u32::MAX, u32::MAX, 0, 0, title) }
+        .result()
 }
 
 /// A call shown (`ERROR_IO_PENDING`) or completed at once is started.

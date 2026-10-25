@@ -737,6 +737,14 @@ crate::import_thunk!(
 );
 
 crate::import_thunk!(
+    /// Sets the launch data the next title reads with `XamLoaderGetLaunchData`. Returns a Win32
+    /// error code.
+    pub XamLoaderSetLaunchData(data: *const u8, size: u32) -> Win32ErrorCode,
+    lib = XAM,
+    ordinal = 0x1A6
+);
+
+crate::import_thunk!(
     /// Copies the launch data the previous title set to `buffer`, at most `size` bytes.
     /// Returns a Win32 error code; nonzero when no launch data is set.
     pub XamLoaderGetLaunchData(buffer: *mut u8, size: u32) -> Win32ErrorCode,
@@ -952,6 +960,20 @@ crate::import_thunk!(
     ordinal = 0x232
 );
 
+import_adapter!(
+    /// Deletes the profile `xuid`. The 2.0.6717 dashboard passes 0 for
+    /// `unknown`, whose meaning is not known, and calls it without an overlapped block.
+    /// Returns an HRESULT. The export takes the 64-bit `xuid` in one register.
+    pub XamProfileDelete(unknown: u32, xuid: u64) -> Hresult,
+    lib = XAM,
+    ordinal = 0x233,
+    // unknown in r3, xuid in r5:r6.
+    prologue = [
+        "rldimi 6, 5, 32, 0",
+        "mr 4, 6",
+    ]
+);
+
 crate::import_thunk!(
     /// Stores the XUID of the profile a `XamProfileCreate` handle creates. Returns
     /// `E_PENDING` while the creation runs.
@@ -983,6 +1005,21 @@ crate::import_thunk!(
     pub XamProfileClose(mount_name: *const u8) -> Win32ErrorCode,
     lib = XAM,
     ordinal = 0x238
+);
+
+import_adapter!(
+    /// Reads the 0x17C-byte account record of the profile `xuid` from its package on
+    /// `device_id` into `account`; the gamertag is NUL-terminated UTF-16 at +0x08. Returns an
+    /// HRESULT. The export takes the 64-bit `xuid` in one register.
+    pub XamProfileLoadAccountInfo(device_id: u32, xuid: u64, account: *mut u8) -> Hresult,
+    lib = XAM,
+    ordinal = 0x23A,
+    // device_id in r3, xuid in r5:r6, account in r7.
+    prologue = [
+        "rldimi 6, 5, 32, 0",
+        "mr 4, 6",
+        "mr 5, 7",
+    ]
 );
 
 crate::import_thunk!(
@@ -1058,6 +1095,44 @@ crate::import_thunk!(
     pub XamContentFlush(root_name: *const u8, overlapped: *mut Overlapped) -> Win32ErrorCode,
     lib = XAM,
     ordinal = 0x267
+);
+
+crate::import_thunk!(
+    /// Copies the package of the 0x200-byte aggregate record `content` to the device `device`
+    /// points to, owned by the XUID `new_owner` points to. The 2.0.6717 dashboard passes null
+    /// for `device` when the destination is the package's device and null for `new_owner`
+    /// when the owner does not change.
+    /// XAM calls `progress` with a 64-bit byte count in r4, a reason in r8 and `context` in
+    /// the stack slot at 0x50 of its caller. The dashboard's routine (0x9225BF00) adds the
+    /// growth of the count to its total, takes the count to start again at 0 on reason 1, and
+    /// returns 0. The dashboard passes 0 for `unknown`, whose meaning is not known. Returns a
+    /// Win32 error code, or `ERROR_IO_PENDING` with an `overlapped`.
+    pub XamContentCopyInternal(
+        new_owner: *const u64,
+        device: *const u32,
+        content: *const u8,
+        progress: *const u8,
+        context: *mut u8,
+        unknown: u32,
+        overlapped: *mut Overlapped,
+    ) -> Win32ErrorCode,
+    lib = XAM,
+    ordinal = 0x26C
+);
+
+crate::import_thunk!(
+    /// Moves a package; the arguments are those of [`XamContentCopyInternal`].
+    pub XamContentMoveInternal(
+        new_owner: *const u64,
+        device: *const u32,
+        content: *const u8,
+        progress: *const u8,
+        context: *mut u8,
+        unknown: u32,
+        overlapped: *mut Overlapped,
+    ) -> Win32ErrorCode,
+    lib = XAM,
+    ordinal = 0x26D
 );
 
 crate::import_thunk!(
@@ -1154,6 +1229,24 @@ crate::import_thunk!(
     ordinal = 0x28B
 );
 
+crate::import_thunk!(
+    /// Sends the notification `id` with `parameter` to every listener. The 2.0.6717 dashboard
+    /// sends 0x8000000F with the bit of the user whose background changed and does not read the
+    /// result, so none is declared.
+    pub safe XNotifyBroadcast(id: u32, parameter: u32) -> (),
+    lib = XAM,
+    ordinal = 0x28E
+);
+
+crate::import_thunk!(
+    /// Stores the id of the default content device at `device`. Returns a Win32 error code,
+    /// `ERROR_FUNCTION_FAILED` when no device is the default. The 2.0.6717 dashboard passes the
+    /// device word of a 0x200-byte content record and does not read the result.
+    pub XamContentGetDefaultDevice(device: *mut u32) -> Win32ErrorCode,
+    lib = XAM,
+    ordinal = 0x284
+);
+
 import_adapter!(
     /// Creates a notification listener for the notification areas in `mask`. Returns the listener handle.
     /// The export takes the 64-bit `mask` in one register.
@@ -1204,6 +1297,22 @@ crate::import_thunk!(
     ordinal = 0x2C1
 );
 
+crate::import_thunk!(
+    /// Opens the gamer card of the profile signed in on `user_index`. Returns a Win32 error code.
+    /// An index above 3 reaches `RtlRip`.
+    pub XamShowGamerCardUI(user_index: UserIndex) -> Win32ErrorCode,
+    lib = XAM,
+    ordinal = 0x2C4
+);
+
+crate::import_thunk!(
+    /// Opens the achievements of `title` for `user_index`. Returns a Win32 error code. An index
+    /// above 3 reaches `RtlRip`.
+    pub XamShowAchievementsUI(user_index: UserIndex, title: u32) -> Win32ErrorCode,
+    lib = XAM,
+    ordinal = 0x2C5
+);
+
 crate::import_thunk_stack!(
     /// Shows a message box with up to three buttons. `title`, `text` and each entry of `buttons` are NUL-terminated UTF-16 strings.
     /// Completes through `overlapped` and stores the result at `result_out`: an 8-byte `MESSAGEBOX_RESULT` whose first word is the chosen button index.
@@ -1250,11 +1359,94 @@ import_adapter!(
 );
 
 crate::import_thunk!(
-    /// Opens the theme picker of the system UI for `user_index`. The dashboard passes 0 for the other
-    /// two arguments; their meaning is unknown.
-    pub XamShowPersonalizationUI(user_index: u32, unknown1: u32, unknown2: u32) -> u32,
+    /// Opens the profile creation UI for `user_index`. In system software 2.0.21256.0 the export
+    /// passes `unknown` on to `XamShowCreateProfileUIEx`, which stores it in the request and
+    /// selects one of two modes by it (1, 0xB and 0xE against any other value); the 2.0.6717.0
+    /// export takes only `user_index` and stores 0 there. Returns a Win32 error code. An index
+    /// above 3 reaches `RtlRip`.
+    pub XamShowCreateProfileUI(user_index: UserIndex, unknown: u32) -> Win32ErrorCode,
+    lib = XAM,
+    ordinal = 0x2CF
+);
+
+crate::import_thunk!(
+    /// Opens the played games list of `user_index`. The 2.0.6717 dashboard passes 0 for
+    /// `unknown`. Returns a Win32 error code. An index above 3 reaches `RtlRip`.
+    pub XamShowGamesUI(user_index: UserIndex, unknown: u32) -> Win32ErrorCode,
+    lib = XAM,
+    ordinal = 0x2D0
+);
+
+crate::import_thunk!(
+    /// Opens the Xbox LIVE signup UI for `user_index`. The 2.0.6717 dashboard passes 1 to
+    /// recover an existing account and 0 to join. Returns a Win32 error code.
+    pub XamShowLiveSignupUI(user_index: UserIndex, mode: u32) -> Win32ErrorCode,
+    lib = XAM,
+    ordinal = 0x2D1
+);
+
+import_adapter!(
+    /// Opens the gamer card of `xuid` for `user_index`. A nonzero `flags` sets bit 0x80 of the
+    /// request; the 2.0.6717 dashboard passes 0. Returns a Win32 error code. An index above 3
+    /// reaches `RtlRip`. The export takes the 64-bit `xuid` in one register.
+    pub XamShowGamerCardUIForXUID(user_index: UserIndex, xuid: u64, flags: u32) -> Win32ErrorCode,
+    lib = XAM,
+    ordinal = 0x2D5,
+    // user_index in r3, xuid in r5:r6, flags in r7.
+    prologue = [
+        "rldimi 6, 5, 32, 0",
+        "mr 4, 6",
+        "mr 5, 7",
+    ]
+);
+
+crate::import_thunk!(
+    /// Opens the details of `achievement` of `title` for `user_index`. Returns a Win32 error
+    /// code. An index above 3 reaches `RtlRip`.
+    pub XamShowAchievementDetailsUI(user_index: UserIndex, title: u32, achievement: u32) -> Win32ErrorCode,
+    lib = XAM,
+    ordinal = 0x2E0
+);
+
+crate::import_thunk!(
+    /// In system software 2.0.6717.0 opens the theme picker for `user_index`, copying 0x200 bytes
+    /// from `initial_selection` when it is not null. In 2.0.21256.0 it opens no UI: it writes
+    /// 0x144 bytes of the selection to `<drive>:\ThematicSkin` and sends notification
+    /// 0x8000000F, and a null `initial_selection` reaches `RtlRip`. The purpose of `unknown` is
+    /// not known.
+    pub XamShowPersonalizationUI(user_index: UserIndex, initial_selection: *const u8, unknown: u32) -> u32,
     lib = XAM,
     ordinal = 0x2E1
+);
+
+import_adapter!(
+    /// Opens the marketplace at `entry` for `user_index`, with the offer `offer` and the title
+    /// `title`. The 2.0.6717 dashboard passes 0xFFFFFFFF, 0xFFFFFFFF, 0 and 0 for the four
+    /// unknown arguments. Returns a Win32 error code. The export takes the 64-bit `offer` in one
+    /// register.
+    pub XamShowMarketplaceUIEx(
+        user_index: UserIndex,
+        entry: u32,
+        offer: u64,
+        unknown1: u32,
+        unknown2: u32,
+        unknown3: u32,
+        unknown4: u32,
+        title: u32,
+    ) -> Win32ErrorCode,
+    lib = XAM,
+    ordinal = 0x2E8,
+    // user_index in r3, entry in r4, offer in r5:r6, the unknown words in r7 to r10, title in
+    // the first stack argument word at 8(1).
+    prologue = [
+        "rldimi 6, 5, 32, 0",
+        "mr 5, 6",
+        "mr 6, 7",
+        "mr 7, 8",
+        "mr 8, 9",
+        "mr 9, 10",
+        "lwz 10, 8(1)",
+    ]
 );
 
 crate::import_thunk!(
@@ -1285,6 +1477,28 @@ crate::import_thunk!(
     ) -> Win32ErrorCode,
     lib = XAM,
     ordinal = 0x2F0
+);
+
+crate::import_thunk!(
+    /// Opens the Xbox LIVE upsell UI for `user_index`. `XamShowLiveUpsellUI` (0x2D7) takes no
+    /// arguments and calls this export with 0. Returns a Win32 error code.
+    pub XamShowLiveUpsellUIEx(user_index: UserIndex) -> Win32ErrorCode,
+    lib = XAM,
+    ordinal = 0x300
+);
+
+import_adapter!(
+    /// Opens the join session in progress UI for the player `xuid` for `user_index`. Returns a
+    /// Win32 error code. An index above 3 reaches `RtlRip`. The export takes the 64-bit `xuid`
+    /// in one register.
+    pub XamShowJoinSessionInProgressUI(user_index: UserIndex, xuid: u64) -> Win32ErrorCode,
+    lib = XAM,
+    ordinal = 0x301,
+    // user_index in r3, xuid in r5:r6.
+    prologue = [
+        "rldimi 6, 5, 32, 0",
+        "mr 4, 6",
+    ]
 );
 
 crate::import_thunk!(
@@ -1643,6 +1857,35 @@ crate::import_thunk!(
     pub safe XamUserGetMembershipType(user: UserIndex) -> u32,
     lib = XAM,
     ordinal = 0x21B
+);
+
+crate::import_thunk!(
+    /// Creates an enumeration handle served by XAM application `app`: `XamEnumerate` on it sends
+    /// `enumerate_message`, closing it sends `close_message`. The handle carries a private block of
+    /// `private_size` bytes for the application. The 2.0.6717 dashboard passes user -1 and
+    /// `flags` 0x20000001 for its media enumerations. Returns a Win32 error code.
+    pub XamCreateEnumeratorHandle(
+        user: u32,
+        app: u32,
+        enumerate_message: u32,
+        close_message: u32,
+        private_size: u32,
+        count: u32,
+        flags: u32,
+        handle: *mut Handle,
+    ) -> Win32ErrorCode,
+    lib = XAM,
+    ordinal = 0x24E
+);
+
+crate::import_thunk!(
+    /// Stores the object of the private block of an enumeration `handle` at `object`, with a
+    /// reference the caller releases with `ObDereferenceObject`. The 2.0.6717 dashboard zeroes
+    /// `private_size` bytes from the object's +0x18, passes that address in its start request and
+    /// does not read the result, so none is declared.
+    pub XamGetPrivateEnumStructureFromHandle(handle: Handle, object: *mut *mut u8) -> (),
+    lib = XAM,
+    ordinal = 0x24F
 );
 
 crate::import_thunk!(

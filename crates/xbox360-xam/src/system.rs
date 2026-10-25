@@ -19,6 +19,47 @@ pub fn launch_data(buffer: &mut [u8]) -> Result<(), Win32Error> {
     unsafe { xam::XamLoaderGetLaunchData(buffer.as_mut_ptr(), size) }.result()
 }
 
+/// Largest launch data XAM accepts. In system software 2.0.21256.0 more
+/// bytes reach a trap (`twui`).
+pub const LAUNCH_DATA_CAPACITY: usize = 0x3FC;
+
+/// Why [`set_launch_data`] failed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum LaunchDataError {
+    /// The data exceeds [`LAUNCH_DATA_CAPACITY`]; XAM was not called.
+    TooLarge { size: usize },
+    /// XAM reported a failure.
+    Xam(Win32Error),
+}
+
+impl core::fmt::Display for LaunchDataError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::TooLarge { size } => {
+                write!(f, "{size} bytes of launch data exceed {LAUNCH_DATA_CAPACITY}")
+            }
+            Self::Xam(error) => write!(f, "XAM failed with {error:?}"),
+        }
+    }
+}
+
+impl core::error::Error for LaunchDataError {}
+
+/// Sets the launch data the next title reads; an empty `data` passes a
+/// null pointer and clears it.
+pub fn set_launch_data(data: &[u8]) -> Result<(), LaunchDataError> {
+    if data.len() > LAUNCH_DATA_CAPACITY {
+        return Err(LaunchDataError::TooLarge { size: data.len() });
+    }
+
+    let pointer = if data.is_empty() { core::ptr::null() } else { data.as_ptr() };
+    // At most `LAUNCH_DATA_CAPACITY`, so the length fits in `u32`.
+    let size = data.len() as u32;
+    // SAFETY: XAM reads at most `size` bytes from `pointer`.
+    unsafe { xam::XamLoaderSetLaunchData(pointer, size) }.result().map_err(LaunchDataError::Xam)
+}
+
 /// Console language setting.
 pub fn language() -> u32 {
     xam::XamGetLanguage()

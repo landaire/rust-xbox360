@@ -108,6 +108,8 @@ impl Win32Error {
     /// A wait ended because its timeout elapsed. Equal to
     /// [`NtStatus::TIMEOUT`].
     pub const WAIT_TIMEOUT: Self = Self::known(258);
+    /// `ERROR_NO_MORE_ITEMS`: XAM media enumerations end with it.
+    pub const NO_MORE_ITEMS: Self = Self::known(259);
     pub const IO_PENDING: Self = Self::known(997);
     /// `ERROR_NO_LOG_SPACE`: no space could be allocated in a log.
     pub const NO_LOG_SPACE: Self = Self::known(1019);

@@ -11,6 +11,8 @@
 pub mod content;
 pub mod input;
 pub mod media;
+pub mod media_library;
+pub mod music;
 pub mod notify;
 pub mod net;
 mod overlapped;
