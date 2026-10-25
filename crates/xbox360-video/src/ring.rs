@@ -24,7 +24,13 @@ const WRITEBACK_BYTES: u32 = 0x1000;
 /// Engine initialization packet values, as D3D writes them.
 const ENGINE_INIT_MASK: u32 = 0x3ff;
 const ENGINE_INIT_STEP: u32 = 0x80;
+/// Engine initialization dword 12. D3D writes the same value to register
+/// 0x0D02 right after the packet; without that write, loading vertex
+/// programs during a frame stopped the GPU (xenos-gpu.md, Shader loads).
 const ENGINE_INIT_WORD12: u32 = 0x0001_0800;
+const REGISTER_0D02: u16 = 0x0d02;
+/// The value `VdInitializeEngines` gives register 0x0D02.
+const KERNEL_REGISTER_0D02: u32 = 0x800;
 /// Register 0x05C8 and the value D3D writes before it waits for the GPU
 /// (and the renderer at frame start); its meaning is not known.
 const PIPELINE_CONTROL_05C8: u16 = 0x05c8;
@@ -104,7 +110,7 @@ impl Ring {
             VdSetSystemCommandBufferGpuIdentifierAddress(writeback.virtual_address(SWAP_IDENTIFIER_OFFSET));
         }
         let mut ring = Self { commands, writeback, write: 0, read: 0, fence: 0 };
-        let init = ring.reserve(19);
+        let init = ring.reserve(21);
         init[0] = type3(OPCODE_ENGINE_INIT, 18);
         init[1] = ENGINE_INIT_MASK;
         init[2] = 0;
@@ -115,7 +121,9 @@ impl Ring {
         init[12] = ENGINE_INIT_WORD12;
         init[13] = ENGINE_INIT_WORD13;
         init[14..19].fill(0);
-        ring.commit(19);
+        init[19] = type0(REGISTER_0D02, 1);
+        init[20] = ENGINE_INIT_WORD12;
+        ring.commit(21);
         ring.kick();
         Some(ring)
     }
@@ -242,10 +250,16 @@ impl Ring {
         self.writeback.read_word(PIPELINE_FENCE_OFFSET) == self.fence
     }
 
-    /// Wait for the GPU and stop it writing swap identifiers. Run before
-    /// `VdShutdownEngines`, as D3D does.
+    /// Wait until the GPU has finished every command, stop it writing swap
+    /// identifiers and give register 0x0D02 back the value the kernel
+    /// sets. Run before `VdShutdownEngines`. D3D restores the register in
+    /// its shutdown callback (0x9212CC60).
     pub fn detach(&mut self) {
+        self.block_until_idle();
         self.wait_idle();
+        // SAFETY: the GPU has finished every command that ran with the
+        // value this ring wrote.
+        unsafe { GpuRegisters::get().register(REGISTER_0D02).write(KERNEL_REGISTER_0D02) };
         // SAFETY: detaching the identifier address has no precondition.
         unsafe { VdSetSystemCommandBufferGpuIdentifierAddress(0) };
     }

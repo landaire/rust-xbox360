@@ -449,10 +449,8 @@ pub struct Gpu {
     /// Textures replaced or destroyed, with the number of frames submitted
     /// when they were retired; frames up to then may still sample them.
     retired: Vec<(usize, Texture)>,
-    /// The programs the GPU holds, valid for the display's shader epoch.
-    /// The vertex program is loaded once per epoch: loading vertex programs
-    /// frame after frame stopped the GPU after some hundred frames on a
-    /// development kit (xenos-gpu.md, Shader loads).
+    /// The programs the GPU holds, valid for the display's shader epoch, so
+    /// that unchanged programs are not loaded again.
     loaded: Option<LoadedPrograms>,
     owner: ShaderOwner,
     vertex_program: Vec<u32>,
