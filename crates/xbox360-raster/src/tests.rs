@@ -49,7 +49,7 @@ fn rect(left: f32, top: f32, right: f32, bottom: f32) -> [[f32; 2]; 4] {
 
 const FULL_UV: [[f32; 2]; 4] = [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]];
 
-fn render(renderer: &SoftwareRenderer, list: &DrawList, width: u32, height: u32) -> Vec<Rgba8> {
+fn render(renderer: &mut SoftwareRenderer, list: &DrawList, width: u32, height: u32) -> Vec<Rgba8> {
     let mut pixels = vec![Rgba8::TRANSPARENT; (width * height) as usize];
     let mut target = RenderTarget::new(&mut pixels, width, height, width).unwrap();
     renderer.render(list, &mut target);
@@ -119,7 +119,7 @@ fn grid_with_edges_through_pixel_centers_covers_each_pixel_once() {
         }
     }
 
-    let pixels = render(&SoftwareRenderer::new(), &list, 6, 6);
+    let pixels = render(&mut SoftwareRenderer::new(), &list, 6, 6);
 
     // Centers on the top and left edges of the union are covered, centers
     // on the bottom and right edges are not.
@@ -152,7 +152,7 @@ fn triangle_fan_covers_each_pixel_once() {
 
     let mut list = DrawList::new();
     list.push(additive(), &vertices, &triangles).unwrap();
-    let pixels = render(&SoftwareRenderer::new(), &list, 16, 16);
+    let pixels = render(&mut SoftwareRenderer::new(), &list, 16, 16);
 
     // Coverage is the set of centers strictly inside the convex rim, given
     // that no center lies within 0.01 pixel of the rim, so snapping to
@@ -186,7 +186,7 @@ fn guard_band_clipped_quad_covers_each_pixel_once() {
         ONE_UNIT,
     );
 
-    let pixels = render(&SoftwareRenderer::new(), &list, 8, 8);
+    let pixels = render(&mut SoftwareRenderer::new(), &list, 8, 8);
 
     assert!(pixels.iter().all(|pixel| *pixel == ONE_UNIT));
 }
@@ -211,7 +211,7 @@ fn clip_rect_limits_drawing() {
         Rgba8::WHITE,
     );
 
-    let pixels = render(&SoftwareRenderer::new(), &list, 8, 4);
+    let pixels = render(&mut SoftwareRenderer::new(), &list, 8, 4);
 
     let expected: Vec<Vec<u8>> = (0..4)
         .map(|y| {
@@ -250,7 +250,7 @@ fn clear_fills_target_and_ignores_clip() {
         Rgba8::WHITE,
     );
 
-    let pixels = render(&SoftwareRenderer::new(), &list, 3, 2);
+    let pixels = render(&mut SoftwareRenderer::new(), &list, 3, 2);
 
     assert_eq!(
         pixels,
@@ -298,7 +298,7 @@ fn blend_modes_combine_with_target() {
             FULL_UV,
             vertex_color,
         );
-        let pixels = render(&SoftwareRenderer::new(), &solid, 2, 2);
+        let pixels = render(&mut SoftwareRenderer::new(), &solid, 2, 2);
         assert!(
             pixels.iter().all(|pixel| *pixel == expected),
             "{blend:?} solid: {pixels:?}"
@@ -319,7 +319,7 @@ fn blend_modes_combine_with_target() {
             FULL_UV,
             Rgba8::WHITE,
         );
-        let pixels = render(&renderer, &textured, 2, 2);
+        let pixels = render(&mut renderer, &textured, 2, 2);
         assert!(
             pixels.iter().all(|pixel| *pixel == expected),
             "{blend:?} textured: {pixels:?}"
@@ -346,7 +346,7 @@ fn modulate_with_zero_opacity_keeps_color() {
     );
 
     assert_eq!(
-        render(&SoftwareRenderer::new(), &list, 1, 1),
+        render(&mut SoftwareRenderer::new(), &list, 1, 1),
         [Rgba8::new(100, 200, 0, 0)]
     );
 }
@@ -371,7 +371,7 @@ fn bilinear_at_texel_centers_reproduces_texels() {
         FULL_UV,
         Rgba8::WHITE,
     );
-    assert_eq!(render(&renderer, &list, 4, 4), texels);
+    assert_eq!(render(&mut renderer, &list, 4, 4), texels);
 
     // Mirrored horizontally the texels are sampled through the general path.
     let mut list = DrawList::new();
@@ -387,7 +387,7 @@ fn bilinear_at_texel_centers_reproduces_texels() {
         .chunks(4)
         .flat_map(|row| row.iter().rev().copied())
         .collect();
-    assert_eq!(render(&renderer, &list, 4, 4), expected);
+    assert_eq!(render(&mut renderer, &list, 4, 4), expected);
 }
 
 #[test]
@@ -408,7 +408,7 @@ fn magnified_bilinear_weights_neighbors() {
 
     // Sample points -0.25, 0.25, 0.75 and 1.25 texels, clamped.
     assert_eq!(
-        render(&renderer, &list, 4, 1),
+        render(&mut renderer, &list, 4, 1),
         [gray(0), gray(50), gray(150), gray(200)]
     );
 }
@@ -431,7 +431,7 @@ fn vertex_color_modulates_texels() {
     );
 
     assert_eq!(
-        render(&renderer, &list, 1, 1),
+        render(&mut renderer, &list, 1, 1),
         [Rgba8::new(100, 50, 25, 128)]
     );
 }
@@ -450,7 +450,7 @@ fn vertex_colors_interpolate_at_pixel_centers() {
 
     // 63.75 and 191.25 round to the nearest value.
     assert_eq!(
-        render(&SoftwareRenderer::new(), &list, 2, 1),
+        render(&mut SoftwareRenderer::new(), &list, 2, 1),
         [gray(64), gray(191)]
     );
 }
@@ -484,7 +484,7 @@ fn address_row(
         Rgba8::WHITE,
     );
 
-    render(&renderer, &list, width as u32, 1)
+    render(&mut renderer, &list, width as u32, 1)
 }
 
 #[test]
@@ -618,7 +618,7 @@ fn unknown_texture_draws_nothing() {
     );
 
     assert!(
-        render(&renderer, &list, 2, 2)
+        render(&mut renderer, &list, 2, 2)
             .iter()
             .all(|pixel| *pixel == Rgba8::TRANSPARENT)
     );
@@ -666,7 +666,7 @@ fn bands_render_the_same_pixels_as_the_whole_target() {
     ];
     list.push(additive(), &vertices, &[[0, 1, 2]]).unwrap();
 
-    let whole = render(&renderer, &list, 32, 32);
+    let whole = render(&mut renderer, &list, 32, 32);
 
     let mut pixels = vec![Rgba8::TRANSPARENT; 32 * 32];
     let mut target = RenderTarget::new(&mut pixels, 32, 32, 32).unwrap();
@@ -769,7 +769,7 @@ fn stale_texture_ids_draw_nothing_after_slot_reuse() {
         FULL_UV,
         Rgba8::WHITE,
     );
-    assert_eq!(render(&renderer, &list, 2, 1), [gray(4), gray(5)]);
+    assert_eq!(render(&mut renderer, &list, 2, 1), [gray(4), gray(5)]);
 }
 
 #[test]
@@ -791,7 +791,7 @@ fn non_power_of_two_textures_sample_exact_texels() {
         Rgba8::WHITE,
     );
 
-    assert_eq!(render(&renderer, &list, 7, 7), texels);
+    assert_eq!(render(&mut renderer, &list, 7, 7), texels);
 }
 
 #[test]
@@ -820,7 +820,7 @@ fn nearest_minification_picks_texels_under_pixel_centers() {
     let expected: Vec<Rgba8> = (0..7)
         .flat_map(|y| (0..7).map(move |x| gray(((2 * y + 1) * 14 + 2 * x + 1) as u8)))
         .collect();
-    assert_eq!(render(&renderer, &list, 7, 7), expected);
+    assert_eq!(render(&mut renderer, &list, 7, 7), expected);
 }
 
 #[test]
@@ -845,7 +845,7 @@ fn vertex_color_gradient_modulates_texels() {
     .unwrap();
 
     // Colors 64 and 191 scale the texel to 50 and 150.
-    assert_eq!(render(&renderer, &list, 2, 1), [gray(50), gray(150)]);
+    assert_eq!(render(&mut renderer, &list, 2, 1), [gray(50), gray(150)]);
 }
 
 #[test]
@@ -863,7 +863,7 @@ fn distant_vertices_cover_like_their_clipped_equivalent() {
         ];
         let mut list = DrawList::new();
         list.push(additive(), &vertices, &[[0, 1, 2]]).unwrap();
-        render(&SoftwareRenderer::new(), &list, 128, 128)
+        render(&mut SoftwareRenderer::new(), &list, 128, 128)
     };
 
     // The slanted edge `2x + y = 300` passes no pixel center.
@@ -882,7 +882,7 @@ fn guard_band_clipping_of_extreme_triangle_covers_at_most_once() {
     let mut list = DrawList::new();
     list.push(additive(), &far, &[[0, 1, 2]]).unwrap();
 
-    let pixels = render(&SoftwareRenderer::new(), &list, 64, 64);
+    let pixels = render(&mut SoftwareRenderer::new(), &list, 64, 64);
 
     assert!(
         pixels
@@ -902,7 +902,7 @@ fn sliver_with_steep_color_gradient_interpolates_along_its_edge() {
     list.push(DrawState::default(), &sliver, &[[0, 1, 2]])
         .unwrap();
 
-    let pixels = render(&SoftwareRenderer::new(), &list, 4, 100);
+    let pixels = render(&mut SoftwareRenderer::new(), &list, 4, 100);
 
     // Centers at x = 0.5 lie on the left edge and are covered; the color
     // falls from white to black down the column.
@@ -974,7 +974,7 @@ fn pixels_do_not_depend_on_span_start() {
     let mut renderer = SoftwareRenderer::new();
     let id = texture(&mut renderer, 7, 7, &texels);
 
-    let draw = |left: i32| {
+    let mut draw = |left: i32| {
         let clip = Some(ClipRect {
             left,
             top: 0,
@@ -1015,7 +1015,7 @@ fn pixels_do_not_depend_on_span_start() {
             &[[0, 1, 2], [0, 2, 3]],
         )
         .unwrap();
-        render(&renderer, &list, 200, 8)
+        render(&mut renderer, &list, 200, 8)
     };
 
     let reference = draw(0);
@@ -1052,7 +1052,7 @@ fn radial_mapping_samples_by_distance_from_center() {
         Rgba8::WHITE,
     );
 
-    let pixels = render(&renderer, &list, 8, 8);
+    let pixels = render(&mut renderer, &list, 8, 8);
 
     for (index, pixel) in pixels.iter().enumerate() {
         let offset = |coordinate: usize| (coordinate as f64 + 0.5) / 8.0 - 0.5;
@@ -1091,7 +1091,7 @@ fn opaque_cover_hides_earlier_commands() {
 
     let mut alone = DrawList::new();
     cover(&mut alone, rect(0.0, 0.0, 8.0, 8.0), None);
-    let expected = render(&renderer, &alone, 8, 8);
+    let expected = render(&mut renderer, &alone, 8, 8);
 
     let mut layered = DrawList::new();
     layered.set_clear_color(Some(gray(9)));
@@ -1103,7 +1103,7 @@ fn opaque_cover_hides_earlier_commands() {
         Rgba8::new(200, 0, 0, 200),
     );
     cover(&mut layered, rect(0.0, 0.0, 8.0, 8.0), None);
-    assert_eq!(render(&renderer, &layered, 8, 8), expected);
+    assert_eq!(render(&mut renderer, &layered, 8, 8), expected);
 
     // Not reaching column 0, or clipped, the earlier content stays visible.
     for (rect_corners, clip) in [
@@ -1121,7 +1121,7 @@ fn opaque_cover_hides_earlier_commands() {
         let mut partial = DrawList::new();
         partial.set_clear_color(Some(gray(9)));
         cover(&mut partial, rect_corners, clip);
-        let pixels = render(&renderer, &partial, 8, 8);
+        let pixels = render(&mut renderer, &partial, 8, 8);
         assert!(pixels.contains(&gray(9)), "{rect_corners:?} {clip:?}");
     }
 }
@@ -1153,7 +1153,7 @@ fn cover_with_transparent_texel_blends() {
     );
 
     assert_eq!(
-        render(&renderer, &list, 2, 2),
+        render(&mut renderer, &list, 2, 2),
         [Rgba8::WHITE, Rgba8::WHITE, Rgba8::WHITE, gray(9)]
     );
 }
@@ -1188,10 +1188,10 @@ fn aligned_rect_covers_like_its_triangles() {
             .push(additive(), &vertices, &[[0, 1, 2], [0, 0, 0], [0, 2, 3]])
             .unwrap();
 
-        let renderer = SoftwareRenderer::new();
+        let mut renderer = SoftwareRenderer::new();
         assert_eq!(
-            render(&renderer, &as_rect, 16, 16),
-            render(&renderer, &as_triangles, 16, 16),
+            render(&mut renderer, &as_rect, 16, 16),
+            render(&mut renderer, &as_triangles, 16, 16),
             "{corners:?}"
         );
     }
@@ -1229,7 +1229,7 @@ fn steep_color_gradient_away_from_anchor_keeps_edge_color() {
     list.push(DrawState::default(), &sliver, &[[0, 1, 2]])
         .unwrap();
 
-    let pixels = render(&SoftwareRenderer::new(), &list, 16, 100);
+    let pixels = render(&mut SoftwareRenderer::new(), &list, 16, 100);
 
     let column: Vec<Rgba8> = pixels.iter().skip(10).step_by(16).copied().collect();
     assert!(
@@ -1255,7 +1255,7 @@ fn covers_that_are_not_opaque_hide_nothing() {
         filter: Filter::Nearest,
         ..Sampler::default()
     };
-    let draw = |renderer: &SoftwareRenderer, blend: BlendMode, color: Rgba8| {
+    let draw = |renderer: &mut SoftwareRenderer, blend: BlendMode, color: Rgba8| {
         let mut list = DrawList::new();
         list.set_clear_color(Some(gray(9)));
         quad(
@@ -1274,11 +1274,11 @@ fn covers_that_are_not_opaque_hide_nothing() {
     };
 
     assert_eq!(
-        draw(&renderer, BlendMode::Additive, Rgba8::new(10, 10, 10, 255)),
+        draw(&mut renderer, BlendMode::Additive, Rgba8::new(10, 10, 10, 255)),
         [gray(19); 4]
     );
     assert_eq!(
-        draw(&renderer, BlendMode::Normal, Rgba8::new(128, 128, 128, 128)),
+        draw(&mut renderer, BlendMode::Normal, Rgba8::new(128, 128, 128, 128)),
         [Rgba8::new(132, 132, 132, 255); 4]
     );
 
@@ -1286,7 +1286,42 @@ fn covers_that_are_not_opaque_hide_nothing() {
         .update_texture(id, image(1, 1, &[Rgba8::new(0, 0, 0, 128)]))
         .unwrap();
     assert_eq!(
-        draw(&renderer, BlendMode::Normal, Rgba8::WHITE),
+        draw(&mut renderer, BlendMode::Normal, Rgba8::WHITE),
         [Rgba8::new(4, 4, 4, 255); 4]
     );
+}
+
+/// The list the GPU example draws into its target: a half-transparent red
+/// rect, and opaque white modulated by half alpha, sampled 1:1 onto the
+/// background.
+fn target_example_list(target: TextureId, background: Rgba8) -> DrawList {
+    let mut list = DrawList::new();
+    list.begin_target(target).unwrap();
+    quad(&mut list, DrawState::default(), rect(0.0, 0.0, 2.0, 2.0), FULL_UV, Rgba8::new(128, 0, 0, 128));
+    quad(&mut list, DrawState::default(), rect(2.0, 0.0, 4.0, 2.0), FULL_UV, Rgba8::WHITE);
+    let modulate = DrawState { blend: BlendMode::Modulate, ..DrawState::default() };
+    quad(&mut list, modulate, rect(2.0, 0.0, 4.0, 2.0), FULL_UV, Rgba8::new(255, 255, 255, 128));
+    list.end_target();
+
+    list.set_clear_color(Some(background));
+    let nearest = DrawState { texture: Some(target), sampler: Sampler { filter: Filter::Nearest, ..Sampler::default() }, ..DrawState::default() };
+    quad(&mut list, nearest, rect(0.0, 0.0, 4.0, 2.0), FULL_UV, Rgba8::WHITE);
+
+    list
+}
+
+#[test]
+fn target_pass_squares_source_alpha_and_samples_straight() {
+    let mut renderer = SoftwareRenderer::new();
+    let size = NonZeroU32::new(4).unwrap();
+    let target = renderer.create_target(size, NonZeroU32::new(2).unwrap()).unwrap();
+    let list = target_example_list(target, Rgba8::new(0x10, 0x10, 0x20, 0xff));
+
+    let pixels = render(&mut renderer, &list, 4, 2);
+
+    // Red texel (128, 0, 0, 64): premultiplied (32, 0, 0, 64) over the
+    // background. Modulated white texel (255, 255, 255, 128).
+    let red = Rgba8::new(44, 12, 24, 255);
+    let white = Rgba8::new(136, 136, 144, 255);
+    assert_eq!(pixels, [red, red, white, white, red, red, white, white]);
 }

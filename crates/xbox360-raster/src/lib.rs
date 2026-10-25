@@ -22,6 +22,11 @@ mod target;
 #[cfg(all(target_arch = "powerpc", target_os = "xbox360"))]
 mod vmx;
 
+use alloc::vec;
+use alloc::vec::Vec;
+use core::mem;
+use core::num::NonZeroU32;
+
 // The draw list contract lives in xbox360-draw; the rasterizer reaches it
 // through these crate paths.
 use xbox360_draw::draw;
@@ -30,15 +35,22 @@ use xbox360_draw::texture;
 
 use crate::draw::BlendMode;
 use crate::draw::ClipRect;
+use crate::draw::ColorWriteMask;
 use crate::draw::DrawCommand;
 use crate::draw::DrawList;
+use crate::draw::Rgba8;
+use crate::draw::Sampler;
 use crate::draw::TextureId;
 use crate::draw::Vertex;
 use crate::error::TextureError;
+use crate::image::AlphaMode;
 use crate::image::Image;
+use crate::texture::MAX_TEXTURE_DIMENSION;
 use crate::texture::TextureSlots;
 use crate::texture::TextureStore;
 
+use self::blend::Blend;
+use self::blend::ColorEncoding;
 use self::raster::AlignedRect;
 use self::raster::CoverBounds;
 use self::raster::WindowBounds;
@@ -60,18 +72,36 @@ pub struct SoftwareRenderer {
 }
 
 #[derive(Debug)]
-struct Texture {
-    image: Image,
-    /// Every texel has alpha 255.
-    is_opaque: bool,
+enum Texture {
+    Image {
+        image: Image,
+        /// Every texel has alpha 255.
+        is_opaque: bool,
+    },
+    /// Straight texels that target passes draw into, `width * height` of
+    /// them without row padding.
+    Target {
+        width: NonZeroU32,
+        height: NonZeroU32,
+        texels: Vec<Rgba8>,
+    },
 }
 
 impl Texture {
-    fn new(image: Image) -> Self {
+    fn from_image(image: Image) -> Self {
         let is_opaque = image.pixels().iter().all(|texel| texel.alpha() == u8::MAX);
 
-        Self { image, is_opaque }
+        Self::Image { image, is_opaque }
     }
+}
+
+/// What a run of commands draws into.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Destination {
+    Frame,
+    /// The texels of this render target, which the renderer holds apart
+    /// from the texture store while the pass draws.
+    Target(TextureId),
 }
 
 impl SoftwareRenderer {
@@ -81,19 +111,54 @@ impl SoftwareRenderer {
         }
     }
 
-    pub fn render(&self, list: &DrawList, target: &mut RenderTarget<'_>) {
+    /// Renders the target passes of `list`, then its frame into `target`.
+    pub fn render(&mut self, list: &DrawList, target: &mut RenderTarget<'_>) {
+        self.render_target_passes(list);
         self.render_band(list, &mut target.band());
     }
 
-    /// Renders the rows of `band` only. Disjoint bands of one target may be
-    /// rendered concurrently and produce the same pixels as [`Self::render`].
+    /// Renders the target passes of `list` into their textures, in order.
+    /// A pass whose target is not a render target of this renderer draws
+    /// nothing. Callers that render the frame with [`Self::render_band`]
+    /// call this first.
+    pub fn render_target_passes(&mut self, list: &DrawList) {
+        let mut scratch = Scratch::new();
+        for pass in list.target_passes() {
+            let id = pass.target();
+            let Some(Texture::Target {
+                width,
+                height,
+                texels,
+            }) = self.textures.get_mut(id)
+            else {
+                continue;
+            };
+            let (width, height) = (width.get(), height.get());
+            let mut texels = mem::take(texels);
+
+            texels.fill(Rgba8::TRANSPARENT);
+            let mut band = TargetBand::from_texels(&mut texels, width, height);
+            self.draw_commands(
+                list,
+                list.pass_commands(pass),
+                &mut band,
+                Destination::Target(id),
+                &mut scratch,
+            );
+
+            let Some(Texture::Target { texels: slot, .. }) = self.textures.get_mut(id) else {
+                unreachable!("drawing a pass leaves the texture store unchanged");
+            };
+            *slot = texels;
+        }
+    }
+
+    /// Renders the frame rows of `band` only. The target passes are not
+    /// rendered; [`Self::render_target_passes`] renders them before the
+    /// bands of a frame. Disjoint bands of one target may be rendered
+    /// concurrently and produce the same pixels as [`Self::render`].
     pub fn render_band(&self, list: &DrawList, band: &mut TargetBand<'_>) {
-        let band_rect = ClipRect {
-            left: 0,
-            top: band.top() as i32,
-            right: band.width() as i32,
-            bottom: band.bottom() as i32,
-        };
+        let band_rect = band.rect();
         if band_rect.is_empty() {
             return;
         }
@@ -112,8 +177,29 @@ impl SoftwareRenderer {
             }
         }
 
-        let mut scratch = Scratch::new();
-        for command in &commands[first.unwrap_or(0)..] {
+        self.draw_commands(
+            list,
+            &commands[first.unwrap_or(0)..],
+            band,
+            Destination::Frame,
+            &mut Scratch::new(),
+        );
+    }
+
+    fn draw_commands(
+        &self,
+        list: &DrawList,
+        commands: &[DrawCommand],
+        band: &mut TargetBand<'_>,
+        destination: Destination,
+        scratch: &mut Scratch,
+    ) {
+        let band_rect = band.rect();
+        let encoding = match destination {
+            Destination::Frame => ColorEncoding::Premultiplied,
+            Destination::Target(_) => ColorEncoding::Straight,
+        };
+        for command in commands {
             let window = command
                 .clip()
                 .map_or(band_rect, |clip| clip.intersect(band_rect));
@@ -122,6 +208,9 @@ impl SoftwareRenderer {
             }
 
             let texture = match command.texture() {
+                // The pass holds the texels of its own target, which its
+                // commands do not sample.
+                Some(id) if destination == Destination::Target(id) => continue,
                 Some(id) => {
                     let Some(texture) = self.sampled_texture(id) else {
                         continue;
@@ -130,6 +219,7 @@ impl SoftwareRenderer {
                 }
                 None => None,
             };
+            let blend = Blend::new(command.blend(), command.color_write(), encoding);
 
             // `DrawList` guarantees that every index addresses a vertex.
             let vertices = list.vertices();
@@ -154,7 +244,12 @@ impl SoftwareRenderer {
                     }
                     if let Some(rect) = AlignedRect::new(first, second) {
                         index += AlignedRect::TRIANGLES;
-                        self.draw_rect(&rect, window, texture, command, &mut scratch, band);
+                        let shading = Shading {
+                            texture,
+                            sampler: command.sampler(),
+                            blend,
+                        };
+                        draw_rect(&rect, window, shading, scratch, band);
                         continue;
                     }
                 }
@@ -168,10 +263,10 @@ impl SoftwareRenderer {
                         return;
                     };
 
-                    let shader = Shader::new(triangle, texture, command.sampler(), command.blend());
+                    let shader = Shader::new(triangle, texture, command.sampler(), blend);
                     while let Some(span) = scan.next_span() {
                         shader.shade_span(
-                            &mut scratch,
+                            scratch,
                             band.row_mut(span.row as u32),
                             span.row,
                             span.start,
@@ -183,43 +278,40 @@ impl SoftwareRenderer {
         }
     }
 
-    fn draw_rect(
-        &self,
-        rect: &AlignedRect,
-        window: ClipRect,
-        texture: Option<TextureRef<'_>>,
-        command: &DrawCommand,
-        scratch: &mut Scratch,
-        band: &mut TargetBand<'_>,
-    ) {
-        let (left, right) = (rect.left.max(window.left), rect.right.min(window.right));
-        let (top, bottom) = (rect.top.max(window.top), rect.bottom.min(window.bottom));
-        if left >= right || top >= bottom {
-            return;
-        }
-
-        let shader = Shader::new(&rect.triangle, texture, command.sampler(), command.blend());
-        for y in top..bottom {
-            shader.shade_span(scratch, band.row_mut(y as u32), y, left, right);
-        }
-    }
-
     fn sampled_texture(&self, id: TextureId) -> Option<TextureRef<'_>> {
-        let image = &self.textures.get(id)?.image;
+        let texture = match self.textures.get(id)? {
+            Texture::Image { image, .. } => TextureRef {
+                pixels: image.pixels(),
+                width: image.width().get(),
+                height: image.height().get(),
+                encoding: match image.alpha_mode() {
+                    AlphaMode::Premultiplied => ColorEncoding::Premultiplied,
+                    AlphaMode::Straight => ColorEncoding::Straight,
+                },
+            },
+            Texture::Target {
+                width,
+                height,
+                texels,
+            } => TextureRef {
+                pixels: texels,
+                width: width.get(),
+                height: height.get(),
+                encoding: ColorEncoding::Straight,
+            },
+        };
 
-        Some(TextureRef {
-            pixels: image.pixels(),
-            width: image.width().get(),
-            height: image.height().get(),
-        })
+        Some(texture)
     }
 
     /// Whether `command` replaces every pixel of `window`: it blends
-    /// normally with opaque colors and texels, its clip contains the
-    /// window, and two consecutive triangles form a rectangle that covers
-    /// it. Normal blending of an opaque source writes the source exactly.
+    /// normally with opaque colors and texels into every channel, its clip
+    /// contains the window, and two consecutive triangles form a rectangle
+    /// that covers it. Normal blending of an opaque source writes the
+    /// source exactly.
     fn covers_opaque(&self, list: &DrawList, command: &DrawCommand, window: ClipRect) -> bool {
         if command.blend() != BlendMode::Normal
+            || command.color_write() != ColorWriteMask::ALL
             || command
                 .clip()
                 .is_some_and(|clip| clip.intersect(window) != window)
@@ -227,10 +319,13 @@ impl SoftwareRenderer {
             return false;
         }
         if let Some(id) = command.texture()
-            && !self
-                .textures
-                .get(id)
-                .is_some_and(|texture| texture.is_opaque)
+            && !matches!(
+                self.textures.get(id),
+                Some(Texture::Image {
+                    is_opaque: true,
+                    ..
+                })
+            )
         {
             return false;
         }
@@ -266,7 +361,7 @@ impl Default for SoftwareRenderer {
 
 impl TextureStore for SoftwareRenderer {
     fn create_texture(&mut self, image: Image) -> Result<TextureId, TextureError> {
-        self.textures.insert(Texture::new(image))
+        self.textures.insert(Texture::from_image(image))
     }
 
     fn update_texture(&mut self, id: TextureId, image: Image) -> Result<(), TextureError> {
@@ -274,9 +369,35 @@ impl TextureStore for SoftwareRenderer {
             .textures
             .get_mut(id)
             .ok_or(TextureError::UnknownTexture { id })?;
-        *texture = Texture::new(image);
+        if let Texture::Target { .. } = texture {
+            return Err(TextureError::RenderTarget { id });
+        }
+        *texture = Texture::from_image(image);
 
         Ok(())
+    }
+
+    fn create_target(
+        &mut self,
+        width: NonZeroU32,
+        height: NonZeroU32,
+    ) -> Result<TextureId, TextureError> {
+        if width.get() > MAX_TEXTURE_DIMENSION || height.get() > MAX_TEXTURE_DIMENSION {
+            return Err(TextureError::TooLarge {
+                width: width.get(),
+                height: height.get(),
+                max: MAX_TEXTURE_DIMENSION,
+            });
+        }
+
+        // At most 2^26 texels, so the count fits a 32-bit `usize`.
+        let texels = vec![Rgba8::TRANSPARENT; width.get() as usize * height.get() as usize];
+
+        self.textures.insert(Texture::Target {
+            width,
+            height,
+            texels,
+        })
     }
 
     fn destroy_texture(&mut self, id: TextureId) -> Result<(), TextureError> {
@@ -285,6 +406,33 @@ impl TextureStore for SoftwareRenderer {
             .ok_or(TextureError::UnknownTexture { id })?;
 
         Ok(())
+    }
+}
+
+/// Per-command inputs of [`Shader::new`].
+#[derive(Clone, Copy, Debug)]
+struct Shading<'a> {
+    texture: Option<TextureRef<'a>>,
+    sampler: Sampler,
+    blend: Blend,
+}
+
+fn draw_rect(
+    rect: &AlignedRect,
+    window: ClipRect,
+    shading: Shading<'_>,
+    scratch: &mut Scratch,
+    band: &mut TargetBand<'_>,
+) {
+    let (left, right) = (rect.left.max(window.left), rect.right.min(window.right));
+    let (top, bottom) = (rect.top.max(window.top), rect.bottom.min(window.bottom));
+    if left >= right || top >= bottom {
+        return;
+    }
+
+    let shader = Shader::new(&rect.triangle, shading.texture, shading.sampler, shading.blend);
+    for y in top..bottom {
+        shader.shade_span(scratch, band.row_mut(y as u32), y, left, right);
     }
 }
 

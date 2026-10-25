@@ -10,6 +10,7 @@ use egui::epaint::Primitive;
 use xbox360_draw::draw::AddressMode;
 use xbox360_draw::draw::BlendMode;
 use xbox360_draw::draw::ClipRect;
+use xbox360_draw::draw::ColorWriteMask;
 use xbox360_draw::draw::DrawList;
 use xbox360_draw::draw::DrawState;
 use xbox360_draw::draw::Filter;
@@ -126,7 +127,7 @@ impl Painter {
             }));
             triangles.clear();
             triangles.extend(mesh.indices.chunks_exact(3).map(|triangle| [triangle[0], triangle[1], triangle[2]]));
-            let state = DrawState { texture: Some(texture.id), sampler: texture.sampler, blend: BlendMode::Normal, clip: Some(clip) };
+            let state = DrawState { texture: Some(texture.id), sampler: texture.sampler, blend: BlendMode::Normal, clip: Some(clip), color_write: ColorWriteMask::ALL };
             list.push(state, &vertices, &triangles)?;
         }
         for id in &textures.free {
@@ -220,6 +221,14 @@ mod tests {
         fn update_texture(&mut self, id: TextureId, image: Image) -> Result<(), TextureError> {
             *self.slots.get_mut(id).ok_or(TextureError::UnknownTexture { id })? = image;
             Ok(())
+        }
+        fn create_target(&mut self, width: NonZeroU32, height: NonZeroU32) -> Result<TextureId, TextureError> {
+            let pixels = std::vec![Rgba8::TRANSPARENT; width.get() as usize * height.get() as usize];
+            let image = Image::new_straight(width, height, pixels).map_err(|error| match error {
+                ImageLayoutError::TooLarge { width, height, max } => TextureError::TooLarge { width, height, max },
+                ImageLayoutError::PixelCount { .. } => unreachable!("the pixel count matches the size"),
+            })?;
+            self.slots.insert(image)
         }
         fn destroy_texture(&mut self, id: TextureId) -> Result<(), TextureError> {
             self.slots.remove(id).map(drop).ok_or(TextureError::UnknownTexture { id })

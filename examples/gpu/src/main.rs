@@ -1,6 +1,11 @@
 //! Draws an animated scene with the GPU renderer for ten seconds: a
-//! gradient, overlapping textured layers in every blend mode, clipped quads
-//! and many small quads, and prints the time per frame.
+//! gradient, overlapping textured layers in every blend mode, clipped quads,
+//! many small quads and a render target pass, and prints the time per
+//! frame. The target holds a half-transparent red rect and white modulated
+//! to half alpha; it is shown at the top left, each texel 32 pixels wide,
+//! on the clear color. xbox360-raster's
+//! `target_pass_squares_source_alpha_and_samples_straight` gives its
+//! pixels: (44, 12, 24) and (136, 136, 144).
 
 #![no_main]
 
@@ -71,6 +76,10 @@ fn run() {
     let checker = gpu
         .create_texture(image(16, |x, y| if (x / 4 + y / 4) % 2 == 0 { Rgba8::new(0x60, 0x60, 0x60, 0x60) } else { Rgba8::TRANSPARENT }))
         .expect("texture");
+    let target = gpu
+        .create_target(NonZeroU32::new(4).expect("nonzero"), NonZeroU32::new(2).expect("nonzero"))
+        .expect("render target");
+    let background = Rgba8::new(0x10, 0x10, 0x20, 0xff);
     let frequency = TimebaseFrequency::query();
     let start = Timebase::now();
     let mut list = DrawList::new();
@@ -82,7 +91,14 @@ fn run() {
             break;
         }
         list.clear();
-        list.set_clear_color(Some(Rgba8::new(0x10, 0x10, 0x20, 0xff)));
+        list.begin_target(target).expect("first pass");
+        let opaque = [Rgba8::WHITE; 4];
+        quad(&mut list, DrawState::default(), [0.0, 0.0, 2.0, 2.0], [0.0; 4], [Rgba8::new(128, 0, 0, 128); 4]);
+        quad(&mut list, DrawState::default(), [2.0, 0.0, 4.0, 2.0], [0.0; 4], opaque);
+        let modulate = DrawState { blend: BlendMode::Modulate, ..DrawState::default() };
+        quad(&mut list, modulate, [2.0, 0.0, 4.0, 2.0], [0.0; 4], [Rgba8::new(255, 255, 255, 128); 4]);
+        list.end_target();
+        list.set_clear_color(Some(background));
         let (top, bottom) = (Rgba8::new(0x20, 0x30, 0x80, 0xff), Rgba8::new(0x80, 0x90, 0x20, 0xff));
         quad(&mut list, DrawState::default(), [0.0, 0.0, w, h / 2.0], [0.0; 4], [top, top, bottom, bottom]);
         let linear = Sampler { filter: Filter::Linear, ..Sampler::default() };
@@ -102,6 +118,9 @@ fn run() {
             let y = 320.0 + (i / 20) as f32 * 7.0;
             quad(&mut list, DrawState { texture: Some(quadrants), ..DrawState::default() }, [x, y, x + 8.0, y + 5.0], [0.0, 0.0, 1.0, 1.0], [Rgba8::WHITE; 4]);
         }
+        quad(&mut list, DrawState::default(), [40.0, 40.0, 168.0, 104.0], [0.0; 4], [background; 4]);
+        let nearest = Sampler { filter: Filter::Nearest, ..Sampler::default() };
+        quad(&mut list, DrawState { texture: Some(target), sampler: nearest, ..DrawState::default() }, [40.0, 40.0, 168.0, 104.0], [0.0, 0.0, 1.0, 1.0], opaque);
         let begin = Timebase::now();
         if let Err(error) = gpu.render(&mut display, &list) {
             return println!("gpu: {error}");

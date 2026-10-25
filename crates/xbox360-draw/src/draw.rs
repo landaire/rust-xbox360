@@ -84,7 +84,10 @@ pub struct Vertex {
 /// including alpha, saturated to 0..=255. `src` is the premultiplied texel
 /// times the premultiplied vertex color. `straight` is the unpremultiplied
 /// texel times the straight vertex color; a texel with alpha 0
-/// unpremultiplies to 0.
+/// unpremultiplies to 0. In a target pass ([`DrawList::begin_target`])
+/// the alpha channel of `src` is `src.a * src.a` for [`Self::Normal`],
+/// [`Self::Additive`] and [`Self::ReverseSubtract`]: the D3D source alpha
+/// factor applied to the alpha channel of a straight target.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Default)]
 pub enum BlendMode {
     /// `dst = src + dst * (1 - src.a)`.
@@ -174,7 +177,41 @@ impl ClipRect {
     }
 }
 
-/// A run of triangles sharing one texture, blend mode and clip.
+/// Color channels a command writes, in `D3DCOLORWRITEENABLE` bit order.
+/// Channels outside the mask keep their target value.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct ColorWriteMask(u8);
+
+impl ColorWriteMask {
+    pub const RED: Self = Self(0x1);
+    pub const GREEN: Self = Self(0x2);
+    pub const BLUE: Self = Self(0x4);
+    pub const ALPHA: Self = Self(0x8);
+    pub const ALL: Self = Self(0xF);
+
+    /// Keeps the four channel bits of `bits`.
+    pub const fn from_bits_truncate(bits: u8) -> Self {
+        Self(bits & Self::ALL.0)
+    }
+
+    pub const fn bits(self) -> u8 {
+        self.0
+    }
+
+    pub const fn contains(self, other: Self) -> bool {
+        self.0 & other.0 == other.0
+    }
+}
+
+impl Default for ColorWriteMask {
+    /// Every channel, the device default.
+    fn default() -> Self {
+        Self::ALL
+    }
+}
+
+/// A run of triangles sharing one texture, blend mode, clip and color write
+/// mask.
 #[derive(Clone, Debug, PartialEq)]
 pub struct DrawCommand {
     state: DrawState,
@@ -200,29 +237,66 @@ impl DrawCommand {
         self.state.clip
     }
 
+    pub fn color_write(&self) -> ColorWriteMask {
+        self.state.color_write
+    }
+
     /// Range into [`DrawList::triangles`]; never empty.
     pub fn triangles(&self) -> Range<u32> {
         self.triangles.clone()
     }
 }
 
-/// Triangles for one frame, drawn in command order. Every index is below
-/// the vertex count, and the vertex count and three times the triangle
-/// count fit in a `u32`.
+/// Commands that draw into a render target texture
+/// ([`crate::texture::TextureStore::create_target`]) instead of the frame.
+/// The pass first clears the whole texture to transparent black. Its
+/// commands do not sample its own target.
+#[derive(Clone, Debug, PartialEq)]
+pub struct TargetPass {
+    target: TextureId,
+    /// Range into the list's commands.
+    commands: Range<u32>,
+}
+
+impl TargetPass {
+    pub fn target(&self) -> TextureId {
+        self.target
+    }
+}
+
+/// Triangles for one frame. The target passes are drawn first, in order,
+/// then the frame commands; within a pass commands are drawn in order. A
+/// pass may sample the targets of earlier passes. Every index is below the
+/// vertex count, and the vertex count and three times the triangle count
+/// fit in a `u32`.
 #[derive(Clone, Debug, PartialEq)]
 pub struct DrawList {
     clear_color: Option<Rgba8>,
     vertices: Vec<Vertex>,
     triangles: Vec<[u32; 3]>,
+    /// Target pass commands, then frame commands from `frame_start`.
     commands: Vec<DrawCommand>,
+    passes: Vec<TargetPass>,
+    /// Whether pushes go to the last target pass.
+    in_target: bool,
+    /// End of the last target pass in `commands`.
+    frame_start: u32,
 }
 
 impl DrawList {
     pub fn new() -> Self {
-        Self { clear_color: None, vertices: Vec::new(), triangles: Vec::new(), commands: Vec::new() }
+        Self {
+            clear_color: None,
+            vertices: Vec::new(),
+            triangles: Vec::new(),
+            commands: Vec::new(),
+            passes: Vec::new(),
+            in_target: false,
+            frame_start: 0,
+        }
     }
 
-    /// Color that fills the whole target before the commands, ignoring clips.
+    /// Color that fills the whole frame before its commands, ignoring clips.
     pub fn clear_color(&self) -> Option<Rgba8> {
         self.clear_color
     }
@@ -240,8 +314,18 @@ impl DrawList {
         &self.triangles
     }
 
+    /// Commands drawn to the frame, after every target pass.
     pub fn commands(&self) -> &[DrawCommand] {
-        &self.commands
+        &self.commands[self.frame_start as usize..]
+    }
+
+    pub fn target_passes(&self) -> &[TargetPass] {
+        &self.passes
+    }
+
+    /// The commands of `pass`, which must belong to this list.
+    pub fn pass_commands(&self, pass: &TargetPass) -> &[DrawCommand] {
+        &self.commands[pass.commands.start as usize..pass.commands.end as usize]
     }
 
     /// The triangles of `command`, which must belong to this list.
@@ -249,12 +333,38 @@ impl DrawList {
         &self.triangles[command.triangles.start as usize..command.triangles.end as usize]
     }
 
-    /// Removes everything, including the clear color.
+    /// Removes everything, including the clear color and the target passes.
     pub fn clear(&mut self) {
         self.clear_color = None;
         self.vertices.clear();
         self.triangles.clear();
         self.commands.clear();
+        self.passes.clear();
+        self.in_target = false;
+        self.frame_start = 0;
+    }
+
+    /// Sends the following pushes to a new pass that draws into `target`,
+    /// until [`Self::end_target`]. Fails once a command was pushed to the
+    /// frame or while another target pass is open.
+    pub fn begin_target(&mut self, target: TextureId) -> Result<(), DrawListError> {
+        if self.in_target {
+            return Err(DrawListError::TargetPassOpen);
+        }
+        if self.commands.len() as u32 != self.frame_start {
+            return Err(DrawListError::FrameStarted);
+        }
+
+        let start = self.commands.len() as u32;
+        self.passes.push(TargetPass { target, commands: start..start });
+        self.in_target = true;
+
+        Ok(())
+    }
+
+    /// Sends the following pushes to the frame.
+    pub fn end_target(&mut self) {
+        self.in_target = false;
     }
 
     /// Appends triangles whose indices refer to `vertices`. Consecutive
@@ -286,15 +396,31 @@ impl DrawList {
         self.triangles.extend(triangles.iter().map(|triangle| triangle.map(|index| base + index)));
         let end = triangle_count as u32;
 
-        if let Some(last) = self.commands.last_mut()
+        // A command never extends across a pass boundary.
+        let pass_start = match self.passes.last() {
+            Some(pass) if self.in_target => pass.commands.start,
+            _ => self.frame_start,
+        };
+        let merged = if self.commands.len() as u32 > pass_start
+            && let Some(last) = self.commands.last_mut()
             && last.triangles.end == start
             && last.state == state
         {
             last.triangles.end = end;
-            return Ok(());
+            true
+        } else {
+            false
+        };
+        if !merged {
+            self.commands.push(DrawCommand { state, triangles: start..end });
         }
 
-        self.commands.push(DrawCommand { state, triangles: start..end });
+        if self.in_target
+            && let Some(pass) = self.passes.last_mut()
+        {
+            pass.commands.end = self.commands.len() as u32;
+            self.frame_start = pass.commands.end;
+        }
 
         Ok(())
     }
@@ -313,6 +439,7 @@ pub struct DrawState {
     pub sampler: Sampler,
     pub blend: BlendMode,
     pub clip: Option<ClipRect>,
+    pub color_write: ColorWriteMask,
 }
 
 #[cfg(test)]
@@ -358,5 +485,43 @@ mod tests {
 
         assert!(list.vertices().is_empty());
         assert!(list.commands().is_empty());
+    }
+
+    #[test]
+    fn target_passes_precede_frame_commands_and_do_not_merge_across_passes() {
+        let mut slots = crate::texture::TextureSlots::new();
+        let first = slots.insert(()).unwrap();
+        let second = slots.insert(()).unwrap();
+        let mut list = DrawList::new();
+
+        list.begin_target(first).unwrap();
+        list.push(DrawState::default(), &vertices(3), &[[0, 1, 2]]).unwrap();
+        list.end_target();
+        list.begin_target(second).unwrap();
+        list.end_target();
+        list.push(DrawState::default(), &vertices(3), &[[0, 1, 2]]).unwrap();
+
+        let passes = list.target_passes();
+        assert_eq!(passes.len(), 2);
+        assert_eq!(passes[0].target(), first);
+        assert_eq!(list.pass_commands(&passes[0]).len(), 1);
+        assert_eq!(passes[1].target(), second);
+        assert!(list.pass_commands(&passes[1]).is_empty());
+        assert_eq!(list.commands().len(), 1);
+        assert_eq!(list.commands()[0].triangles(), 1..2);
+    }
+
+    #[test]
+    fn begin_target_rejects_open_pass_and_started_frame() {
+        let mut slots = crate::texture::TextureSlots::new();
+        let target = slots.insert(()).unwrap();
+        let mut list = DrawList::new();
+
+        list.begin_target(target).unwrap();
+        assert_eq!(list.begin_target(target), Err(DrawListError::TargetPassOpen));
+        list.end_target();
+        list.push(DrawState::default(), &vertices(3), &[[0, 1, 2]]).unwrap();
+
+        assert_eq!(list.begin_target(target), Err(DrawListError::FrameStarted));
     }
 }

@@ -12,16 +12,18 @@
 //! preceding store.
 
 use crate::draw::AddressMode;
-use crate::draw::BlendMode;
 use crate::draw::Filter;
 use crate::draw::Rgba8;
 use crate::draw::Sampler;
 use crate::draw::TextureMapping;
 
+use super::blend::Blend;
+use super::blend::ColorEncoding;
 use super::blend::blend_solid;
 use super::blend::blend_span;
 use super::blend::lerp;
 use super::blend::modulate;
+use super::blend::premultiply;
 use super::blend::unpremultiply;
 use super::raster::SUBPIXELS;
 use super::raster::Triangle;
@@ -50,11 +52,12 @@ pub(super) struct TextureRef<'a> {
     pub pixels: &'a [Rgba8],
     pub width: u32,
     pub height: u32,
+    pub encoding: ColorEncoding,
 }
 
 /// Interpolation of one triangle for one command.
 pub(super) struct Shader<'a> {
-    blend: BlendMode,
+    blend: Blend,
     color: ColorSource,
     texture: Option<TexturePlanes<'a>>,
 }
@@ -64,7 +67,7 @@ impl<'a> Shader<'a> {
         triangle: &Triangle,
         texture: Option<TextureRef<'a>>,
         sampler: Sampler,
-        blend: BlendMode,
+        blend: Blend,
     ) -> Self {
         let setup = PlaneSetup::new(triangle);
         let attributes = &triangle.attributes;
@@ -97,9 +100,15 @@ impl<'a> Shader<'a> {
                 }
                 TextureMapping::Radial => (1.0, 1.0, RADIAL_CENTER),
             };
+            let conversion = match (texture.encoding, blend.mode().uses_straight_source()) {
+                (ColorEncoding::Premultiplied, true) => Some(TexelConversion::Unpremultiply),
+                (ColorEncoding::Straight, false) => Some(TexelConversion::Premultiply),
+                (ColorEncoding::Premultiplied, false) | (ColorEncoding::Straight, true) => None,
+            };
             TexturePlanes::new(
                 TextureSampler::new(texture, sampler),
                 sampler.mapping,
+                conversion,
                 Plane::new(
                     attributes.map(|vertex| (vertex.u - center) * u_scale),
                     &setup,
@@ -174,7 +183,6 @@ impl<'a> Shader<'a> {
             Some(texture) => {
                 let u = texture.u.coordinate(origin, texture.u_step);
                 let v = texture.v.coordinate(origin, texture.v_step);
-                let straight = self.blend.uses_straight_source();
                 match texture.mapping {
                     TextureMapping::Radial => texture.sampler.fill_radial(source, u, v),
                     TextureMapping::Direct => {
@@ -185,7 +193,9 @@ impl<'a> Shader<'a> {
                             None
                         };
                         match (aligned, &self.color) {
-                            (Some(texels), ColorSource::Constant(Rgba8::WHITE)) if !straight => {
+                            (Some(texels), ColorSource::Constant(Rgba8::WHITE))
+                                if texture.conversion.is_none() =>
+                            {
                                 blend_span(target, texels, self.blend);
                                 return;
                             }
@@ -195,9 +205,19 @@ impl<'a> Shader<'a> {
                     }
                 }
 
-                if straight {
-                    for pixel in source.iter_mut() {
-                        *pixel = unpremultiply(*pixel);
+                match texture.conversion {
+                    Some(TexelConversion::Unpremultiply) => {
+                        for pixel in source.iter_mut() {
+                            *pixel = unpremultiply(*pixel);
+                        }
+                    }
+                    Some(TexelConversion::Premultiply) => {
+                        for pixel in source.iter_mut() {
+                            *pixel = premultiply(*pixel);
+                        }
+                    }
+                    None => {
+                        // The texels hold the color the blend mode takes.
                     }
                 }
 
@@ -505,6 +525,8 @@ impl ColorSource {
 struct TexturePlanes<'a> {
     sampler: TextureSampler<'a>,
     mapping: TextureMapping,
+    /// Applied to the filtered texels before the vertex color.
+    conversion: Option<TexelConversion>,
     /// Texel units for direct mapping; normalized units relative to the
     /// center for radial mapping.
     u: FixedPlane,
@@ -521,6 +543,7 @@ impl<'a> TexturePlanes<'a> {
     fn new(
         sampler: TextureSampler<'a>,
         mapping: TextureMapping,
+        conversion: Option<TexelConversion>,
         u: FixedPlane,
         v: FixedPlane,
     ) -> Self {
@@ -531,6 +554,7 @@ impl<'a> TexturePlanes<'a> {
         Self {
             sampler,
             mapping,
+            conversion,
             u,
             v,
             u_step,
@@ -538,6 +562,13 @@ impl<'a> TexturePlanes<'a> {
             is_aligned,
         }
     }
+}
+
+/// Converts filtered texels to the encoding the blend mode takes.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum TexelConversion {
+    Premultiply,
+    Unpremultiply,
 }
 
 /// 16.16 texel coordinates of a chunk: the value at the anchor column, the
@@ -1124,6 +1155,7 @@ mod tests {
                 pixels: &pixels,
                 width,
                 height,
+                encoding: ColorEncoding::Premultiplied,
             };
             for filter in [Filter::Nearest, Filter::Linear] {
                 for address_u in modes {

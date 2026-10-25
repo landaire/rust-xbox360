@@ -5,25 +5,41 @@ use crate::draw::Rgba8;
 use crate::draw::TextureId;
 use crate::error::ImageLayoutError;
 use crate::error::TextureError;
+use crate::image::AlphaMode;
 use crate::image::Image;
 
 /// Largest texture width or height of every backend; the Xenos limit.
 pub const MAX_TEXTURE_DIMENSION: u32 = 8192;
 
-/// Borrowed premultiplied RGBA image, rows top to bottom, no padding, at
-/// most [`MAX_TEXTURE_DIMENSION`] in either direction.
+/// Borrowed RGBA image, rows top to bottom, no padding, at most
+/// [`MAX_TEXTURE_DIMENSION`] in either direction.
 #[derive(Clone, Copy, Debug)]
 pub struct ImageView<'a> {
     width: NonZeroU32,
     height: NonZeroU32,
     pixels: &'a [Rgba8],
+    alpha_mode: AlphaMode,
 }
 
 impl<'a> ImageView<'a> {
+    /// A view of premultiplied pixels.
     pub fn new(width: NonZeroU32, height: NonZeroU32, pixels: &'a [Rgba8]) -> Result<Self, ImageLayoutError> {
+        Self::with_alpha_mode(width, height, pixels, AlphaMode::Premultiplied)
+    }
+
+    pub fn with_alpha_mode(
+        width: NonZeroU32,
+        height: NonZeroU32,
+        pixels: &'a [Rgba8],
+        alpha_mode: AlphaMode,
+    ) -> Result<Self, ImageLayoutError> {
         check_layout(width, height, pixels.len())?;
 
-        Ok(Self { width, height, pixels })
+        Ok(Self { width, height, pixels, alpha_mode })
+    }
+
+    pub fn alpha_mode(&self) -> AlphaMode {
+        self.alpha_mode
     }
 
     pub fn width(&self) -> NonZeroU32 {
@@ -44,10 +60,25 @@ impl<'a> ImageView<'a> {
 /// glyph atlases through it and refers to them by [`TextureId`] in draw lists.
 /// A draw command whose texture does not exist draws nothing.
 pub trait TextureStore {
+    /// Creates a texture of `image`. Straight images
+    /// ([`crate::image::AlphaMode::Straight`]) are sampled as render
+    /// targets are, see [`Self::create_target`].
     fn create_texture(&mut self, image: Image) -> Result<TextureId, TextureError>;
 
-    /// Replaces the contents of `id`. The size may change.
+    /// Replaces the contents of `id`. The size may change. Fails for a
+    /// render target.
     fn update_texture(&mut self, id: TextureId, image: Image) -> Result<(), TextureError>;
+
+    /// Creates a render target: a texture that target passes
+    /// ([`crate::draw::DrawList::begin_target`]) draw into. Its texels
+    /// hold straight (not premultiplied) color, 8 bits per channel, and are
+    /// transparent black until a pass draws into it. A command sampling it
+    /// filters the straight texels, then multiplies them with the straight
+    /// vertex color for the blend modes that
+    /// [`crate::draw::BlendMode::uses_straight_source`] names, and
+    /// premultiplies them by their alpha before the premultiplied vertex
+    /// color for the others.
+    fn create_target(&mut self, width: NonZeroU32, height: NonZeroU32) -> Result<TextureId, TextureError>;
 
     fn destroy_texture(&mut self, id: TextureId) -> Result<(), TextureError>;
 }

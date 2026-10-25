@@ -169,11 +169,41 @@ const SWIZZLE_XXXX: u32 = 0x6c;
 /// Source swizzle x, y, y, y: puts y in w for [`SCALAR_ADD`].
 const SWIZZLE_XYYY: u32 = 0xb0;
 const MASK_X: u32 = 0x1;
+const MASK_XYZ: u32 = 0x7;
+/// Operand B swizzle (dword 1 bits 8-15) that replicates w into every
+/// component.
+const SWIZZLE_B_WWWW: u32 = 0x1b << 8;
 
 /// Vector ALU instruction that writes `operation(a, b)` to register
 /// `destination` under `mask`, all operands registers.
-fn vector(destination: u32, mask: u32, operation: u32, a: u32, b: u32) -> [u32; 3] {
-    [SCALAR_NONE << 26 | (mask << 16) | destination, 0, ALU_SOURCES_REGISTERS | (operation << 24) | (a << 16) | (b << 8)]
+fn vector(destination: u32, mask: u32, operation: u32, a: u32, b: u32, swizzles: u32) -> [u32; 3] {
+    [SCALAR_NONE << 26 | (mask << 16) | destination, swizzles, ALU_SOURCES_REGISTERS | (operation << 24) | (a << 16) | (b << 8)]
+}
+
+/// What a textured pixel program does with the fetched texel before it
+/// multiplies it by the vertex color.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TexelConversion {
+    Unchanged,
+    /// Multiplies the color by the texel's own alpha: straight texels drawn
+    /// with a blend mode whose source is premultiplied.
+    Premultiply,
+}
+
+/// The texel conversion instructions on register 0, ahead of the export.
+fn convert_texel(program: &mut Vec<u32>, conversion: TexelConversion) {
+    match conversion {
+        TexelConversion::Unchanged => {}
+        TexelConversion::Premultiply => program.extend(vector(0, MASK_XYZ, VECTOR_MUL, 0, 0, SWIZZLE_B_WWWW)),
+    }
+}
+
+/// Instructions of [`convert_texel`].
+fn conversion_instructions(conversion: TexelConversion) -> u32 {
+    match conversion {
+        TexelConversion::Unchanged => 0,
+        TexelConversion::Premultiply => 1,
+    }
 }
 
 /// Scalar ALU instruction that writes `operation(c)` of register `source`
@@ -212,37 +242,40 @@ pub fn vertex_program() -> Vec<u32> {
     program
 }
 
-/// Pixel shader: texture 0 at interpolator 0 times interpolator 1.
-pub fn textured_pixel_program() -> Vec<u32> {
+/// Pixel shader: texture 0 at interpolator 0, converted, times
+/// interpolator 1.
+pub fn textured_pixel_program(conversion: TexelConversion) -> Vec<u32> {
     let mut program = Vec::new();
     control_flow(&mut program, &[
         ControlFlow::Exec { address: 2, count: 1, fetches: 1, vertex_fetches: 0, end: false },
         ControlFlow::AllocateParameters,
-        ControlFlow::Exec { address: 3, count: 1, fetches: 0, vertex_fetches: 0, end: true },
+        ControlFlow::Exec { address: 3, count: 1 + conversion_instructions(conversion), fetches: 0, vertex_fetches: 0, end: true },
         ControlFlow::Nop,
     ]);
     program.extend(texture_fetch(0, 0, 0));
+    convert_texel(&mut program, conversion);
     program.extend(export(0, MASK_ALL, VECTOR_MUL, 0, 1, 0));
     program
 }
 
-/// Pixel shader: texture 0 at `(2 * length(r0.xy), r0.y^2)` times
-/// interpolator 1, for texture coordinates that the renderer has moved by
-/// -0.5 so that the center of the gradient is at the origin. The textures
-/// it samples are one row high, so only x selects a texel.
-pub fn radial_pixel_program() -> Vec<u32> {
+/// Pixel shader: texture 0 at `(2 * length(r0.xy), r0.y^2)`, converted,
+/// times interpolator 1, for texture coordinates that the renderer has
+/// moved by -0.5 so that the center of the gradient is at the origin. The
+/// textures it samples are one row high, so only x selects a texel.
+pub fn radial_pixel_program(conversion: TexelConversion) -> Vec<u32> {
     let mut program = Vec::new();
     control_flow(&mut program, &[
         ControlFlow::Exec { address: 2, count: 5, fetches: 0b1_0000, vertex_fetches: 0, end: false },
         ControlFlow::AllocateParameters,
-        ControlFlow::Exec { address: 7, count: 1, fetches: 0, vertex_fetches: 0, end: true },
+        ControlFlow::Exec { address: 7, count: 1 + conversion_instructions(conversion), fetches: 0, vertex_fetches: 0, end: true },
         ControlFlow::Nop,
     ]);
-    program.extend(vector(0, MASK_XY, VECTOR_MUL, 0, 0));
+    program.extend(vector(0, MASK_XY, VECTOR_MUL, 0, 0, 0));
     program.extend(scalar(0, SCALAR_ADD, 0, SWIZZLE_XYYY));
     program.extend(scalar(0, SCALAR_SQRT, 0, SWIZZLE_XXXX));
     program.extend(scalar(0, SCALAR_ADD, 0, SWIZZLE_XXXX));
     program.extend(texture_fetch(0, 0, 0));
+    convert_texel(&mut program, conversion);
     program.extend(export(0, MASK_ALL, VECTOR_MUL, 0, 1, 0));
     program
 }
@@ -264,9 +297,24 @@ mod tests {
 
     #[test]
     fn programs_are_whole_instructions_after_their_control_flow() {
-        for (program, control) in [(vertex_program(), 9), (textured_pixel_program(), 6), (color_pixel_program(), 3)] {
+        for (program, control) in [(vertex_program(), 9), (textured_pixel_program(TexelConversion::Unchanged), 6), (color_pixel_program(), 3)] {
             assert_eq!(program.len() % 3, 0);
             assert!(program.len() > control);
+        }
+    }
+
+    #[test]
+    fn premultiply_adds_one_instruction_to_the_final_exec() {
+        let programs: [(fn(TexelConversion) -> Vec<u32>, usize, usize); 2] = [(textured_pixel_program, 6, 2), (radial_pixel_program, 6, 6)];
+        for (program, control, instructions) in programs {
+            let unchanged = program(TexelConversion::Unchanged);
+            let premultiplied = program(TexelConversion::Premultiply);
+            assert_eq!(unchanged.len(), control + 3 * instructions);
+            assert_eq!(premultiplied.len(), control + 3 * (instructions + 1));
+            // The final exec is instruction A of the second control flow
+            // pair: dword 3, count in bits 12-15.
+            let exec_count = |program: &[u32]| program[3] >> 12 & 0xf;
+            assert_eq!(exec_count(&premultiplied), exec_count(&unchanged) + 1);
         }
     }
 

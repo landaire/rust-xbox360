@@ -1,5 +1,6 @@
 use core::num::NonZeroU32;
 
+use crate::draw::ClipRect;
 use crate::draw::Rgba8;
 use crate::error::TargetError;
 
@@ -108,7 +109,31 @@ pub struct TargetBand<'a> {
     bottom: u32,
 }
 
-impl TargetBand<'_> {
+impl<'a> TargetBand<'a> {
+    /// All rows of an image of `height` rows of `width` pixels without
+    /// padding, as the texels of a render target texture.
+    pub(super) fn from_texels(pixels: &'a mut [Rgba8], width: u32, height: u32) -> Self {
+        debug_assert_eq!(pixels.len(), width as usize * height as usize);
+
+        Self {
+            pixels,
+            width,
+            stride: width,
+            top: 0,
+            bottom: height,
+        }
+    }
+
+    /// The band's pixels in target coordinates.
+    pub(super) fn rect(&self) -> ClipRect {
+        ClipRect {
+            left: 0,
+            top: self.top as i32,
+            right: self.width as i32,
+            bottom: self.bottom as i32,
+        }
+    }
+
     pub fn width(&self) -> u32 {
         self.width
     }

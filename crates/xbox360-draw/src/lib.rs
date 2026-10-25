@@ -1,6 +1,7 @@
 //! Draw lists and texture storage shared by renderers: triangles in target
-//! pixel coordinates with per-command texture, sampler, blend mode and clip
-//! rectangle, premultiplied RGBA pixels, and the texture id allocator every
+//! pixel coordinates with per-command texture, sampler, blend mode, clip
+//! rectangle and color write mask, render target passes drawn before the
+//! frame, premultiplied RGBA pixels, and the texture id allocator every
 //! backend uses. Builds for every target.
 
 #![no_std]

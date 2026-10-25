@@ -28,6 +28,8 @@ pub enum TextureError {
     UnknownTexture { id: TextureId },
     SlotsExhausted,
     TooLarge { width: u32, height: u32, max: u32 },
+    /// Render targets are only written by target passes.
+    RenderTarget { id: TextureId },
 }
 
 impl fmt::Display for TextureError {
@@ -38,6 +40,7 @@ impl fmt::Display for TextureError {
             Self::TooLarge { width, height, max } => {
                 write!(f, "texture size {width}x{height} exceeds the backend limit of {max}")
             }
+            Self::RenderTarget { id } => write!(f, "texture {id:?} is a render target"),
         }
     }
 }
@@ -50,6 +53,10 @@ pub enum DrawListError {
     IndexOutOfRange { index: u32, vertex_count: usize },
     TooManyVertices { count: usize },
     TooManyTriangles { count: usize },
+    /// [`crate::draw::DrawList::begin_target`] while a target pass is open.
+    TargetPassOpen,
+    /// [`crate::draw::DrawList::begin_target`] after a frame command.
+    FrameStarted,
 }
 
 impl fmt::Display for DrawListError {
@@ -60,6 +67,8 @@ impl fmt::Display for DrawListError {
             }
             Self::TooManyVertices { count } => write!(f, "{count} vertices exceed the addressable count"),
             Self::TooManyTriangles { count } => write!(f, "{count} triangles exceed the addressable count"),
+            Self::TargetPassOpen => f.write_str("a target pass is already open"),
+            Self::FrameStarted => f.write_str("target passes must precede the frame commands"),
         }
     }
 }

@@ -3,6 +3,7 @@
 //! helpers are always inlined for the reason given in `shade`.
 
 use crate::draw::BlendMode;
+use crate::draw::ColorWriteMask;
 use crate::draw::Rgba8;
 
 /// Bits per channel of an `Rgba8`.
@@ -19,13 +20,95 @@ const LANE_HALVES: u32 = LANE_ONES << (CHANNEL_BITS - 1);
 /// Half of `2^CHANNEL_BITS`, for rounding a right shift by
 /// [`CHANNEL_BITS`].
 const HALF_STEP: u32 = 1 << (CHANNEL_BITS - 1);
+/// Position of the alpha channel in an `Rgba8`.
+const ALPHA_SHIFT: u32 = 3 * CHANNEL_BITS;
+const ALPHA_BITS: u32 = CHANNEL_MAX << ALPHA_SHIFT;
+
+/// Whether the color channels of pixels are premultiplied by their alpha.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum ColorEncoding {
+    Premultiplied,
+    Straight,
+}
+
+/// How the source pixels of one command combine with the target.
+#[derive(Clone, Copy, Debug)]
+pub(super) struct Blend {
+    mode: BlendMode,
+    /// Bits of an `Rgba8` the command writes; the others keep the target.
+    write: u32,
+    /// The source alpha factor also scales the alpha channel of the
+    /// source, as when blending into straight render target texels.
+    squares_alpha: bool,
+}
+
+impl Blend {
+    pub fn new(mode: BlendMode, color_write: ColorWriteMask, target: ColorEncoding) -> Self {
+        let channel = |channel: ColorWriteMask, shift: u32| {
+            if color_write.contains(channel) {
+                CHANNEL_MAX << shift
+            } else {
+                0
+            }
+        };
+        let write = channel(ColorWriteMask::RED, 0)
+            | channel(ColorWriteMask::GREEN, CHANNEL_BITS)
+            | channel(ColorWriteMask::BLUE, 2 * CHANNEL_BITS)
+            | channel(ColorWriteMask::ALPHA, ALPHA_SHIFT);
+        let scales_by_source_alpha = match mode {
+            BlendMode::Normal | BlendMode::Additive | BlendMode::ReverseSubtract => true,
+            BlendMode::Modulate | BlendMode::Min | BlendMode::Max => false,
+        };
+
+        Self {
+            mode,
+            write,
+            squares_alpha: scales_by_source_alpha && target == ColorEncoding::Straight,
+        }
+    }
+
+    pub fn mode(self) -> BlendMode {
+        self.mode
+    }
+
+    /// Whether the mode's arithmetic alone gives the result, as the
+    /// per-mode loops compute it.
+    fn is_plain(self) -> bool {
+        self.write == u32::MAX && !self.squares_alpha
+    }
+
+    #[inline(always)]
+    fn pixel(self, dst: Rgba8, src: Rgba8) -> Rgba8 {
+        let source = if self.squares_alpha {
+            let alpha = u32::from(mul_div_255(src.alpha(), src.alpha()));
+            Rgba8((src.0 & !ALPHA_BITS) | alpha << ALPHA_SHIFT)
+        } else {
+            src
+        };
+        let blended = match self.mode {
+            BlendMode::Normal => over(dst, source, CHANNEL_MAX - u32::from(src.alpha())),
+            BlendMode::Additive => additive(dst, source),
+            BlendMode::Modulate => modulate(dst, source),
+            BlendMode::Min => min(dst, source),
+            BlendMode::Max => max(dst, source),
+            BlendMode::ReverseSubtract => reverse_subtract(dst, source),
+        };
+
+        Rgba8((blended.0 & self.write) | (dst.0 & !self.write))
+    }
+}
 
 /// `src` holds at least as many pixels as `dst`.
 // Closures rather than function items: a function item passed as
 // `impl Fn` is called out of line when optimizing for size.
 #[expect(clippy::redundant_closure)]
-pub(super) fn blend_span(dst: &mut [Rgba8], src: &[Rgba8], mode: BlendMode) {
-    match mode {
+pub(super) fn blend_span(dst: &mut [Rgba8], src: &[Rgba8], blend: Blend) {
+    if !blend.is_plain() {
+        combine(dst, src, |target, source| blend.pixel(target, source));
+        return;
+    }
+
+    match blend.mode {
         BlendMode::Normal => normal_span(dst, src),
         BlendMode::Additive => combine(dst, src, |target, source| additive(target, source)),
         BlendMode::Modulate => combine(dst, src, |target, source| modulate(target, source)),
@@ -37,8 +120,15 @@ pub(super) fn blend_span(dst: &mut [Rgba8], src: &[Rgba8], mode: BlendMode) {
     }
 }
 
-pub(super) fn blend_solid(dst: &mut [Rgba8], color: Rgba8, mode: BlendMode) {
-    match mode {
+pub(super) fn blend_solid(dst: &mut [Rgba8], color: Rgba8, blend: Blend) {
+    if !blend.is_plain() {
+        for target in dst {
+            *target = blend.pixel(*target, color);
+        }
+        return;
+    }
+
+    match blend.mode {
         BlendMode::Normal if color.alpha() == u8::MAX => dst.fill(color),
         // A zero source leaves the target unchanged.
         BlendMode::Normal | BlendMode::Additive if color == Rgba8::TRANSPARENT => {}
@@ -114,6 +204,19 @@ pub(super) fn unpremultiply(texel: Rgba8) -> Rgba8 {
         straight(texel.red()),
         straight(texel.green()),
         straight(texel.blue()),
+        alpha,
+    )
+}
+
+/// Premultiplies a straight texel: `round(c * a / 255)` per color channel.
+#[inline(always)]
+pub(super) fn premultiply(texel: Rgba8) -> Rgba8 {
+    let alpha = texel.alpha();
+
+    Rgba8::new(
+        mul_div_255(texel.red(), alpha),
+        mul_div_255(texel.green(), alpha),
+        mul_div_255(texel.blue(), alpha),
         alpha,
     )
 }
@@ -323,39 +426,54 @@ mod tests {
         }
     }
 
-    /// Lane arithmetic and the constant-source paths match per-channel
-    /// integer formulas for every premultiplied source channel and alpha
-    /// against every target value.
+    /// Lane arithmetic, the general path and the constant-source paths
+    /// match per-channel integer formulas for every premultiplied source
+    /// channel and alpha against every target value, for premultiplied and
+    /// straight targets.
     #[test]
     fn lane_arithmetic_matches_channel_formulas() {
-        for mode in MODES {
-            for src_alpha in 0..=255u32 {
-                for src in (0..=src_alpha).step_by(3).chain([src_alpha]) {
-                    for dst in 0..=255u32 {
-                        let source = Rgba8::new(
-                            src as u8,
-                            (src_alpha - src) as u8,
-                            src as u8,
-                            src_alpha as u8,
-                        );
-                        let target = Rgba8::new(dst as u8, dst as u8, (255 - dst) as u8, dst as u8);
+        for encoding in [ColorEncoding::Premultiplied, ColorEncoding::Straight] {
+            for mode in MODES {
+                let blend = Blend::new(mode, ColorWriteMask::ALL, encoding);
+                let squares_alpha = encoding == ColorEncoding::Straight
+                    && matches!(
+                        mode,
+                        BlendMode::Normal | BlendMode::Additive | BlendMode::ReverseSubtract
+                    );
+                for src_alpha in 0..=255u32 {
+                    let alpha_source = if squares_alpha {
+                        (src_alpha * src_alpha + 127) / 255
+                    } else {
+                        src_alpha
+                    };
+                    for src in (0..=src_alpha).step_by(3).chain([src_alpha]) {
+                        for dst in 0..=255u32 {
+                            let source = Rgba8::new(
+                                src as u8,
+                                (src_alpha - src) as u8,
+                                src as u8,
+                                src_alpha as u8,
+                            );
+                            let target =
+                                Rgba8::new(dst as u8, dst as u8, (255 - dst) as u8, dst as u8);
 
-                        let mut blended = [target];
-                        blend_span(&mut blended, &[source], mode);
-                        let mut solid = [target];
-                        blend_solid(&mut solid, source, mode);
+                            let mut blended = [target];
+                            blend_span(&mut blended, &[source], blend);
+                            let mut solid = [target];
+                            blend_solid(&mut solid, source, blend);
 
-                        let expected = Rgba8::new(
-                            reference_channel(dst, src, src_alpha, mode) as u8,
-                            reference_channel(dst, src_alpha - src, src_alpha, mode) as u8,
-                            reference_channel(255 - dst, src, src_alpha, mode) as u8,
-                            reference_channel(dst, src_alpha, src_alpha, mode) as u8,
-                        );
-                        assert_eq!(
-                            blended[0], expected,
-                            "{mode:?} src {source:?} dst {target:?}"
-                        );
-                        assert_eq!(solid[0], expected, "{mode:?} src {source:?} dst {target:?}");
+                            let expected = Rgba8::new(
+                                reference_channel(dst, src, src_alpha, mode) as u8,
+                                reference_channel(dst, src_alpha - src, src_alpha, mode) as u8,
+                                reference_channel(255 - dst, src, src_alpha, mode) as u8,
+                                reference_channel(dst, alpha_source, src_alpha, mode) as u8,
+                            );
+                            assert_eq!(
+                                (blended[0], solid[0]),
+                                (expected, expected),
+                                "{encoding:?} {mode:?} src {source:?} dst {target:?}"
+                            );
+                        }
                     }
                 }
             }
