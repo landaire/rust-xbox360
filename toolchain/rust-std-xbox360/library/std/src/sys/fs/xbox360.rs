@@ -249,8 +249,11 @@ impl File {
     }
 
     pub fn file_attr(&self) -> io::Result<FileAttr> {
-        // FILE_STANDARD_INFORMATION: AllocationSize(i64), EndOfFile(i64) at +8, ...
-        let mut buf = [0u8; 24];
+        // FILE_NETWORK_OPEN_INFORMATION: four FILETIMEs, AllocationSize(i64),
+        // EndOfFile(i64) at +0x28, FileAttributes(u32) at +0x30. The console
+        // file systems reject FileStandardInformation with
+        // STATUS_INVALID_INFO_CLASS.
+        let mut buf = [0u8; 0x38];
         let mut iosb = IoStatusBlock::default();
         // SAFETY: `self.handle` is an open file handle; `buf` and `iosb` are live locals
         // and `buf.len()` is the size of `buf`.
@@ -260,14 +263,16 @@ impl File {
                 &mut iosb,
                 buf.as_mut_ptr(),
                 buf.len() as u32,
-                FileInformationClass::Standard,
+                FileInformationClass::NetworkOpen,
             )
         };
         if status != NtStatus::SUCCESS {
             return Err(nt_err(status));
         }
-        let end_of_file = u64::from_be_bytes(buf[8..16].try_into().unwrap());
-        let is_dir = buf[21] != 0; // Directory flag
+        let end_of_file = u64::from_be_bytes(buf[0x28..0x30].try_into().unwrap());
+        let attributes =
+            FileAttributes::from_bits_retain(u32::from_be_bytes(buf[0x30..0x34].try_into().unwrap()));
+        let is_dir = attributes.contains(FileAttributes::DIRECTORY);
         Ok(FileAttr { size: end_of_file, is_dir })
     }
 
