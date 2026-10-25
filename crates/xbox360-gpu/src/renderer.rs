@@ -17,6 +17,8 @@ use xbox360_draw::texture::TextureSlots;
 use xbox360_draw::texture::TextureStore;
 use xbox360_video::BackBuffer;
 use xbox360_video::Display;
+use xbox360_video::ShaderEpoch;
+use xbox360_video::ShaderOwner;
 use xbox360_video::memory::Caching;
 use xbox360_video::memory::PhysicalBuffer;
 use xbox360_video::ring::Ring;
@@ -34,8 +36,6 @@ const PITCH_TEXELS: u32 = 32;
 const TEXEL_BYTES: u32 = 4;
 /// Allocation granule of physical memory.
 const PAGE_BYTES: u32 = 0x1000;
-/// Dwords per ring reservation.
-const SUBMIT_CHUNK_DWORDS: usize = 0x400;
 
 mod register {
     pub const WINDOW_OFFSET: u16 = 0x2080;
@@ -56,7 +56,8 @@ mod register {
     pub const RESOLVE_INFO: u16 = 0x231b;
     pub const FETCH_CONSTANTS: u16 = 0x4800;
     pub const CONSTANTS_5000: u16 = 0x5000;
-    pub const DRAW_2102: u16 = 0x2102;
+    /// Added to every vertex index of a draw.
+    pub const INDEX_OFFSET: u16 = 0x2102;
     pub const COPY_2301: u16 = 0x2301;
     pub const MASK_2312: u16 = 0x2312;
     pub const MISC_05C8: u16 = 0x05c8;
@@ -145,10 +146,7 @@ mod value {
     /// Program control for the vertex and pixel programs of `shader`: vertex
     /// registers r0-r2, pixel registers r0-r1, two vertex exports.
     pub const PROGRAM_CONTROL_DRAW: [u32; 3] = [0x1011_0102, 8, 0x0001_0003];
-    /// Program control of the vertex-only resolve.
-    pub const PROGRAM_CONTROL_RESOLVE: [u32; 2] = [0x0001_0002, 0];
     pub const CONSTANTS_5000_DRAW: [u32; 3] = [0, 0x0002_5000, 0];
-    pub const CONSTANTS_5000_RESOLVE: [u32; 3] = [0, 0, 0];
     pub const MASK_2312: u32 = 0xffff;
     /// Payloads of packet 0x3B at frame start, before the resolve and at
     /// the end of a frame.
@@ -228,9 +226,8 @@ enum Primitive {
     RectList = 8,
 }
 
-/// Corners of the resolve rect list, two floats each.
+/// Corners of the resolve rect list.
 const RESOLVE_CORNERS: u32 = 3;
-const RESOLVE_CORNER_DWORDS: u32 = RESOLVE_CORNERS * 2;
 /// Value written to the flush registers after a resolve.
 const FLUSH: u32 = 1;
 /// Vertices of the clear rect (two triangles).
@@ -395,36 +392,32 @@ impl Arena<'_> {
     }
 }
 
-/// Command words gathered for one ring submission.
-struct Commands {
-    words: Vec<u32>,
+/// Writes packets into the ring, one reservation each, so the ring wraps
+/// only between packets.
+struct Commands<'r> {
+    ring: &'r mut Ring,
 }
 
-impl Commands {
+impl Commands<'_> {
+    fn emit(&mut self, header: u32, prefix: &[u32], payload: &[u32]) {
+        let length = 1 + prefix.len() + payload.len();
+        let words = self.ring.reserve(length as u32);
+        words[0] = header;
+        words[1..=prefix.len()].copy_from_slice(prefix);
+        words[1 + prefix.len()..].copy_from_slice(payload);
+        self.ring.commit(length as u32);
+    }
+
     fn registers(&mut self, first: u16, values: &[u32]) {
-        self.words.push(type0(first, values.len() as u32));
-        self.words.extend_from_slice(values);
+        self.emit(type0(first, values.len() as u32), &[], values);
     }
 
     fn packet(&mut self, code: u8, payload: &[u32]) {
-        self.words.push(type3(code, payload.len() as u32));
-        self.words.extend_from_slice(payload);
+        self.emit(type3(code, payload.len() as u32), &[], payload);
     }
 
     fn shader(&mut self, kind: ShaderKind, program: &[u32]) {
-        self.words.push(type3(opcode::LOAD_SHADER, program.len() as u32 + 2));
-        self.words.push(kind as u32);
-        self.words.push(program.len() as u32);
-        self.words.extend_from_slice(program);
-    }
-
-    fn submit(&mut self, ring: &mut Ring) {
-        // Ring reservations stay well below the ring size.
-        for chunk in self.words.chunks(SUBMIT_CHUNK_DWORDS) {
-            ring.reserve(chunk.len() as u32).copy_from_slice(chunk);
-            ring.commit(chunk.len() as u32);
-        }
-        self.words.clear();
+        self.emit(type3(opcode::LOAD_SHADER, program.len() as u32 + 2), &[kind as u32, program.len() as u32], program);
     }
 }
 
@@ -445,11 +438,21 @@ pub struct Gpu {
     /// Textures replaced or destroyed, with the number of frames submitted
     /// when they were retired; frames up to then may still sample them.
     retired: Vec<(usize, Texture)>,
-    commands: Commands,
+    /// The programs the GPU holds, valid for the display's shader epoch.
+    /// The vertex program is loaded once per epoch: loading vertex programs
+    /// frame after frame stopped the GPU after some hundred frames on a
+    /// development kit (xenos-gpu.md, Shader loads).
+    loaded: Option<LoadedPrograms>,
+    owner: ShaderOwner,
     vertex_program: Vec<u32>,
     textured_program: Vec<u32>,
     color_program: Vec<u32>,
-    resolve_program: Vec<u32>,
+}
+
+#[derive(Clone, Copy)]
+struct LoadedPrograms {
+    epoch: ShaderEpoch,
+    pixel: Option<PixelProgram>,
 }
 
 impl Gpu {
@@ -461,11 +464,11 @@ impl Gpu {
             frame: 0,
             textures_changed: false,
             retired: Vec::new(),
-            commands: Commands { words: Vec::new() },
+            loaded: None,
+            owner: ShaderOwner::new(),
             vertex_program: shader::vertex_program(),
             textured_program: shader::textured_pixel_program(),
             color_program: shader::color_pixel_program(),
-            resolve_program: shader::resolve_program(),
         })
     }
 
@@ -474,12 +477,13 @@ impl Gpu {
     /// backend.
     pub fn render(&mut self, display: &mut Display, list: &DrawList) -> Result<(), GpuError> {
         let triangles: usize = list.commands().iter().map(|command| list.command_triangles(command).len()).sum();
-        // One rect for the clear and three resolve corners share the arena.
-        let needed = (triangles * 3 + 6) * shader::VERTEX_DWORDS as usize * 4 + 64;
+        // The clear rect and the resolve corners share the arena.
+        let needed = (triangles * 3 + CLEAR_VERTICES + RESOLVE_CORNERS as usize) * shader::VERTEX_DWORDS as usize * 4;
         if needed > ARENA_BYTES as usize {
             return Err(GpuError::TooManyTriangles { triangles });
         }
 
+        let epoch = display.claim_shaders(self.owner);
         let (back, ring) = display.begin_gpu_frame();
         // The previous flip has taken effect, so every submitted frame has
         // finished: retired textures and the arena of two frames ago are free.
@@ -490,13 +494,24 @@ impl Gpu {
         let arena_address = arena.physical().0;
         let mut vertices = Arena { words: arena.words(), written: 0 };
 
-        let commands = &mut self.commands;
+        let commands = &mut Commands { ring };
         frame_state(commands, back);
         if self.textures_changed {
             coherency_flush(commands);
             self.textures_changed = false;
         }
-        commands.shader(ShaderKind::Vertex, &self.vertex_program);
+        let pixel_loaded = match self.loaded {
+            Some(loaded) if loaded.epoch == epoch => loaded.pixel,
+            _ => {
+                commands.shader(ShaderKind::Vertex, &self.vertex_program);
+                None
+            }
+        };
+        let mut programs = Programs {
+            loaded: pixel_loaded,
+            color: &self.color_program,
+            textured: &self.textured_program,
+        };
         commands.registers(register::PROGRAM_CONTROL, &value::PROGRAM_CONTROL_DRAW);
 
         let size = back.size;
@@ -507,8 +522,7 @@ impl Gpu {
         for vertex in [corner(0.0, 0.0), corner(width, 0.0), corner(width, height), corner(0.0, 0.0), corner(width, height), corner(0.0, height)] {
             vertices.push(&vertex);
         }
-        let mut program = None;
-        draw(commands, &mut program, PixelProgram::Color, &self.color_program, &self.textured_program, arena_address, 0, CLEAR_VERTICES, BLEND_REPLACE, None, full);
+        draw(commands, &mut programs, PixelProgram::Color, arena_address, 0, CLEAR_VERTICES, BLEND_REPLACE, None, full);
 
         let source = list.vertices();
         for command in list.commands() {
@@ -535,17 +549,15 @@ impl Gpu {
                     PixelProgram::Textured
                 }
             };
-            draw(commands, &mut program, pixel, &self.color_program, &self.textured_program, arena_address, first, count, blend(mode), command.clip(), full);
+            draw(commands, &mut programs, pixel, arena_address, first, count, blend(mode), command.clip(), full);
         }
 
-        let resolve_corners = vertices.written;
-        for value in [0.0, 0.0, width, 0.0, 0.0, height] {
-            vertices.words[vertices.written] = float(value);
-            vertices.written += 1;
+        let resolve_first = vertices.vertex_count();
+        for (x, y) in [(0.0, 0.0), (width, 0.0), (0.0, height)] {
+            vertices.push(&Vertex { position: [x, y], uv: [0.0, 0.0], color: Rgba8::TRANSPARENT });
         }
-        resolve(commands, back, &self.resolve_program, arena_address + resolve_corners as u32 * 4);
-        xbox360_sys::processor::sync();
-        commands.submit(ring);
+        resolve(commands, back, arena_address, resolve_first);
+        self.loaded = Some(LoadedPrograms { epoch, pixel: programs.loaded });
         display.present_gpu_frame();
         Ok(())
     }
@@ -585,13 +597,50 @@ fn coherency_flush(commands: &mut Commands) {
     commands.packet(opcode::WAIT, &[WAIT_REGISTER_EQUAL, u32::from(register::COHERENCY_STATUS), 0, value::COHERENCY_BUSY, value::WAIT_INTERVAL]);
 }
 
+/// The pixel programs and the one the GPU holds.
+struct Programs<'p> {
+    loaded: Option<PixelProgram>,
+    color: &'p [u32],
+    textured: &'p [u32],
+}
+
+impl Programs<'_> {
+    fn select(&mut self, commands: &mut Commands, pixel: PixelProgram) {
+        if self.loaded == Some(pixel) {
+            return;
+        }
+        let program = match pixel {
+            PixelProgram::Color => self.color,
+            PixelProgram::Textured => self.textured,
+        };
+        commands.shader(ShaderKind::Pixel, program);
+        self.loaded = Some(pixel);
+    }
+}
+
+/// Writes the vertex fetch constant and the index offset that make the
+/// arena's vertices `first..` the draw's vertices 0... All draws of a frame
+/// fetch from the arena base and are told apart by the index offset: the
+/// GPU reuses transformed vertices by index, so draws whose fetch constant
+/// moves the base while their indices restart at 0 drew the vertices of an
+/// earlier draw.
+fn vertex_source(commands: &mut Commands, arena: u32, first: usize, count: usize) {
+    let dwords = (first + count) as u32 * shader::VERTEX_DWORDS;
+    let constant = shader::VERTEX_FETCH_CONSTANT;
+    // Three vertex fetch constants share a slot of six dwords; the first two
+    // of the slot are unused and hold the value D3D leaves there.
+    let slot = register::FETCH_CONSTANTS + (constant / 3 * 6) as u16;
+    let [unused0, unused1] = value::UNUSED_VERTEX_FETCH;
+    commands.registers(slot, &[unused0, unused1, unused0, unused1, arena | fetch::TYPE_VERTEX, vertex_fetch_size(dwords)]);
+    commands.registers(register::CONSTANTS_5000, &value::CONSTANTS_5000_DRAW);
+    commands.registers(register::INDEX_OFFSET, &[first as u32]);
+}
+
 #[allow(clippy::too_many_arguments)]
 fn draw(
     commands: &mut Commands,
-    loaded: &mut Option<PixelProgram>,
+    programs: &mut Programs,
     pixel: PixelProgram,
-    color_program: &[u32],
-    textured_program: &[u32],
     arena: u32,
     first: usize,
     count: usize,
@@ -602,14 +651,7 @@ fn draw(
     if count == 0 {
         return;
     }
-    if *loaded != Some(pixel) {
-        let program = match pixel {
-            PixelProgram::Color => color_program,
-            PixelProgram::Textured => textured_program,
-        };
-        commands.shader(ShaderKind::Pixel, program);
-        *loaded = Some(pixel);
-    }
+    programs.select(commands, pixel);
     commands.registers(register::BLEND_CONTROL, &[blend_value]);
     // Window scissor: top left and bottom right (exclusive), y << 16 | x.
     let (top_left, bottom_right) = match clip {
@@ -620,36 +662,27 @@ fn draw(
         None => (0, full),
     };
     commands.registers(register::WINDOW_SCISSOR, &[top_left, bottom_right]);
-    let base = arena + first as u32 * shader::VERTEX_DWORDS * 4;
-    let dwords = count as u32 * shader::VERTEX_DWORDS;
-    let constant = shader::VERTEX_FETCH_CONSTANT;
-    // Three vertex fetch constants share a slot of six dwords; the first two
-    // of the slot are unused and hold the value D3D leaves there.
-    let slot = register::FETCH_CONSTANTS + (constant / 3 * 6) as u16;
-    let [unused0, unused1] = value::UNUSED_VERTEX_FETCH;
-    commands.registers(slot, &[unused0, unused1, unused0, unused1, base | fetch::TYPE_VERTEX, vertex_fetch_size(dwords)]);
-    commands.registers(register::CONSTANTS_5000, &value::CONSTANTS_5000_DRAW);
-    commands.registers(register::DRAW_2102, &[0]);
+    vertex_source(commands, arena, first, count);
     commands.packet(opcode::DRAW, &[0, draw_control(count as u32, Primitive::TriangleList)]);
 }
 
-fn resolve(commands: &mut Commands, back: BackBuffer, program: &[u32], corners: u32) {
+/// Copy the frame to `back`. The rect list of the copy is three arena
+/// vertices from `first` in the draw layout, run through the resident
+/// vertex program.
+fn resolve(commands: &mut Commands, back: BackBuffer, arena: u32, first: usize) {
     let size = back.size;
     commands.registers(register::WINDOW_SCISSOR, &[0, size.height << 16 | size.width]);
     commands.registers(register::SURFACE, &[value::SURFACE_FLAGS | size.width, 0]);
     commands.registers(register::COPY_2301, &[0]);
     commands.registers(register::RESOLVE, &[value::RESOLVE_CONTROL, back.address.0, size.height << 16 | back.pitch, value::RESOLVE_DESTINATION_FORMAT]);
     commands.packet(opcode::STATE_3B, &[value::STATE_3B_RESOLVE]);
-    commands.shader(ShaderKind::Vertex, program);
-    commands.registers(register::PROGRAM_CONTROL, &value::PROGRAM_CONTROL_RESOLVE);
     commands.registers(register::MODE_CONTROL, &[Mode::Copy as u32]);
     commands.registers(register::DEPTH_CONTROL, &[0]);
     commands.registers(register::DEPTH_2203, &[0]);
     commands.registers(register::MISC_2100, &[value::MISC_2100_RESOLVE, 0, 0]);
     commands.registers(register::CLIP_CONTROL, &[value::CLIP_CONTROL, value::SETUP_CONTROL, value::VIEWPORT_TRANSFORM_PIXELS]);
     commands.registers(register::MASK_2312, &[value::MASK_2312]);
-    commands.registers(register::FETCH_CONSTANTS, &[corners | fetch::TYPE_VERTEX, vertex_fetch_size(RESOLVE_CORNER_DWORDS), 0, 0, 0, 0]);
-    commands.registers(register::CONSTANTS_5000, &value::CONSTANTS_5000_RESOLVE);
+    vertex_source(commands, arena, first, RESOLVE_CORNERS as usize);
     commands.packet(opcode::DRAW_SHORT, &[draw_control(RESOLVE_CORNERS, Primitive::RectList)]);
     commands.packet(opcode::RESOLVE_EVENT, &[value::RESOLVE_EVENT]);
     commands.registers(register::RESOLVE, &[0]);

@@ -207,40 +207,13 @@ pub fn color_pixel_program() -> Vec<u32> {
     program
 }
 
-/// Vertex shader of the resolve: a float2 position from fetch constant 0.
-pub fn resolve_program() -> Vec<u32> {
-    let mut program = Vec::new();
-    control_flow(&mut program, &[
-        ControlFlow::Exec { address: 2, count: 1, fetches: 1, vertex_fetches: 1, end: false },
-        ControlFlow::AllocateParameters,
-        ControlFlow::AllocatePosition,
-        ControlFlow::Exec { address: 3, count: 1, fetches: 0, vertex_fetches: 0, end: true },
-    ]);
-    let mut fetch = VertexFetch {
-        destination: 0,
-        constant: 0,
-        mini: false,
-        format: FORMAT_32_32_FLOAT,
-        number_format: NUMBER_FLOAT,
-        swizzle: swizzle(0, 1, SELECT_ONE, SELECT_ONE),
-        stride: 2,
-        offset: 0,
-    }
-    .encode();
-    // The resolve's only fetch is observed without the first-fetch bit.
-    fetch[0] &= !(1 << 29);
-    program.extend(fetch);
-    program.extend(export(EXPORT_POSITION, MASK_ALL, VECTOR_MAX, 0, 0, 0));
-    program
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn programs_are_whole_instructions_after_their_control_flow() {
-        for (program, control) in [(vertex_program(), 9), (textured_pixel_program(), 6), (color_pixel_program(), 3), (resolve_program(), 6)] {
+        for (program, control) in [(vertex_program(), 9), (textured_pixel_program(), 6), (color_pixel_program(), 3)] {
             assert_eq!(program.len() % 3, 0);
             assert!(program.len() > control);
         }

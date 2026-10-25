@@ -21,6 +21,10 @@ mod tiling;
 pub use self::console::BackBuffer;
 #[cfg(target_os = "xbox360")]
 pub use self::console::Display;
+#[cfg(target_os = "xbox360")]
+pub use self::console::ShaderEpoch;
+#[cfg(target_os = "xbox360")]
+pub use self::console::ShaderOwner;
 pub use self::error::BufferKind;
 pub use self::error::DisplayError;
 
@@ -59,6 +63,7 @@ impl<'a> FrameView<'a> {
 #[cfg(target_os = "xbox360")]
 mod console {
     use core::sync::atomic::AtomicBool;
+    use core::sync::atomic::AtomicU32;
     use core::sync::atomic::Ordering;
 
     use xbox360_sys::mmio::GpuRegisters;
@@ -111,6 +116,41 @@ mod console {
     /// traps when they are already owned.
     static ENGINES_OWNED: AtomicBool = AtomicBool::new(false);
 
+    /// Source of [`ShaderEpoch`] values.
+    static NEXT_EPOCH: AtomicU32 = AtomicU32::new(0);
+
+    /// Source of [`ShaderOwner`] values.
+    static NEXT_OWNER: AtomicU32 = AtomicU32::new(0);
+
+    /// Identifies a period in which the shader programs a renderer loaded
+    /// stay loaded. A new one starts when the engines are taken, when a flip
+    /// runs the system command buffer, whose commands are the system's, and
+    /// when another renderer claims the shaders.
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    pub struct ShaderEpoch(u32);
+
+    /// A renderer that loads shader programs through a [`Display`].
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    pub struct ShaderOwner(u32);
+
+    impl ShaderOwner {
+        pub fn new() -> Self {
+            Self(NEXT_OWNER.fetch_add(1, Ordering::Relaxed))
+        }
+    }
+
+    impl Default for ShaderOwner {
+        fn default() -> Self {
+            Self::new()
+        }
+    }
+
+    impl ShaderEpoch {
+        fn next() -> Self {
+            Self(NEXT_EPOCH.fetch_add(1, Ordering::Relaxed))
+        }
+    }
+
     struct FrontBuffer {
         memory: PhysicalBuffer,
         fetch_constant: [u32; 6],
@@ -141,6 +181,8 @@ mod console {
         tiles_wide: u32,
         tiles_high: u32,
         pending: Option<Flip>,
+        shader_epoch: ShaderEpoch,
+        shader_owner: Option<ShaderOwner>,
     }
 
     impl Display {
@@ -182,11 +224,22 @@ mod console {
                 release_engines();
                 return Err(DisplayError::OutOfMemory { buffer: BufferKind::Ring });
             };
-            Ok(Self { ring, buffers, back: 0, size, tiles_wide, tiles_high, pending: None })
+            Ok(Self { ring, buffers, back: 0, size, tiles_wide, tiles_high, pending: None, shader_epoch: ShaderEpoch::next(), shader_owner: None })
         }
 
         pub fn size(&self) -> FrameSize {
             self.size
+        }
+
+        /// The shader epoch for `owner`, which is about to load or use
+        /// shader programs: programs it loaded under another one must be
+        /// loaded again.
+        pub fn claim_shaders(&mut self, owner: ShaderOwner) -> ShaderEpoch {
+            if self.shader_owner != Some(owner) {
+                self.shader_owner = Some(owner);
+                self.shader_epoch = ShaderEpoch::next();
+            }
+            self.shader_epoch
         }
 
         /// Draw `frame` into the back buffer and flip to it at the next
@@ -296,6 +349,9 @@ mod console {
                     out4,
                 )
             };
+            if system_buffer.address != 0 {
+                self.shader_epoch = ShaderEpoch::next();
+            }
             self.ring.commit(FLIP_DWORDS + SWAP_DWORDS);
             self.ring.kick();
             self.pending = Some(Flip { identifier: SwapIdentifier(identifier), address });

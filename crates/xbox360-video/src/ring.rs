@@ -76,6 +76,9 @@ pub struct Ring {
     writeback: PhysicalBuffer,
     /// Next dword to write, in dwords from the ring base.
     write: u32,
+    /// Read pointer as last read from the writeback page. The GPU only
+    /// moves it towards `write`, so the free space it gives is a lower bound.
+    read: u32,
     /// Last value [`Ring::wait_for_pipeline`] had the GPU write.
     fence: u32,
 }
@@ -96,7 +99,7 @@ impl Ring {
             VdEnableRingBufferRPtrWriteBack(writeback.physical().0 + READ_POINTER_OFFSET, (RING_BYTES >> 9).ilog2());
             VdSetSystemCommandBufferGpuIdentifierAddress(writeback.virtual_address(SWAP_IDENTIFIER_OFFSET));
         }
-        let mut ring = Self { commands, writeback, write: 0, fence: 0 };
+        let mut ring = Self { commands, writeback, write: 0, read: 0, fence: 0 };
         let init = ring.reserve(19);
         init[0] = type3(OPCODE_ENGINE_INIT, 18);
         init[1] = ENGINE_INIT_MASK;
@@ -129,10 +132,22 @@ impl Ring {
 
     /// `dwords` contiguous free dwords at the write position, after
     /// wrapping and waiting for the GPU as needed. Follow with [`Self::commit`].
+    /// Each reservation must hold whole packets: the ring wraps and the
+    /// GPU is kicked only between reservations.
     pub fn reserve(&mut self, dwords: u32) -> &mut [u32] {
-        // The kick after this submission may pad up to GRANULE_DWORDS + 1.
-        debug_assert!(dwords + GRANULE_DWORDS + 1 < RING_DWORDS);
-        if self.write + dwords > RING_DWORDS {
+        // Room for the padding of the kick after this submission, so that
+        // neither crosses the end of the ring.
+        let needed = dwords + GRANULE_DWORDS + 1;
+        debug_assert!(needed < RING_DWORDS);
+        // The GPU frees space only by reading what was kicked, so committed
+        // dwords are kicked before any wait. The kick may move the write
+        // position, so it comes before the end-of-ring check.
+        if self.write + needed > RING_DWORDS || self.free() < needed {
+            self.kick();
+        }
+        if self.write + needed > RING_DWORDS {
+            // After the kick the write position is a multiple of the
+            // granule, so the tail holds at least the two dwords of a NOP.
             let tail = RING_DWORDS - self.write;
             self.wait_free(tail);
             let words = self.commands.words();
@@ -140,7 +155,7 @@ impl Ring {
             self.write = 0;
             self.kick();
         }
-        self.wait_free(dwords + GRANULE_DWORDS + 1);
+        self.wait_free(needed);
         let start = self.write as usize;
         &mut self.commands.words()[start..start + dwords as usize]
     }
@@ -175,10 +190,19 @@ impl Ring {
         }
     }
 
-    fn wait_free(&self, dwords: u32) {
-        // One dword stays unused so that equal pointers mean empty.
-        while (self.read_pointer().wrapping_sub(self.write).wrapping_sub(1)) % RING_DWORDS < dwords {
-            processor::low_priority_hint();
+    /// Free dwords as of the last read of the read pointer. One dword stays
+    /// unused so that equal pointers mean empty.
+    fn free(&self) -> u32 {
+        self.read.wrapping_sub(self.write).wrapping_sub(1) % RING_DWORDS
+    }
+
+    /// Wait until `dwords` are free. Every committed dword must be kicked.
+    fn wait_free(&mut self, dwords: u32) {
+        while self.free() < dwords {
+            self.read = self.read_pointer();
+            if self.free() < dwords {
+                processor::low_priority_hint();
+            }
         }
     }
 
