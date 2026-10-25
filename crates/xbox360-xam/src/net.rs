@@ -30,6 +30,8 @@ use super::AsyncOperation;
 
 pub use xbox360_sys::xam::EthernetLinkStatus;
 pub use xbox360_sys::xam::XnetOption;
+pub use xbox360_sys::xam::XnetStartupFlags;
+pub use xbox360_sys::xam::XnetStartupParams;
 
 /// Size of the network configuration record of `NetDll_XnpLoadConfigParams`,
 /// `NetDll_XnpSaveConfigParams` and `NetDll_XnpConfig`.
@@ -49,6 +51,20 @@ const NAT_TYPE_MESSAGE: u32 = 0x5_8006;
 /// A failed `NetDll_XNetGetOpt`: its nonzero result.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct OptionError(pub i32);
+
+/// A failed XNet startup: its nonzero result.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct StartupError(pub i32);
+
+/// `NetDll_XNetStartupVersion(XNCALLER_TITLE, params, version)`, the
+/// startup the 2.0.6717 dashboard makes on system versions from 2.0.2610.
+pub fn startup(params: &XnetStartupParams, version: u32) -> Result<(), StartupError> {
+    // SAFETY: XAM reads one startup block from `params`.
+    match unsafe { xam::NetDll_XNetStartupVersion(XnCaller::Title, params, version) } {
+        0 => Ok(()),
+        result => Err(StartupError(result)),
+    }
+}
 
 /// A value type of an XNet option.
 pub trait OptionValue: sealed::Sealed + Copy + Default {}

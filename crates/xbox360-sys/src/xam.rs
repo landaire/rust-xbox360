@@ -332,6 +332,16 @@ crate::import_thunk!(
 );
 
 crate::import_thunk!(
+    /// [`NetDll_XNetStartup`] with a third argument. The 2.0.6717 dashboard
+    /// calls it in place of `NetDll_XNetStartup` when `XamGetSystemVersion`
+    /// is 0x200A3200 or more, with `version` 0x2017F400, and treats the
+    /// result as that of `NetDll_XNetStartup`.
+    pub NetDll_XNetStartupVersion(caller: XnCaller, params: *const XnetStartupParams, version: u32) -> i32,
+    lib = XAM,
+    ordinal = 0x050
+);
+
+crate::import_thunk!(
     /// Fills a buffer with random bytes.
     pub NetDll_XNetRandom(caller: XnCaller, buffer: *mut u8, length: u32) -> i32,
     lib = XAM,
