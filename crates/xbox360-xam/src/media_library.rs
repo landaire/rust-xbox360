@@ -122,8 +122,8 @@ pub struct MediaEnumeration<'a> {
 }
 
 impl MediaEnumeration<'_> {
-    pub(crate) fn from_enumerator(enumerator: Enumerator) -> Self {
-        Self { enumerator, borrowed: PhantomData }
+    pub(crate) fn into_enumerator(self) -> Enumerator {
+        self.enumerator
     }
 }
 

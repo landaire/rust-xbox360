@@ -10,10 +10,14 @@ use core::ptr;
 use xbox360_status::Hresult;
 use xbox360_sys::xam;
 
+use crate::AsyncOperation;
 use crate::WideCStr;
 use crate::media_library;
 use crate::media_library::EnumerationKind;
-use crate::media_library::MediaEnumeration;
+use crate::media_library::EnumerationRequest;
+use crate::title::Enumerator;
+use core::pin::Pin;
+use xbox360_status::Win32Error;
 
 /// XAM application of the music player.
 const MEDIA_APP: u32 = 0xFA;
@@ -297,16 +301,109 @@ where
         unsafe { system_call(MESSAGE, &mut words) }
     }
 
-    /// 0x70041 (0x921A0028): the queue as queue records of
-    /// [`QUEUE_RECORD_SIZE`] bytes, at most `count`.
-    pub fn queue(&self, count: u32) -> Result<MediaEnumeration<'_>, MusicError> {
+    /// 0x70041 (0x921A0028) and 0x921DBDA8: the queue as queue records of
+    /// [`QUEUE_RECORD_SIZE`] bytes in `buffer`, one `XamEnumerate`. Returns
+    /// the record count XAM stores. As there, the result of
+    /// `XamEnumerate` is not read.
+    pub fn read_queue(&self, buffer: &mut [u8]) -> Result<u32, MusicError> {
+        const NO_FLAGS: u32 = 0;
+
+        let count = record_count(buffer, QUEUE_RECORD_SIZE)?;
         let words = [CLIENT, self.handle];
-        // SAFETY: the words name only the handle, which the enumeration
-        // borrows.
+        // SAFETY: the words name only the handle, which outlives the
+        // enumeration closed in this call.
         let enumerator = unsafe { media_library::start_raw(EnumerationKind::QUEUE, &words, count) }?;
 
-        Ok(MediaEnumeration::from_enumerator(enumerator))
+        let mut items = 0u32;
+        let size = u32::try_from(buffer.len()).map_err(|_| Hresult::INVALID_ARGUMENT)?;
+        // SAFETY: XAM writes at most `size` bytes to `buffer` and the count
+        // to `items` before the synchronous call returns.
+        let _ = unsafe { enumerator.enumerate_counted(NO_FLAGS, buffer.as_mut_ptr(), size, &mut items) };
+
+        Ok(items.min(count))
     }
+
+    /// 0x921DB1D8: starts the song enumeration `request` for at most
+    /// `count` records and one `XamEnumerate` into the whole record buffer
+    /// with `operation`, which the owner polls. A call that does not pend
+    /// is a failure, as there. The returned listing holds the open
+    /// enumeration.
+    ///
+    /// # Safety
+    ///
+    /// Until `operation` is no longer pending (completed, or cancelled by
+    /// [`AsyncOperation::cancel`] or its drop): `operation`, the player and
+    /// the memory `request` names stay alive, and the returned listing is
+    /// not dropped.
+    pub unsafe fn start_record_listing(
+        &self,
+        request: EnumerationRequest<'_>,
+        count: u32,
+        operation: Pin<&AsyncOperation>,
+    ) -> Result<RecordListing, MusicError> {
+        const NO_FLAGS: u32 = 0;
+
+        if request.kind() != EnumerationKind::SONGS {
+            return Err(Hresult::INVALID_ARGUMENT.into());
+        }
+        let records = self.records_range.end - self.records_range.start;
+        if u64::from(count) * SONG_RECORD_SIZE as u64 > u64::from(records) {
+            return Err(Hresult::INVALID_ARGUMENT.into());
+        }
+
+        let enumerator = media_library::start_enumeration(request, count)?.into_enumerator();
+        operation.reset();
+        // SAFETY: the record buffer lies in memory the player owns; the
+        // caller keeps it, `operation` and the enumeration alive while the
+        // call pends.
+        let code = unsafe {
+            enumerator.enumerate(NO_FLAGS, self.records_range.start as usize as *mut u8, records, operation.as_ptr())
+        };
+        if code.error() != Some(Win32Error::IO_PENDING) {
+            return Err(Hresult::FAIL.into());
+        }
+
+        Ok(RecordListing { _enumerator: enumerator })
+    }
+
+    /// 0x70011 (0x921DA580) of the first `count` records of the record
+    /// buffer, which a completed record listing filled.
+    pub fn enqueue_listed(&self, count: u32) -> Result<(), MusicError> {
+        const MESSAGE: u32 = 0x7_0011;
+
+        let records = self.records_range.end - self.records_range.start;
+        if u64::from(count) * SONG_RECORD_SIZE as u64 > u64::from(records) {
+            return Err(Hresult::INVALID_ARGUMENT.into());
+        }
+
+        let mut words = [CLIENT, self.handle, self.records_range.start, 0, count, 0];
+        // SAFETY: `words` lives until the synchronous request returns; the
+        // records lie in memory the player owns.
+        unsafe { io_request(MESSAGE, &mut words) }
+    }
+}
+
+/// The open song enumeration of [`Player::start_record_listing`]; dropping
+/// it closes the handle.
+pub struct RecordListing {
+    _enumerator: Enumerator,
+}
+
+/// The extended error of a completed record listing (overlapped +0x18),
+/// which 0x921DC958 tests: nonnegative or `ERROR_NO_MORE_ITEMS` as an
+/// HRESULT (0x80070103) is success. `None` while the call pends.
+pub fn record_listing_succeeded(operation: Pin<&AsyncOperation>) -> Option<bool> {
+    const NO_MORE_ITEMS: u32 = 0x8007_0103;
+
+    if operation.is_pending() {
+        return None;
+    }
+
+    core::sync::atomic::fence(core::sync::atomic::Ordering::Acquire);
+    // SAFETY: the block is live and the call no longer writes it.
+    let extended = unsafe { ptr::read_volatile(&raw const (*operation.as_ptr()).extended_error) };
+
+    Some((extended as i32) >= 0 || extended == NO_MORE_ITEMS)
 }
 
 impl<M> Drop for Player<M>
