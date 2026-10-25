@@ -136,10 +136,16 @@ mod value {
     pub const MISC_2100_DRAW: u32 = 0x00ff_ffff;
     pub const MISC_2100_RESOLVE: u32 = 0x0000_ffff;
     pub const STENCIL_210D: u32 = 0x00ff_ff00;
-    pub const STENCIL_210E: u32 = 0x3d00_8081;
+    /// Register 0x210E, the alpha reference as a float. D3D's default is 0;
+    /// xshell writes 8/255.
+    pub const ALPHA_REFERENCE: u32 = 0;
     /// Depth and stencil test off.
     pub const DEPTH_CONTROL_2D: u32 = 0x0070_0730;
-    pub const COLOR_CONTROL: u32 = 0x8700_000e;
+    /// Color control with bits 0-2 and bit 3 at the defaults of the D3D
+    /// render states that write them (7 and 0). With xshell's 0x8700000E
+    /// and its reference of 8/255 the GPU left out the pixels whose alpha
+    /// was below 8/255, which removed the faint edges of gradients.
+    pub const COLOR_CONTROL: u32 = 0x8700_0007;
     pub const CLIP_CONTROL: u32 = 0x0001_0000;
     pub const SETUP_CONTROL: u32 = 0x0001_0000;
     /// Vertex positions are in pixels: no viewport transform.
@@ -589,7 +595,7 @@ fn frame_state(commands: &mut Commands, back: BackBuffer) {
     commands.registers(register::SURFACE, &[value::SURFACE_FLAGS | size.width, 0, 0]);
     commands.registers(register::MISC_2100, &[value::MISC_2100_DRAW, 0, 0]);
     commands.registers(register::COLOR_MASK, &[COLOR_MASK_RGBA]);
-    commands.registers(register::STENCIL_210D, &[value::STENCIL_210D, value::STENCIL_210E]);
+    commands.registers(register::STENCIL_210D, &[value::STENCIL_210D, value::ALPHA_REFERENCE]);
     let (width, height) = (size.width as f32, size.height as f32);
     commands.registers(register::VIEWPORT, &[float(width / 2.0), float(width / 2.0), float(-height / 2.0), float(height / 2.0), float(1.0), float(0.0)]);
     commands.registers(register::DEPTH_CONTROL, &[
