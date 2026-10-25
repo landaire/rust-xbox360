@@ -9,6 +9,7 @@ use xbox360_draw::draw::Filter;
 use xbox360_draw::draw::Rgba8;
 use xbox360_draw::draw::Sampler;
 use xbox360_draw::draw::TextureId;
+use xbox360_draw::draw::TextureMapping;
 use xbox360_draw::draw::Vertex;
 use xbox360_draw::error::TextureError;
 use xbox360_draw::image::Image;
@@ -226,6 +227,9 @@ enum Primitive {
     RectList = 8,
 }
 
+/// Texture coordinate of the center of a radial gradient on both axes.
+const RADIAL_CENTER: f32 = 0.5;
+
 /// Corners of the resolve rect list.
 const RESOLVE_CORNERS: u32 = 3;
 /// Value written to the flush registers after a resolve.
@@ -424,6 +428,7 @@ impl Commands<'_> {
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum PixelProgram {
     Textured,
+    Radial,
     Color,
 }
 
@@ -446,6 +451,7 @@ pub struct Gpu {
     owner: ShaderOwner,
     vertex_program: Vec<u32>,
     textured_program: Vec<u32>,
+    radial_program: Vec<u32>,
     color_program: Vec<u32>,
 }
 
@@ -468,6 +474,7 @@ impl Gpu {
             owner: ShaderOwner::new(),
             vertex_program: shader::vertex_program(),
             textured_program: shader::textured_pixel_program(),
+            radial_program: shader::radial_pixel_program(),
             color_program: shader::color_pixel_program(),
         })
     }
@@ -511,6 +518,7 @@ impl Gpu {
             loaded: pixel_loaded,
             color: &self.color_program,
             textured: &self.textured_program,
+            radial: &self.radial_program,
         };
         commands.registers(register::PROGRAM_CONTROL, &value::PROGRAM_CONTROL_DRAW);
 
@@ -526,10 +534,17 @@ impl Gpu {
 
         let source = list.vertices();
         for command in list.commands() {
+            // Radial mapping measures from the center of the texture
+            // coordinates, which the program expects at the origin.
+            let center = match command.sampler().mapping {
+                TextureMapping::Direct => [0.0, 0.0],
+                TextureMapping::Radial => [RADIAL_CENTER, RADIAL_CENTER],
+            };
             let first = vertices.vertex_count();
             for triangle in list.command_triangles(command) {
                 for &index in triangle {
-                    vertices.push(&source[index as usize]);
+                    let vertex = source[index as usize];
+                    vertices.push(&Vertex { uv: [vertex.uv[0] - center[0], vertex.uv[1] - center[1]], ..vertex });
                 }
             }
             let count = vertices.vertex_count() - first;
@@ -546,7 +561,10 @@ impl Gpu {
                     };
                     let constant = texture_fetch_constant(buffer.physical().0, pitch, width, height, command.sampler());
                     commands.registers(register::FETCH_CONSTANTS, &constant);
-                    PixelProgram::Textured
+                    match command.sampler().mapping {
+                        TextureMapping::Direct => PixelProgram::Textured,
+                        TextureMapping::Radial => PixelProgram::Radial,
+                    }
                 }
             };
             draw(commands, &mut programs, pixel, arena_address, first, count, blend(mode), command.clip(), full);
@@ -602,6 +620,7 @@ struct Programs<'p> {
     loaded: Option<PixelProgram>,
     color: &'p [u32],
     textured: &'p [u32],
+    radial: &'p [u32],
 }
 
 impl Programs<'_> {
@@ -612,6 +631,7 @@ impl Programs<'_> {
         let program = match pixel {
             PixelProgram::Color => self.color,
             PixelProgram::Textured => self.textured,
+            PixelProgram::Radial => self.radial,
         };
         commands.shader(ShaderKind::Pixel, program);
         self.loaded = Some(pixel);

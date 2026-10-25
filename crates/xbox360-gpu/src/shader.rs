@@ -153,6 +153,36 @@ fn export(destination: u32, mask: u32, operation: u32, a: u32, b: u32, swizzles:
     [ALU_WORD0_BASE | ALU_EXPORT | (mask << 16) | destination, swizzles, ALU_SOURCES_REGISTERS | (operation << 24) | (a << 16) | (b << 8)]
 }
 
+/// Scalar opcode field (dword 0 bits 26-31) of an ALU instruction without a
+/// scalar operation, as in [`ALU_WORD0_BASE`].
+const SCALAR_NONE: u32 = 50;
+// Scalar opcodes. A scalar operation reads operand C through its swizzle
+// and writes the components of its mask (dword 0 bits 20-23) of the
+// destination, as the dashboard's radial gradient program uses them
+// (xenos-gpu.md, Scalar operations).
+/// `c.x + c.w` of the swizzled operand.
+const SCALAR_ADD: u32 = 0;
+/// Square root. The programs give it an operand with x in every component.
+const SCALAR_SQRT: u32 = 40;
+/// Source swizzle that replicates x into every component.
+const SWIZZLE_XXXX: u32 = 0x6c;
+/// Source swizzle x, y, y, y: puts y in w for [`SCALAR_ADD`].
+const SWIZZLE_XYYY: u32 = 0xb0;
+const MASK_X: u32 = 0x1;
+
+/// Vector ALU instruction that writes `operation(a, b)` to register
+/// `destination` under `mask`, all operands registers.
+fn vector(destination: u32, mask: u32, operation: u32, a: u32, b: u32) -> [u32; 3] {
+    [SCALAR_NONE << 26 | (mask << 16) | destination, 0, ALU_SOURCES_REGISTERS | (operation << 24) | (a << 16) | (b << 8)]
+}
+
+/// Scalar ALU instruction that writes `operation(c)` of register `source`
+/// to the x component of register `destination`. The vector half writes
+/// nothing.
+fn scalar(destination: u32, operation: u32, source: u32, swizzle: u32) -> [u32; 3] {
+    [operation << 26 | MASK_X << 20 | destination, swizzle, ALU_SOURCES_REGISTERS | (VECTOR_MAX << 24) | (source << 16) | (source << 8) | source]
+}
+
 /// Vertex fetch constant the vertex shader reads.
 pub const VERTEX_FETCH_CONSTANT: u32 = 95;
 /// Dwords per vertex: position x, y, uv u, v, color (the `Vertex` layout).
@@ -191,6 +221,27 @@ pub fn textured_pixel_program() -> Vec<u32> {
         ControlFlow::Exec { address: 3, count: 1, fetches: 0, vertex_fetches: 0, end: true },
         ControlFlow::Nop,
     ]);
+    program.extend(texture_fetch(0, 0, 0));
+    program.extend(export(0, MASK_ALL, VECTOR_MUL, 0, 1, 0));
+    program
+}
+
+/// Pixel shader: texture 0 at `(2 * length(r0.xy), r0.y^2)` times
+/// interpolator 1, for texture coordinates that the renderer has moved by
+/// -0.5 so that the center of the gradient is at the origin. The textures
+/// it samples are one row high, so only x selects a texel.
+pub fn radial_pixel_program() -> Vec<u32> {
+    let mut program = Vec::new();
+    control_flow(&mut program, &[
+        ControlFlow::Exec { address: 2, count: 5, fetches: 0b1_0000, vertex_fetches: 0, end: false },
+        ControlFlow::AllocateParameters,
+        ControlFlow::Exec { address: 7, count: 1, fetches: 0, vertex_fetches: 0, end: true },
+        ControlFlow::Nop,
+    ]);
+    program.extend(vector(0, MASK_XY, VECTOR_MUL, 0, 0));
+    program.extend(scalar(0, SCALAR_ADD, 0, SWIZZLE_XYYY));
+    program.extend(scalar(0, SCALAR_SQRT, 0, SWIZZLE_XXXX));
+    program.extend(scalar(0, SCALAR_ADD, 0, SWIZZLE_XXXX));
     program.extend(texture_fetch(0, 0, 0));
     program.extend(export(0, MASK_ALL, VECTOR_MUL, 0, 1, 0));
     program
