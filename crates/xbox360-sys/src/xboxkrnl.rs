@@ -1871,6 +1871,30 @@ crate::import_thunk!(
 );
 
 crate::import_thunk!(
+    /// A step of EDRAM retraining. Returns 0 when nothing is due:
+    /// `VdHSIOTrainCount` (export 0x26B) is nonzero and `flags` has bit 1
+    /// clear. In state 0 it sets `*state` to 1, returns 1 and leaves
+    /// `*commands` alone, so a call with a null `*commands` asks whether
+    /// retraining is due. D3D then calls it with `*commands` at free ring
+    /// space until it returns 0, and takes the advanced `*commands` as the
+    /// end of what was written. Returns 0 without effect when `*state` is
+    /// above 7, `capacity` (dwords) below 0x928 or `work_bytes` below 0x5C.
+    /// A null `state` traps.
+    pub VdRetrainEDRAM(flags: u32, commands: *mut *mut u32, capacity: u32, state: *mut u32, work: *mut u8, work_bytes: u32) -> u32,
+    lib = XBOXKRNL,
+    ordinal = 0x269
+);
+
+crate::import_thunk!(
+    /// When `VdHSIOTrainCount` is 0: sends message 7 to the system
+    /// management controller and stores byte 6 of the reply as the current
+    /// EDRAM temperature of the retraining state. Returns 0.
+    pub VdRetrainEDRAMWorker(reserved: u32) -> u32,
+    lib = XBOXKRNL,
+    ordinal = 0x26A
+);
+
+crate::import_thunk!(
     /// Calls `callback` with each display mode the attached display
     /// supports; the callback returns nonzero to continue.
     pub VdEnumerateVideoModes(callback: u32, context: u32) -> (),

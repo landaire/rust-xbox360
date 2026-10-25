@@ -101,10 +101,14 @@ mod console {
     use xbox360_sys::mmio::GpuRegisters;
     use xbox360_sys::processor;
     use xbox360_sys::xboxkrnl::DisplayInformation;
+    use xbox360_sys::xboxkrnl::KeEnterCriticalRegion;
+    use xbox360_sys::xboxkrnl::KeLeaveCriticalRegion;
     use xbox360_sys::xboxkrnl::SystemCommandBuffer;
     use xbox360_sys::xboxkrnl::VdGetCurrentDisplayInformation;
     use xbox360_sys::xboxkrnl::VdGetSystemCommandBuffer;
     use xbox360_sys::xboxkrnl::VdInitializeEngines;
+    use xbox360_sys::xboxkrnl::VdRetrainEDRAM;
+    use xbox360_sys::xboxkrnl::VdRetrainEDRAMWorker;
     use xbox360_sys::xboxkrnl::VdShutdownEngines;
     use xbox360_sys::xboxkrnl::VdSwap;
 
@@ -145,6 +149,22 @@ mod console {
     const SWAP_DWORDS: u32 = 64;
     /// Scanout register writes ahead of the swap.
     const FLIP_DWORDS: u32 = 2 + 4 + 2;
+
+    /// Command capacity D3D gives each `VdRetrainEDRAM` step, in dwords.
+    const RETRAIN_COMMAND_DWORDS: u32 = 0x1000;
+    /// Work area D3D gives `VdRetrainEDRAM` (on its stack).
+    const RETRAIN_WORK_BYTES: usize = 0x800;
+
+    #[repr(C, align(16))]
+    struct RetrainWork([u8; RETRAIN_WORK_BYTES]);
+
+    /// When D3D retrains, as the `VdRetrainEDRAM` flags it passes then.
+    #[derive(Clone, Copy, PartialEq, Eq)]
+    #[repr(u32)]
+    enum Retraining {
+        AfterSwap = 0,
+        AtInit = 1,
+    }
 
     /// Set while a `Display` owns the GPU engines. `VdInitializeEngines`
     /// traps when they are already owned.
@@ -261,7 +281,53 @@ mod console {
                 release_engines();
                 return Err(DisplayError::OutOfMemory { buffer: BufferKind::Ring });
             };
-            Ok(Self { ring, buffers, back: 0, pitch_tiles, window, pending: None, shader_epoch: ShaderEpoch::next(), shader_owner: None })
+            let mut display = Self { ring, buffers, back: 0, pitch_tiles, window, pending: None, shader_epoch: ShaderEpoch::next(), shader_owner: None };
+            display.retrain_edram(Retraining::AtInit);
+            Ok(display)
+        }
+
+        /// D3D's EDRAM retraining step (`D3D_RetrainEDRAM` 0x92132310), run
+        /// when the device is created and after every swap. The kernel
+        /// reports retraining due only while its training count is 0 (it
+        /// was 1 when this title started on a development kit), so the
+        /// usual cost is one call that returns at once.
+        fn retrain_edram(&mut self, when: Retraining) {
+            let mut work = RetrainWork([0; RETRAIN_WORK_BYTES]);
+            let flags = when as u32;
+            // SAFETY: no preconditions; paired with the leave below.
+            unsafe { KeEnterCriticalRegion() };
+            if when == Retraining::AtInit {
+                // SAFETY: the argument is unused by the kernel.
+                unsafe { VdRetrainEDRAMWorker(0) };
+            }
+            let mut state = 0u32;
+            let mut commands: *mut u32 = core::ptr::null_mut();
+            // SAFETY: the first step writes only `state`.
+            let due = unsafe { VdRetrainEDRAM(flags, &mut commands, RETRAIN_COMMAND_DWORDS, &mut state, work.0.as_mut_ptr(), RETRAIN_WORK_BYTES as u32) };
+            if due != 0 {
+                if when == Retraining::AfterSwap {
+                    self.ring.block_until_idle();
+                }
+                loop {
+                    let words = self.ring.reserve(RETRAIN_COMMAND_DWORDS);
+                    let start = words.as_mut_ptr();
+                    let mut cursor = start;
+                    // SAFETY: `words` holds the capacity passed; the kernel
+                    // advances `cursor` past what it wrote.
+                    let more = unsafe { VdRetrainEDRAM(flags, &mut cursor, RETRAIN_COMMAND_DWORDS, &mut state, work.0.as_mut_ptr(), RETRAIN_WORK_BYTES as u32) };
+                    let written = (cursor as usize - start as usize) / 4;
+                    self.ring.commit(written as u32);
+                    // The next step reads the results on the CPU.
+                    self.ring.block_until_idle();
+                    if more == 0 {
+                        break;
+                    }
+                }
+                // What the kernel's commands leave loaded is not known.
+                self.shader_epoch = ShaderEpoch::next();
+            }
+            // SAFETY: entered above.
+            unsafe { KeLeaveCriticalRegion() };
         }
 
         /// The size of the frames: the displayed part of the surface.
@@ -406,6 +472,7 @@ mod console {
             }
             self.ring.commit(FLIP_DWORDS + SWAP_DWORDS);
             self.ring.kick();
+            self.retrain_edram(Retraining::AfterSwap);
             self.pending = Some(Flip { identifier: SwapIdentifier(identifier), address });
         }
     }

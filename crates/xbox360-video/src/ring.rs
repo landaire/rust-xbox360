@@ -25,6 +25,10 @@ const WRITEBACK_BYTES: u32 = 0x1000;
 const ENGINE_INIT_MASK: u32 = 0x3ff;
 const ENGINE_INIT_STEP: u32 = 0x80;
 const ENGINE_INIT_WORD12: u32 = 0x0001_0800;
+/// Register 0x05C8 and the value D3D writes before it waits for the GPU
+/// (and the renderer at frame start); its meaning is not known.
+const PIPELINE_CONTROL_05C8: u16 = 0x05c8;
+const PIPELINE_CONTROL_05C8_VALUE: u32 = 0x0002_0000;
 const ENGINE_INIT_WORD13: u32 = 7;
 /// Wait packet function: compare memory for equality.
 const WAIT_MEMORY_EQUAL: u32 = 0x13;
@@ -186,6 +190,20 @@ impl Ring {
     /// Wait until the GPU has read every submitted dword.
     pub fn wait_idle(&self) {
         while self.read_pointer() != self.write {
+            processor::low_priority_hint();
+        }
+    }
+
+    /// Run every command written so far and wait on the CPU until the GPU
+    /// has finished them, as D3D's `D3D_BlockUntilIdle` (0x9212AC60) does
+    /// before the CPU reads results of the GPU.
+    pub fn block_until_idle(&mut self) {
+        let words = self.reserve(2);
+        words.copy_from_slice(&[type0(PIPELINE_CONTROL_05C8, 1), PIPELINE_CONTROL_05C8_VALUE]);
+        self.commit(2);
+        self.wait_for_pipeline();
+        self.kick();
+        while !self.pipeline_drained() {
             processor::low_priority_hint();
         }
     }
