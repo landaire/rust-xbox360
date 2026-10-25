@@ -7,6 +7,7 @@ extern crate alloc;
 extern crate std;
 
 pub mod error;
+pub mod stream;
 
 use alloc::vec::Vec;
 use core::num::NonZeroU32;
