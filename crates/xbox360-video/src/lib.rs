@@ -35,6 +35,38 @@ pub struct FrameSize {
     pub height: u32,
 }
 
+/// The part of the display surface that the scaler shows, in surface
+/// pixels: columns `left..right`, rows `top..bottom`. With a 4:3 video mode
+/// on a 1280x720 surface the kernel reports columns 160..1120.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct DisplayWindow {
+    pub left: u32,
+    pub top: u32,
+    pub right: u32,
+    pub bottom: u32,
+}
+
+impl DisplayWindow {
+    /// `None` unless the window starts on a tile and lies inside `surface`.
+    fn tiled(self, surface: FrameSize) -> Option<TiledWindow> {
+        let inside = self.left < self.right && self.top < self.bottom && self.right <= surface.width && self.bottom <= surface.height;
+        let aligned = self.left % tiling::TILE_EDGE == 0 && self.top % tiling::TILE_EDGE == 0;
+        (inside && aligned).then(|| TiledWindow {
+            tile_x: self.left / tiling::TILE_EDGE,
+            tile_y: self.top / tiling::TILE_EDGE,
+            size: FrameSize { width: self.right - self.left, height: self.bottom - self.top },
+        })
+    }
+}
+
+/// A [`DisplayWindow`] that starts on a tile.
+#[derive(Clone, Copy, Debug)]
+struct TiledWindow {
+    tile_x: u32,
+    tile_y: u32,
+    size: FrameSize,
+}
+
 /// Borrowed pixels: `size.height` rows of `stride` pixels, of which the
 /// first `size.width` are visible. Each pixel is a `u32` with red in bits
 /// 0-7, green in 8-15 and blue in 16-23; bits 24-31 (alpha) are ignored.
@@ -78,6 +110,8 @@ mod console {
 
     use super::BufferKind;
     use super::DisplayError;
+    use super::DisplayWindow;
+    use super::TiledWindow;
     use super::FrameSize;
     use super::FrameView;
     use super::fetch;
@@ -177,9 +211,9 @@ mod console {
         buffers: [FrontBuffer; 2],
         /// Index of the buffer the next frame is drawn into.
         back: usize,
-        size: FrameSize,
-        tiles_wide: u32,
-        tiles_high: u32,
+        /// Tiles per surface row.
+        pitch_tiles: u32,
+        window: TiledWindow,
         pending: Option<Flip>,
         shader_epoch: ShaderEpoch,
         shader_owner: Option<ShaderOwner>,
@@ -187,7 +221,8 @@ mod console {
 
     impl Display {
         /// Take the GPU and set up two front buffers of the current display
-        /// surface size.
+        /// surface size. Frames have the size of the part of the surface
+        /// that is displayed.
         pub fn new() -> Result<Self, DisplayError> {
             let mut information = DisplayInformation::new();
             // SAFETY: the block is 0x58 writable bytes.
@@ -199,14 +234,16 @@ mod console {
             if size.width == 0 || size.height == 0 || size.width % TILE_EDGE != 0 {
                 return Err(DisplayError::UnsupportedMode { size });
             }
-            let tiles_wide = size.width / TILE_EDGE;
+            let window = DisplayWindow { left: information.left, top: information.top, right: information.right, bottom: information.bottom };
+            let window = window.tiled(size).ok_or(DisplayError::UnsupportedWindow { surface: size, window })?;
+            let pitch_tiles = size.width / TILE_EDGE;
             let tiles_high = size.height.div_ceil(TILE_EDGE);
-            let bytes = tiles_wide * tiles_high * TILE_EDGE * TILE_EDGE * 4;
+            let bytes = pitch_tiles * tiles_high * TILE_EDGE * TILE_EDGE * 4;
             let front_buffer = || {
                 let mut memory = PhysicalBuffer::new(bytes, Caching::WriteCombined)
                     .ok_or(DisplayError::OutOfMemory { buffer: BufferKind::FrontBuffer })?;
                 memory.words().fill(0);
-                let fetch_constant = fetch::front_buffer(memory.virtual_address(0), tiles_wide, size.width, size.height);
+                let fetch_constant = fetch::front_buffer(memory.virtual_address(0), pitch_tiles, size.width, size.height);
                 Ok(FrontBuffer { memory, fetch_constant })
             };
             let buffers = [front_buffer()?, front_buffer()?];
@@ -224,11 +261,17 @@ mod console {
                 release_engines();
                 return Err(DisplayError::OutOfMemory { buffer: BufferKind::Ring });
             };
-            Ok(Self { ring, buffers, back: 0, size, tiles_wide, tiles_high, pending: None, shader_epoch: ShaderEpoch::next(), shader_owner: None })
+            Ok(Self { ring, buffers, back: 0, pitch_tiles, window, pending: None, shader_epoch: ShaderEpoch::next(), shader_owner: None })
         }
 
+        /// The size of the frames: the displayed part of the surface.
         pub fn size(&self) -> FrameSize {
-            self.size
+            self.window.size
+        }
+
+        /// Byte offset of the window's first pixel in a front buffer.
+        fn window_offset(&self) -> u32 {
+            (self.window.tile_y * self.pitch_tiles + self.window.tile_x) * TILE_EDGE * TILE_EDGE * 4
         }
 
         /// The shader epoch for `owner`, which is about to load or use
@@ -244,10 +287,12 @@ mod console {
 
         /// Draw `frame` into the back buffer and flip to it at the next
         /// vertical blank. Waits for the previous flip to take effect first,
-        /// so the buffer drawn into is never on screen. Parts of the surface
+        /// so the buffer drawn into is never on screen. Parts of the window
         /// outside `frame` are black.
         pub fn present(&mut self, frame: FrameView<'_>) {
             self.wait_for_flip();
+            let offset = self.window_offset() as usize / 4;
+            let window = self.window;
             let back = &mut self.buffers[self.back];
             let source = tiling::SourceImage {
                 pixels: frame.pixels,
@@ -255,7 +300,14 @@ mod console {
                 height: frame.size.height,
                 stride: frame.stride,
             };
-            tiling::tile_image(back.memory.words(), self.tiles_wide, self.tiles_high, source);
+            let target = tiling::TiledTarget {
+                pitch_tiles: self.pitch_tiles,
+                tiles_wide: window.size.width.div_ceil(TILE_EDGE),
+                tiles_high: window.size.height.div_ceil(TILE_EDGE),
+            };
+            if let Some(words) = back.memory.words().get_mut(offset..) {
+                tiling::tile_image(words, target, source);
+            }
             let address = back.memory.physical();
             let fetch_constant = back.fetch_constant;
             self.submit_flip(address, &fetch_constant);
@@ -268,9 +320,9 @@ mod console {
         pub fn begin_gpu_frame(&mut self) -> (BackBuffer, &mut Ring) {
             self.wait_for_flip();
             let back = BackBuffer {
-                address: self.buffers[self.back].memory.physical(),
-                size: self.size,
-                pitch: self.tiles_wide * TILE_EDGE,
+                address: GpuAddress(self.buffers[self.back].memory.physical().0 + self.window_offset()),
+                size: self.window.size,
+                pitch: self.pitch_tiles * TILE_EDGE,
             };
             (back, &mut self.ring)
         }

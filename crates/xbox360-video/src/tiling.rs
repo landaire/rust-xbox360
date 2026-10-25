@@ -46,14 +46,23 @@ impl SourceImage<'_> {
     }
 }
 
-/// Fill `tiled`, a surface of `tiles_wide` x `tiles_high` tiles, from `source`.
-/// Surface pixels outside the source are written black.
-pub fn tile_image(tiled: &mut [u32], tiles_wide: u32, tiles_high: u32, source: SourceImage<'_>) {
-    let tiles_wide = tiles_wide as usize;
+/// A rectangle of whole tiles in a surface of `pitch_tiles` tiles per row.
+#[derive(Clone, Copy)]
+pub struct TiledTarget {
+    pub pitch_tiles: u32,
+    pub tiles_wide: u32,
+    pub tiles_high: u32,
+}
+
+/// Fill the `target` rectangle that starts at `tiled[0]` from `source`.
+/// Pixels of the rectangle outside the source are written black; the rest
+/// of the surface is not written.
+pub fn tile_image(tiled: &mut [u32], target: TiledTarget, source: SourceImage<'_>) {
+    let tiles_wide = target.tiles_wide as usize;
     let surface_width = tiles_wide * TILE_EDGE as usize;
-    for y in (0..tiles_high * TILE_EDGE).step_by(2) {
+    for y in (0..target.tiles_high * TILE_EDGE).step_by(2) {
         let swap = ((y >> 2) & 2) as usize;
-        let row_base = (y / TILE_EDGE) as usize * tiles_wide * TILE_WORDS + (((y & 0x1e) as usize) << 5);
+        let row_base = (y / TILE_EDGE) as usize * target.pitch_tiles as usize * TILE_WORDS + (((y & 0x1e) as usize) << 5);
         let Some(rows) = tiled.get_mut(row_base..row_base + (tiles_wide - 1) * TILE_WORDS + 64) else {
             return;
         };
@@ -142,12 +151,39 @@ mod tests {
         check(96, 64, 100);
     }
 
+    #[test]
+    fn window_writes_only_its_tiles() {
+        let (pitch_tiles, tiles_high) = (4u32, 2u32);
+        let (width, height, stride) = (50u32, 40u32, 50u32);
+        let pixels: Vec<u32> = (0..stride * height).map(|i| i.wrapping_mul(0x0101_0101).wrapping_add(7)).collect();
+        let mut tiled = vec![0xdead_beef; (pitch_tiles * tiles_high) as usize * TILE_WORDS];
+        let target = TiledTarget { pitch_tiles, tiles_wide: 2, tiles_high };
+        let source = SourceImage { pixels: &pixels, width, height, stride };
+        tile_image(&mut tiled[TILE_WORDS..], target, source);
+        for y in 0..tiles_high * TILE_EDGE {
+            for x in 0..pitch_tiles * TILE_EDGE {
+                let word = tiled[reference_address(x, y, pitch_tiles * TILE_EDGE) as usize / 4];
+                let expected = match x.checked_sub(TILE_EDGE) {
+                    Some(wx) if wx < 2 * TILE_EDGE => {
+                        if wx < width && y < height {
+                            pixels[(y * stride + wx) as usize] << 8
+                        } else {
+                            0
+                        }
+                    }
+                    _ => 0xdead_beef,
+                };
+                assert_eq!(word, expected, "pixel ({x}, {y})");
+            }
+        }
+    }
+
     fn check(width: u32, height: u32, stride: u32) {
         let (tiles_wide, tiles_high) = (3, 2);
         let pixels: Vec<u32> = (0..stride * height).map(|i| i.wrapping_mul(0x0101_0101).wrapping_add(7)).collect();
         let mut tiled = vec![0xdead_beef; (tiles_wide * tiles_high) as usize * TILE_WORDS];
         let source = SourceImage { pixels: &pixels, width, height, stride };
-        tile_image(&mut tiled, tiles_wide, tiles_high, source);
+        tile_image(&mut tiled, TiledTarget { pitch_tiles: tiles_wide, tiles_wide, tiles_high }, source);
         for y in 0..tiles_high * TILE_EDGE {
             for x in 0..tiles_wide * TILE_EDGE {
                 let expected = if x < width && y < height { pixels[(y * stride + x) as usize] << 8 } else { 0 };
