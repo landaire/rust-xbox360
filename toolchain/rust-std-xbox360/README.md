@@ -72,6 +72,7 @@ Backend files, under `library/`:
 - `std/src/sys/thread_local/key/xbox360.rs` - TLS keys over KeTls*, and their release for system modules
 - `std/src/os/mod.rs` and `std/src/os/xbox360/mod.rs` - `std::os::xbox360`
 - `std/src/sys/fs/xbox360.rs` - files over the NT file API
+- `std/src/sys/io/error/xbox360.rs` - error kinds and messages of kernel statuses and Win32/Winsock errors
 - `std/src/sys/net/connection/xbox360.rs` - TcpStream/TcpListener/UdpSocket over NetDll winsock
 - `core/src/sync/atomic_xbox360.rs` - protected lwarx/stwcx atomics
 

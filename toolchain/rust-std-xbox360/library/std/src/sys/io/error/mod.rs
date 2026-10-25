@@ -39,12 +39,15 @@ cfg_select! {
         mod xous;
         pub use xous::*;
     }
+    target_os = "xbox360" => {
+        mod xbox360;
+        pub use xbox360::*;
+    }
     any(
         target_os = "vexos",
         target_family = "wasm",
         target_os = "zkvm",
         target_os = "trusty",
-        target_os = "xbox360",
     ) => {
         mod generic;
         pub use generic::*;
