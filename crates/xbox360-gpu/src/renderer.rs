@@ -30,6 +30,7 @@ use xbox360_video::ring::type0;
 use xbox360_video::ring::type3;
 
 use crate::shader;
+use crate::shader::ShadowOutput;
 use crate::shader::TexelConversion;
 
 /// Bytes of each of the two vertex arenas. Triangles are expanded to three
@@ -64,6 +65,8 @@ mod register {
     pub const RESOLVE: u16 = 0x2318;
     pub const RESOLVE_INFO: u16 = 0x231b;
     pub const FETCH_CONSTANTS: u16 = 0x4800;
+    /// Pixel float constants follow the 256 vertex constants.
+    pub const PIXEL_CONSTANTS: u16 = 0x4400;
     pub const CONSTANTS_5000: u16 = 0x5000;
     /// Added to every vertex index of a draw.
     pub const INDEX_OFFSET: u16 = 0x2102;
@@ -192,8 +195,8 @@ mod value {
     /// Vertex positions are in pixels: no viewport transform.
     pub const VIEWPORT_TRANSFORM_PIXELS: u32 = 0x300;
     /// Program control for the vertex and pixel programs of `shader`: vertex
-    /// registers r0-r2, pixel registers r0-r1, two vertex exports.
-    pub const PROGRAM_CONTROL_DRAW: [u32; 3] = [0x1011_0102, 8, 0x0001_0003];
+    /// registers r0-r2, pixel registers r0-r3, two vertex exports.
+    pub const PROGRAM_CONTROL_DRAW: [u32; 3] = [0x1011_0302, 8, 0x0001_0003];
     pub const CONSTANTS_5000_DRAW: [u32; 3] = [0, 0x0002_5000, 0];
     pub const MASK_2312: u32 = 0xffff;
     /// Payloads of packet 0x3B at frame start, before the resolve and at
@@ -442,6 +445,26 @@ impl Texture {
 
         Ok(TextureSource { address: buffer.physical().0, layout, conversion })
     }
+
+    /// Any existing representation; alpha is identical in each one.
+    fn alpha_source(&self) -> TextureSource {
+        let (buffer, layout) = match &self.texels {
+            Texels::Premultiplied { pitch, premultiplied, .. } => {
+                (&*premultiplied, TexelLayout::Linear { pitch: *pitch })
+            }
+            Texels::Straight { pitch, buffer } => {
+                (&*buffer, TexelLayout::Linear { pitch: *pitch })
+            }
+            Texels::Target { pitch_tiles, buffer } => {
+                (&*buffer, TexelLayout::Tiled { pitch_tiles: *pitch_tiles })
+            }
+        };
+        TextureSource {
+            address: buffer.physical().0,
+            layout,
+            conversion: TexelConversion::Unchanged,
+        }
+    }
 }
 
 fn upload(image: &Image, pitch: u32, convert: impl Fn(Rgba8) -> Rgba8) -> Result<PhysicalBuffer, TextureError> {
@@ -511,6 +534,7 @@ const fn float(value: f32) -> u32 {
     value.to_bits()
 }
 
+
 /// Vertex data of a frame in an arena, in the vertex shader's layout.
 struct Arena<'a> {
     words: &'a mut [u32],
@@ -565,6 +589,7 @@ impl Commands<'_> {
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum PixelProgram {
     Texture { mapping: TextureMapping, conversion: TexelConversion },
+    Shadow(ShadowOutput),
     Color,
 }
 
@@ -587,6 +612,12 @@ impl ConversionPrograms {
     }
 }
 
+/// The shadow program for each source color representation.
+struct ShadowPrograms {
+    premultiplied: Vec<u32>,
+    straight: Vec<u32>,
+}
+
 /// GPU renderer and texture store.
 pub struct Gpu {
     textures: TextureSlots<Texture>,
@@ -605,6 +636,7 @@ pub struct Gpu {
     vertex_program: Vec<u32>,
     textured_programs: ConversionPrograms,
     radial_programs: ConversionPrograms,
+    shadow_programs: ShadowPrograms,
     color_program: Vec<u32>,
 }
 
@@ -628,6 +660,10 @@ impl Gpu {
             vertex_program: shader::vertex_program(),
             textured_programs: ConversionPrograms::new(shader::textured_pixel_program),
             radial_programs: ConversionPrograms::new(shader::radial_pixel_program),
+            shadow_programs: ShadowPrograms {
+                premultiplied: shader::shadow_pixel_program(ShadowOutput::Premultiplied),
+                straight: shader::shadow_pixel_program(ShadowOutput::Straight),
+            },
             color_program: shader::color_pixel_program(),
         })
     }
@@ -680,6 +716,7 @@ impl Gpu {
             color: &self.color_program,
             textured: &self.textured_programs,
             radial: &self.radial_programs,
+            shadow: &self.shadow_programs,
         };
         commands.registers(register::PROGRAM_CONTROL, &value::PROGRAM_CONTROL_DRAW);
         let mut pass = PassContext { commands, programs: &mut programs, textures: &mut self.textures, vertices: &mut vertices, arena: arena_address, list };
@@ -825,12 +862,50 @@ impl PassContext<'_, '_, '_> {
                         continue;
                     };
                     let (width, height) = (texture.width, texture.height);
-                    let Ok(source) = texture.source(mode) else {
-                        continue;
+                    let shadow = command.shadow();
+                    let source = match shadow {
+                        Some(_) => texture.alpha_source(),
+                        None => {
+                            let Ok(source) = texture.source(mode) else {
+                                continue;
+                            };
+                            source
+                        }
                     };
                     let constant = texture_fetch_constant(source, width, height, command.sampler());
                     self.commands.registers(register::FETCH_CONSTANTS, &constant);
-                    PixelProgram::Texture { mapping: command.sampler().mapping, conversion: source.conversion }
+                    match shadow {
+                        // The program reads only alpha.
+                        Some(shadow) => {
+                            let color = shadow.color;
+                            let channel = |value: u8| float(f32::from(value) / 255.0);
+                            self.commands.registers(register::PIXEL_CONSTANTS, &[
+                                0,
+                                0,
+                                0,
+                                0,
+                                0,
+                                0,
+                                0,
+                                0,
+                                channel(color.red()),
+                                channel(color.green()),
+                                channel(color.blue()),
+                                channel(color.alpha()),
+                                float(1.0 / width as f32),
+                                float(1.0 / height as f32),
+                                float(shader::SHADOW_ALPHA_EPSILON),
+                                float(1.0),
+                            ]);
+                            let output = if mode.uses_straight_source() {
+                                ShadowOutput::Straight
+                            } else {
+                                ShadowOutput::Premultiplied
+                            };
+                            PixelProgram::Shadow(output)
+                        }
+                        None => PixelProgram::Texture { mapping: command.sampler().mapping, conversion: source.conversion },
+                    }
                 }
             };
 
@@ -902,6 +977,7 @@ struct Programs<'p> {
     color: &'p [u32],
     textured: &'p ConversionPrograms,
     radial: &'p ConversionPrograms,
+    shadow: &'p ShadowPrograms,
 }
 
 impl Programs<'_> {
@@ -913,6 +989,8 @@ impl Programs<'_> {
             PixelProgram::Color => self.color,
             PixelProgram::Texture { mapping: TextureMapping::Direct, conversion } => self.textured.program(conversion),
             PixelProgram::Texture { mapping: TextureMapping::Radial, conversion } => self.radial.program(conversion),
+            PixelProgram::Shadow(ShadowOutput::Premultiplied) => &self.shadow.premultiplied,
+            PixelProgram::Shadow(ShadowOutput::Straight) => &self.shadow.straight,
         };
         commands.shader(ShaderKind::Pixel, program);
         self.loaded = Some(pixel);

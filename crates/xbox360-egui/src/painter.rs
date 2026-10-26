@@ -127,7 +127,7 @@ impl Painter {
             }));
             triangles.clear();
             triangles.extend(mesh.indices.chunks_exact(3).map(|triangle| [triangle[0], triangle[1], triangle[2]]));
-            let state = DrawState { texture: Some(texture.id), sampler: texture.sampler, blend: BlendMode::Normal, clip: Some(clip), color_write: ColorWriteMask::ALL };
+            let state = DrawState { texture: Some(texture.id), sampler: texture.sampler, blend: BlendMode::Normal, clip: Some(clip), color_write: ColorWriteMask::ALL, shadow: None };
             list.push(state, &vertices, &triangles)?;
         }
         for id in &textures.free {

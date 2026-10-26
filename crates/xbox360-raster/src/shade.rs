@@ -15,6 +15,7 @@ use crate::draw::AddressMode;
 use crate::draw::Filter;
 use crate::draw::Rgba8;
 use crate::draw::Sampler;
+use crate::draw::TextShadow;
 use crate::draw::TextureMapping;
 
 use super::blend::Blend;
@@ -24,6 +25,7 @@ use super::blend::blend_span;
 use super::blend::lerp;
 use super::blend::modulate;
 use super::blend::premultiply;
+use super::blend::shadow_source;
 use super::blend::unpremultiply;
 use super::raster::SUBPIXELS;
 use super::raster::Triangle;
@@ -60,6 +62,8 @@ pub(super) struct Shader<'a> {
     blend: Blend,
     color: ColorSource,
     texture: Option<TexturePlanes<'a>>,
+    /// Straight text shadow color of a directly mapped texture.
+    shadow: Option<Rgba8>,
 }
 
 impl<'a> Shader<'a> {
@@ -68,6 +72,7 @@ impl<'a> Shader<'a> {
         texture: Option<TextureRef<'a>>,
         sampler: Sampler,
         blend: Blend,
+        shadow: Option<TextShadow>,
     ) -> Self {
         let setup = PlaneSetup::new(triangle);
         let attributes = &triangle.attributes;
@@ -122,10 +127,15 @@ impl<'a> Shader<'a> {
             )
         });
 
+        let shadow = shadow
+            .filter(|_| texture.is_some() && sampler.mapping == TextureMapping::Direct)
+            .map(|shadow| shadow.color);
+
         Self {
             blend,
             color,
             texture,
+            shadow,
         }
     }
 
@@ -180,6 +190,9 @@ impl<'a> Shader<'a> {
             None => {
                 self.color.for_each_color(origin, source, StoreColor);
             }
+            Some(texture) if let Some(shadow) = self.shadow => {
+                self.shade_shadowed(texture, shadow, source, origin);
+            }
             Some(texture) => {
                 let u = texture.u.coordinate(origin, texture.u_step);
                 let v = texture.v.coordinate(origin, texture.v_step);
@@ -226,6 +239,34 @@ impl<'a> Shader<'a> {
         }
 
         blend_span(target, source, self.blend);
+    }
+
+    /// The source of a command with a text shadow: texel alpha at the pixel
+    /// and one texel up and left, combined with the vertex and shadow
+    /// colors by [`shadow_source`].
+    fn shade_shadowed(&self, texture: &TexturePlanes<'_>, shadow: Rgba8, source: &mut [Rgba8], origin: ChunkOrigin) {
+        let len = source.len();
+        let sampler = &texture.sampler;
+        let u = texture.u.coordinate(origin, texture.u_step);
+        let v = texture.v.coordinate(origin, texture.v_step);
+        let up_left = |coordinate: Coordinate| Coordinate {
+            anchor: coordinate.anchor - ONE,
+            ..coordinate
+        };
+        sampler.fill(source, u.rebase(&sampler.u), v.rebase(&sampler.v));
+        let mut shadow_texels = [Rgba8::TRANSPARENT; CHUNK];
+        sampler.fill(
+            &mut shadow_texels[..len],
+            up_left(u).rebase(&sampler.u),
+            up_left(v).rebase(&sampler.v),
+        );
+        let mut colors = [Rgba8::TRANSPARENT; CHUNK];
+        self.color.for_each_color(origin, &mut colors[..len], StoreColor);
+
+        let straight = self.blend.mode().uses_straight_source();
+        for ((pixel, shadow_texel), color) in source.iter_mut().zip(&shadow_texels).zip(&colors) {
+            *pixel = shadow_source(pixel.alpha(), shadow_texel.alpha(), *color, shadow, straight);
+        }
     }
 }
 

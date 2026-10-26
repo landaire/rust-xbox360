@@ -40,6 +40,7 @@ use crate::draw::DrawCommand;
 use crate::draw::DrawList;
 use crate::draw::Rgba8;
 use crate::draw::Sampler;
+use crate::draw::TextShadow;
 use crate::draw::TextureId;
 use crate::draw::Vertex;
 use crate::error::TextureError;
@@ -248,6 +249,7 @@ impl SoftwareRenderer {
                             texture,
                             sampler: command.sampler(),
                             blend,
+                            shadow: command.shadow(),
                         };
                         draw_rect(&rect, window, shading, scratch, band);
                         continue;
@@ -263,7 +265,7 @@ impl SoftwareRenderer {
                         return;
                     };
 
-                    let shader = Shader::new(triangle, texture, command.sampler(), blend);
+                    let shader = Shader::new(triangle, texture, command.sampler(), blend, command.shadow());
                     while let Some(span) = scan.next_span() {
                         shader.shade_span(
                             scratch,
@@ -415,6 +417,7 @@ struct Shading<'a> {
     texture: Option<TextureRef<'a>>,
     sampler: Sampler,
     blend: Blend,
+    shadow: Option<TextShadow>,
 }
 
 fn draw_rect(
@@ -430,7 +433,7 @@ fn draw_rect(
         return;
     }
 
-    let shader = Shader::new(&rect.triangle, shading.texture, shading.sampler, shading.blend);
+    let shader = Shader::new(&rect.triangle, shading.texture, shading.sampler, shading.blend, shading.shadow);
     for y in top..bottom {
         shader.shade_span(scratch, band.row_mut(y as u32), y, left, right);
     }

@@ -5,7 +5,10 @@
 //! to half alpha; it is shown at the top left, each texel 32 pixels wide,
 //! on the clear color. xbox360-raster's
 //! `target_pass_squares_source_alpha_and_samples_straight` gives its
-//! pixels: (44, 12, 24) and (136, 136, 144).
+//! pixels: (44, 12, 24) and (136, 136, 144). Right of it, a 4x4 alpha
+//! texture with a text shadow, each texel 32 pixels wide, in Normal and in
+//! Modulate blending over gray; `text_shadow_matches_the_gpu_example`
+//! there gives the pixels.
 
 #![no_main]
 
@@ -22,12 +25,15 @@ use xbox360_draw::draw::DrawState;
 use xbox360_draw::draw::Filter;
 use xbox360_draw::draw::Rgba8;
 use xbox360_draw::draw::Sampler;
+use xbox360_draw::draw::TextShadow;
 use xbox360_draw::draw::Vertex;
 use xbox360_draw::image::Image;
 use xbox360_draw::texture::TextureStore;
 use xbox360_gpu::Gpu;
 use xbox360_video::Display;
 
+/// Texel alpha of the text shadow probe, rows top to bottom.
+const SHADOW_PROBE_ALPHA: [[u8; 4]; 4] = [[255, 0, 0, 0], [0, 128, 0, 0], [0, 64, 255, 0], [0, 0, 0, 0]];
 xbox360::sys::bridged!(#[unsafe(no_mangle)] pub _start, main);
 
 fn image(size: u32, texel: impl Fn(u32, u32) -> Rgba8) -> Image {
@@ -80,6 +86,11 @@ fn run() {
         .create_target(NonZeroU32::new(4).expect("nonzero"), NonZeroU32::new(2).expect("nonzero"))
         .expect("render target");
     let background = Rgba8::new(0x10, 0x10, 0x20, 0xff);
+    let glyph = gpu.create_texture(image(4, |x, y| {
+        let alpha = SHADOW_PROBE_ALPHA[y as usize][x as usize];
+        Rgba8::new(alpha, alpha, alpha, alpha)
+    }))
+    .expect("texture");
     let frequency = TimebaseFrequency::query();
     let start = Timebase::now();
     let mut list = DrawList::new();
@@ -121,6 +132,15 @@ fn run() {
         quad(&mut list, DrawState::default(), [40.0, 40.0, 168.0, 104.0], [0.0; 4], [background; 4]);
         let nearest = Sampler { filter: Filter::Nearest, ..Sampler::default() };
         quad(&mut list, DrawState { texture: Some(target), sampler: nearest, ..DrawState::default() }, [40.0, 40.0, 168.0, 104.0], [0.0, 0.0, 1.0, 1.0], opaque);
+        let shadow = Some(TextShadow { color: Rgba8::new(20, 40, 240, 180) });
+        let gray = [Rgba8::new(0x80, 0x80, 0x80, 0xff); 4];
+        quad(&mut list, DrawState::default(), [200.0, 40.0, 488.0, 168.0], [0.0; 4], gray);
+        let straight = Rgba8::new(200, 100, 50, 200);
+        let premultiplied = Rgba8::new(157, 78, 39, 200);
+        let normal = DrawState { texture: Some(glyph), sampler: nearest, shadow, ..DrawState::default() };
+        quad(&mut list, normal, [200.0, 40.0, 328.0, 168.0], [0.0, 0.0, 1.0, 1.0], [premultiplied; 4]);
+        let modulate = DrawState { blend: BlendMode::Modulate, ..normal };
+        quad(&mut list, modulate, [360.0, 40.0, 488.0, 168.0], [0.0, 0.0, 1.0, 1.0], [straight; 4]);
         let begin = Timebase::now();
         if let Err(error) = gpu.render(&mut display, &list) {
             return println!("gpu: {error}");

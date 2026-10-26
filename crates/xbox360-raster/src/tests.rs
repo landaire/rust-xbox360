@@ -1325,3 +1325,39 @@ fn target_pass_squares_source_alpha_and_samples_straight() {
     let white = Rgba8::new(136, 136, 144, 255);
     assert_eq!(pixels, [red, red, white, white, red, red, white, white]);
 }
+
+/// The text shadow probe of the GPU example at one pixel per texel: a 4x4
+/// alpha texture over gray, in Normal (left) and Modulate (right) blending.
+#[test]
+fn text_shadow_matches_the_gpu_example() {
+    const ALPHA: [[u8; 4]; 4] = [[255, 0, 0, 0], [0, 128, 0, 0], [0, 64, 255, 0], [0, 0, 0, 0]];
+
+    let mut renderer = SoftwareRenderer::new();
+    let texels: Vec<Rgba8> = ALPHA.iter().flatten().map(|&alpha| Rgba8::new(alpha, alpha, alpha, alpha)).collect();
+    let glyph = texture(&mut renderer, 4, 4, &texels);
+    let shadow = Some(TextShadow { color: Rgba8::new(20, 40, 240, 180) });
+    let nearest = Sampler { filter: Filter::Nearest, ..Sampler::default() };
+    let normal = DrawState { texture: Some(glyph), sampler: nearest, shadow, ..DrawState::default() };
+    let modulate = DrawState { blend: BlendMode::Modulate, ..normal };
+    let mut list = DrawList::new();
+    list.set_clear_color(Some(Rgba8::new(128, 128, 128, 255)));
+    quad(&mut list, normal, rect(0.0, 0.0, 4.0, 4.0), FULL_UV, Rgba8::new(157, 78, 39, 200));
+    quad(&mut list, modulate, rect(4.0, 0.0, 8.0, 4.0), FULL_UV, Rgba8::new(200, 100, 50, 200));
+
+    let pixels = render(&mut renderer, &list, 8, 4);
+
+    let rgb: Vec<[u8; 3]> = pixels.iter().map(|pixel| [pixel.red(), pixel.green(), pixel.blue()]).collect();
+    assert_eq!(
+        rgb,
+        [
+            [168, 92, 83], [52, 66, 207], [128, 128, 128], [128, 128, 128],
+            [86, 45, 41], [10, 20, 120], [0, 0, 0], [0, 0, 0],
+            [52, 66, 207], [111, 79, 146], [128, 128, 128], [128, 128, 128],
+            [10, 20, 120], [53, 35, 75], [0, 0, 0], [0, 0, 0],
+            [128, 128, 128], [142, 123, 113], [177, 99, 75], [128, 128, 128],
+            [0, 0, 0], [100, 50, 25], [92, 48, 33], [0, 0, 0],
+            [128, 128, 128], [128, 128, 128], [109, 112, 147], [52, 66, 207],
+            [0, 0, 0], [0, 0, 0], [10, 20, 120], [10, 20, 120],
+        ]
+    );
+}

@@ -291,6 +291,271 @@ pub fn color_pixel_program() -> Vec<u32> {
     program
 }
 
+/// An ALU operand: a temporary register or a float constant, read through
+/// a source swizzle.
+#[derive(Clone, Copy)]
+enum Source {
+    Register(u32, u32),
+    Constant(u32, u32),
+}
+
+impl Source {
+    fn index(self) -> u32 {
+        match self {
+            Self::Register(index, _) | Self::Constant(index, _) => index,
+        }
+    }
+
+    fn swizzle(self) -> u32 {
+        match self {
+            Self::Register(_, swizzle) | Self::Constant(_, swizzle) => swizzle,
+        }
+    }
+
+    fn is_register(self) -> u32 {
+        u32::from(matches!(self, Self::Register(..)))
+    }
+}
+
+/// Source swizzle selecting component `x`, `y`, `z`, `w` (0-3) into
+/// components 0-3: 2 bits per component i at bits 2i, holding the selected
+/// component minus i, modulo 4.
+const fn source_swizzle(x: u32, y: u32, z: u32, w: u32) -> u32 {
+    (x & 3) | ((y.wrapping_sub(1)) & 3) << 2 | ((z.wrapping_sub(2)) & 3) << 4 | ((w.wrapping_sub(3)) & 3) << 6
+}
+
+const X: u32 = 0;
+const Y: u32 = 1;
+const Z: u32 = 2;
+const W: u32 = 3;
+const MASK_Y: u32 = 0x2;
+const MASK_Z: u32 = 0x4;
+const MASK_W: u32 = 0x8;
+const VECTOR_ADD: u32 = 0;
+/// `a * b + c`.
+const VECTOR_MULTIPLY_ADD: u32 = 11;
+/// `register * constant` of one component each (see [`Alu::scalar`]).
+const SCALAR_MULTIPLY_CONSTANT: u32 = 42;
+/// `constant - register` of one component each.
+const SCALAR_SUBTRACT_CONSTANT: u32 = 46;
+/// `1 / c.w` of the swizzled operand C.
+const SCALAR_RECIPROCAL: u32 = 19;
+/// Dword 1 bits that negate operand A and operand B.
+const NEGATE_A: u32 = 1 << 26;
+const NEGATE_B: u32 = 1 << 25;
+
+/// An ALU instruction with a vector and a scalar half writing the same
+/// register (or export).
+struct Alu {
+    destination: u32,
+    export: bool,
+    vector: u32,
+    vector_mask: u32,
+    scalar: u32,
+    scalar_mask: u32,
+    a: Source,
+    b: Source,
+    c: Source,
+    negate: u32,
+}
+
+impl Alu {
+    /// A vector operation without a scalar half.
+    fn vector(destination: u32, mask: u32, operation: u32, a: Source, b: Source, c: Source) -> Self {
+        Self { destination, export: false, vector: operation, vector_mask: mask, scalar: SCALAR_NONE, scalar_mask: 0, a, b, c, negate: 0 }
+    }
+
+    /// Adds a scalar operation on operand C. The constant forms
+    /// ([`SCALAR_MULTIPLY_CONSTANT`], [`SCALAR_SUBTRACT_CONSTANT`]) take
+    /// constant C's component through swizzle component 3 and register
+    /// r0's component through swizzle component 0, as the dashboard's text
+    /// programs use them; swizzle components 1 and 2 stay at their
+    /// identity, the only form observed.
+    fn scalar(self, operation: u32, mask: u32) -> Self {
+        Self { scalar: operation, scalar_mask: mask, ..self }
+    }
+
+    fn negate(self, negate: u32) -> Self {
+        Self { negate, ..self }
+    }
+
+    fn export(self) -> Self {
+        Self { export: true, ..self }
+    }
+
+    fn encode(&self) -> [u32; 3] {
+        let export = if self.export { ALU_EXPORT } else { 0 };
+        [
+            self.scalar << 26 | self.scalar_mask << 20 | self.vector_mask << 16 | export | self.destination,
+            self.negate | self.a.swizzle() << 16 | self.b.swizzle() << 8 | self.c.swizzle(),
+            self.a.is_register() << 31 | self.b.is_register() << 30 | self.c.is_register() << 29 | self.vector << 24 | self.a.index() << 16 | self.b.index() << 8 | self.c.index(),
+        ]
+    }
+}
+
+/// Pixel constants the text shadow program reads.
+pub const SHADOW_COLOR_CONSTANT: u32 = 2;
+/// Smallest denominator used to convert a premultiplied shadow source.
+pub const SHADOW_ALPHA_EPSILON: f32 = 1.0 / 65_536.0;
+/// `(1 / texture width, 1 / texture height, alpha epsilon, 1)`.
+pub const SHADOW_OFFSET_CONSTANT: u32 = 3;
+
+/// Which source the shadow program outputs.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ShadowOutput {
+    /// Premultiplied color, from a premultiplied vertex color.
+    Premultiplied,
+    /// Straight color, from a straight vertex color.
+    Straight,
+}
+
+/// Pixel shader of a textured command with a drop shadow (`TextShadow`):
+/// texture 0 alpha at interpolator 0 (`t0`) and one texel up and left of
+/// it (`t1`), the vertex color `v` in interpolator 1, the straight shadow
+/// color `c` in [`SHADOW_COLOR_CONSTANT`]. With `g = t0 * v.a` and `s = t1
+/// * c.a`: alpha `1 - (1 - g)(1 - s)`, color `t0 * v.rgb + s(1 - g) c.rgb`
+/// (premultiplied output) or `(g * v.rgb + s(1 - g) c.rgb) / alpha`
+/// (straight output). The arithmetic follows the dashboard's text shadow
+/// program (xui-text.md).
+pub fn shadow_pixel_program(output: ShadowOutput) -> Vec<u32> {
+    use Source::Constant;
+    use Source::Register;
+
+    let identity = source_swizzle(X, Y, Z, W);
+    let all = |component| source_swizzle(component, component, component, component);
+    let xyz = source_swizzle(X, Y, Z, Z);
+    let xy = source_swizzle(X, Y, Y, Y);
+    let unused = Register(0, identity);
+
+
+    let mut alu = Vec::new();
+    if output == ShadowOutput::Premultiplied {
+        // r3.rgb = t0 * v.rgb
+        alu.push(Alu::vector(3, MASK_XYZ, VECTOR_MUL, Register(0, all(Y)), Register(1, xyz), unused));
+    }
+    // r0.y = g; r0.z = r0.x * c.w = s
+    alu.push(
+        Alu::vector(0, MASK_Y, VECTOR_MUL, Register(0, all(Y)), Register(1, all(W)), Constant(SHADOW_COLOR_CONSTANT, identity))
+            .scalar(SCALAR_MULTIPLY_CONSTANT, MASK_Z),
+    );
+    // r0.w = 1 - s; r0.x = 1 - g
+    alu.push(
+        Alu::vector(
+            0,
+            MASK_W,
+            VECTOR_ADD,
+            Register(0, all(Z)),
+            Constant(SHADOW_OFFSET_CONSTANT, all(W)),
+            Constant(SHADOW_OFFSET_CONSTANT, source_swizzle(Y, Y, Z, W)),
+        )
+        .negate(NEGATE_A)
+        .scalar(SCALAR_SUBTRACT_CONSTANT, MASK_X),
+    );
+    // r3.w = 1 - (1 - g)(1 - s)
+    alu.push(
+        Alu::vector(
+            3,
+            MASK_W,
+            VECTOR_MULTIPLY_ADD,
+            Register(0, all(X)),
+            Register(0, all(W)),
+            Constant(SHADOW_OFFSET_CONSTANT, all(W)),
+        )
+        .negate(NEGATE_A),
+    );
+    match output {
+        ShadowOutput::Premultiplied => {
+            // r0.x = s(1 - g)
+            alu.push(Alu::vector(0, MASK_X, VECTOR_MUL, Register(0, all(Z)), Register(0, all(X)), unused));
+            // r3.rgb = r0.x * c.rgb + r3.rgb
+            alu.push(Alu::vector(3, MASK_XYZ, VECTOR_MULTIPLY_ADD, Register(0, all(X)), Constant(SHADOW_COLOR_CONSTANT, xyz), Register(3, xyz)));
+        }
+        ShadowOutput::Straight => {
+            // r2.w = max(alpha, epsilon)
+            alu.push(Alu::vector(
+                2,
+                MASK_W,
+                VECTOR_MAX,
+                Register(3, all(W)),
+                Constant(SHADOW_OFFSET_CONSTANT, all(Z)),
+                unused,
+            ));
+            // r0.x = s(1 - g); r0.z = 1 / r2.w
+            alu.push(
+                Alu::vector(0, MASK_X, VECTOR_MUL, Register(0, all(Z)), Register(0, all(X)), Register(2, all(W)))
+                    .scalar(SCALAR_RECIPROCAL, MASK_Z),
+            );
+            // r2.xy = (g, s(1 - g)) / alpha
+            alu.push(Alu::vector(
+                2,
+                MASK_XY,
+                VECTOR_MUL,
+                Register(0, source_swizzle(Y, X, X, X)),
+                Register(0, all(Z)),
+                Constant(0, identity),
+            ));
+            // r0.rgb = r2.y * c.rgb
+            alu.push(Alu::vector(
+                0,
+                MASK_XYZ,
+                VECTOR_MUL,
+                Register(2, all(Y)),
+                Constant(SHADOW_COLOR_CONSTANT, xyz),
+                Constant(0, identity),
+            ));
+            // r3.rgb = r2.x * v.rgb + r0.rgb
+            alu.push(Alu::vector(
+                3,
+                MASK_XYZ,
+                VECTOR_MULTIPLY_ADD,
+                Register(2, all(X)),
+                Register(1, xyz),
+                Register(0, xyz),
+            ));
+        }
+    }
+    let body = alu.len() as u32;
+    let body_address = 5;
+
+    let mut program = Vec::new();
+    if body <= 6 {
+        control_flow(&mut program, &[
+            ControlFlow::Exec { address: 2, count: 3, fetches: 0b110, vertex_fetches: 0, end: false },
+            ControlFlow::AllocateParameters,
+            ControlFlow::Exec { address: body_address, count: body, fetches: 0, vertex_fetches: 0, end: false },
+            ControlFlow::Exec { address: body_address + body, count: 1, fetches: 0, vertex_fetches: 0, end: true },
+        ]);
+    } else {
+        control_flow(&mut program, &[
+            ControlFlow::Exec { address: 2, count: 3, fetches: 0b110, vertex_fetches: 0, end: false },
+            ControlFlow::AllocateParameters,
+            ControlFlow::Exec { address: body_address, count: 6, fetches: 0, vertex_fetches: 0, end: false },
+            ControlFlow::Exec { address: body_address + 6, count: body - 5, fetches: 0, vertex_fetches: 0, end: true },
+        ]);
+    }
+    // r2.xy = r0.xy - offset
+    program.extend(
+        Alu::vector(2, MASK_XY, VECTOR_ADD, Register(0, xy), Constant(SHADOW_OFFSET_CONSTANT, xy), unused).negate(NEGATE_B).encode(),
+    );
+    // r0.y = t0 (alpha at r0), r0.x = t1 (alpha at r2)
+    program.extend(alpha_fetch(0, 0, Y));
+    program.extend(alpha_fetch(0, 2, X));
+    for instruction in &alu {
+        program.extend(instruction.encode());
+    }
+    program.extend(Alu::vector(0, MASK_ALL, VECTOR_MAX, Register(3, identity), Register(3, identity), unused).export().encode());
+    program
+}
+
+/// Texture fetch of texture 0 at register `source` that writes the texel's
+/// alpha to `component` of `destination` and leaves the others.
+fn alpha_fetch(destination: u32, source: u32, component: u32) -> [u32; 3] {
+    let mut select = [SELECT_NONE; 4];
+    select[component as usize] = W;
+    let [word0, _, word2] = texture_fetch(destination, source, 0);
+    [word0, swizzle(select[0], select[1], select[2], select[3]) | TEXTURE_FETCH_FILTER_BITS, word2]
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -331,5 +596,13 @@ mod tests {
         let mut program = Vec::new();
         control_flow(&mut program, &[ControlFlow::Nop, ControlFlow::Exec { address: 7, count: 1, fetches: 0, vertex_fetches: 0, end: true }]);
         assert_eq!(program, [0, 0x1007 << 16, 0x2200_0000]);
+    }
+
+    #[test]
+    fn shadow_execs_keep_the_hardware_instruction_limit() {
+        let counts = |program: &[u32]| (program[3] >> 12 & 0xf, program[4] >> 28);
+
+        assert_eq!(counts(&shadow_pixel_program(ShadowOutput::Premultiplied)), (6, 1));
+        assert_eq!(counts(&shadow_pixel_program(ShadowOutput::Straight)), (6, 3));
     }
 }

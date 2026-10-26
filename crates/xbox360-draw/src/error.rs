@@ -1,6 +1,7 @@
 use core::fmt;
 
 use crate::draw::TextureId;
+use crate::draw::TextureMapping;
 
 /// Pixel buffer that does not describe a valid image.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -53,6 +54,8 @@ pub enum DrawListError {
     IndexOutOfRange { index: u32, vertex_count: usize },
     TooManyVertices { count: usize },
     TooManyTriangles { count: usize },
+    ShadowWithoutTexture,
+    ShadowMapping { mapping: TextureMapping },
     /// [`crate::draw::DrawList::begin_target`] while a target pass is open.
     TargetPassOpen,
     /// [`crate::draw::DrawList::begin_target`] after a frame command.
@@ -67,6 +70,10 @@ impl fmt::Display for DrawListError {
             }
             Self::TooManyVertices { count } => write!(f, "{count} vertices exceed the addressable count"),
             Self::TooManyTriangles { count } => write!(f, "{count} triangles exceed the addressable count"),
+            Self::ShadowWithoutTexture => f.write_str("a text shadow needs a texture"),
+            Self::ShadowMapping { mapping } => {
+                write!(f, "a text shadow does not support {mapping:?} texture mapping")
+            }
             Self::TargetPassOpen => f.write_str("a target pass is already open"),
             Self::FrameStarted => f.write_str("target passes must precede the frame commands"),
         }

@@ -241,6 +241,10 @@ impl DrawCommand {
         self.state.color_write
     }
 
+    pub fn shadow(&self) -> Option<TextShadow> {
+        self.state.shadow
+    }
+
     /// Range into [`DrawList::triangles`]; never empty.
     pub fn triangles(&self) -> Range<u32> {
         self.triangles.clone()
@@ -371,6 +375,13 @@ impl DrawList {
     /// pushes with equal state extend the previous command. Invalid input
     /// leaves the list unchanged.
     pub fn push(&mut self, state: DrawState, vertices: &[Vertex], triangles: &[[u32; 3]]) -> Result<(), DrawListError> {
+        if state.shadow.is_some() && state.texture.is_none() {
+            return Err(DrawListError::ShadowWithoutTexture);
+        }
+        if state.shadow.is_some() && state.sampler.mapping != TextureMapping::Direct {
+            return Err(DrawListError::ShadowMapping { mapping: state.sampler.mapping });
+        }
+
         if let Some(&index) = triangles.as_flattened().iter().find(|index| **index as usize >= vertices.len()) {
             return Err(DrawListError::IndexOutOfRange { index, vertex_count: vertices.len() });
         }
@@ -432,6 +443,21 @@ impl Default for DrawList {
     }
 }
 
+/// A drop shadow drawn in the same pass as a textured command, as the XUI
+/// text pixel program does. Only texel alpha is read. With `t0` the texel
+/// alpha at the command's texture coordinates and `t1` the alpha one texel
+/// up and left of them (`u - 1 / width`, `v - 1 / height`, same sampler),
+/// `g = t0 * vertex.a` and `s = t1 * color.a`, the source has alpha
+/// `a = g + s * (1 - g)` and color `(g * vertex.rgb + s * (1 - g) *
+/// color.rgb) / a` (straight; 0 where `a` is 0), with the straight vertex
+/// color. Premultiplied, that is `t0 * vertex` over `t1 * color`. The
+/// texture mapping is direct.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct TextShadow {
+    /// Straight (not premultiplied) shadow color.
+    pub color: Rgba8,
+}
+
 /// The per-command state of [`DrawList::push`].
 #[derive(Clone, Copy, Debug, PartialEq, Default)]
 pub struct DrawState {
@@ -440,6 +466,8 @@ pub struct DrawState {
     pub blend: BlendMode,
     pub clip: Option<ClipRect>,
     pub color_write: ColorWriteMask,
+    /// Requires a texture with direct mapping.
+    pub shadow: Option<TextShadow>,
 }
 
 #[cfg(test)]
@@ -485,6 +513,29 @@ mod tests {
 
         assert!(list.vertices().is_empty());
         assert!(list.commands().is_empty());
+    }
+
+    #[test]
+    fn text_shadow_requires_a_direct_texture() {
+        let shadow = Some(TextShadow { color: Rgba8::TRANSPARENT });
+        let mut list = DrawList::new();
+        let without_texture = DrawState { shadow, ..DrawState::default() };
+        assert_eq!(
+            list.push(without_texture, &[], &[]),
+            Err(DrawListError::ShadowWithoutTexture)
+        );
+
+        let sampler = Sampler { mapping: TextureMapping::Radial, ..Sampler::default() };
+        let radial = DrawState {
+            texture: Some(TextureId::new(0, 0)),
+            sampler,
+            shadow,
+            ..DrawState::default()
+        };
+        assert_eq!(
+            list.push(radial, &[], &[]),
+            Err(DrawListError::ShadowMapping { mapping: TextureMapping::Radial })
+        );
     }
 
     #[test]

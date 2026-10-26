@@ -232,6 +232,47 @@ pub(super) fn modulate(texel: Rgba8, color: Rgba8) -> Rgba8 {
     )
 }
 
+/// Source of a command with a text shadow (`TextShadow`) from the texel
+/// alphas at the pixel (`glyph`) and one texel up and left (`shadow_texel`),
+/// the vertex color and the straight shadow color. Premultiplied: `glyph *
+/// color` over `shadow_texel * shadow`, the vertex color premultiplied.
+/// Straight (`straight`, with a straight vertex color): alpha `g + s(1 - g)`
+/// and color `(g * color + s(1 - g) * shadow) / alpha`, 0 at alpha 0.
+#[inline(always)]
+pub(super) fn shadow_source(glyph: u8, shadow_texel: u8, color: Rgba8, shadow: Rgba8, straight: bool) -> Rgba8 {
+    let shadow_alpha = mul_div_255(shadow_texel, shadow.alpha());
+    if !straight {
+        let glyph_color = modulate(Rgba8::new(glyph, glyph, glyph, glyph), color);
+        let shadow_color = Rgba8::new(
+            mul_div_255(shadow_alpha, shadow.red()),
+            mul_div_255(shadow_alpha, shadow.green()),
+            mul_div_255(shadow_alpha, shadow.blue()),
+            shadow_alpha,
+        );
+
+        return normal(shadow_color, glyph_color);
+    }
+
+    let glyph_alpha = mul_div_255(glyph, color.alpha());
+    let shadow_weight = mul_div_255(u8::MAX - glyph_alpha, shadow_alpha);
+    let alpha = u32::from(glyph_alpha) + u32::from(shadow_weight);
+    if alpha == 0 {
+        return Rgba8::TRANSPARENT;
+    }
+
+    let channel = |glyph_channel: u8, shadow_channel: u8| {
+        let sum = u32::from(glyph_alpha) * u32::from(glyph_channel) + u32::from(shadow_weight) * u32::from(shadow_channel);
+        ((sum + alpha / 2) / alpha).min(CHANNEL_MAX) as u8
+    };
+
+    Rgba8::new(
+        channel(color.red(), shadow.red()),
+        channel(color.green(), shadow.green()),
+        channel(color.blue(), shadow.blue()),
+        alpha as u8,
+    )
+}
+
 /// `dst = src + dst * (255 - src.a) / 255`, saturated. Branchless: the
 /// scaling is exact for factors 0 and 255, and branches on texel alpha
 /// mispredict on the console.
