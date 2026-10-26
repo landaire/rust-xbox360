@@ -1,6 +1,6 @@
 //! Triangle setup and scan conversion. Positions snap to 1/256 pixel;
 //! coverage is exact integer edge arithmetic with the top-left fill rule
-//! and pixel centers at `(x + 0.5, y + 0.5)`.
+//! at integer target coordinates.
 
 use crate::draw::ClipRect;
 use crate::draw::Rgba8;
@@ -12,7 +12,6 @@ use super::target::RenderTarget;
 const SUBPIXEL_BITS: u32 = 8;
 /// Subpixels per pixel along each axis.
 pub(super) const SUBPIXELS: i64 = 1 << SUBPIXEL_BITS;
-const HALF_SUBPIXELS: i64 = SUBPIXELS / 2;
 
 /// Vertices beyond this distance in pixels are clipped before snapping so
 /// that edge arithmetic cannot overflow. Covers every target pixel.
@@ -147,19 +146,18 @@ impl Triangle {
     }
 
     /// Edge setup for the pixels of `window`; `None` when the bounds of
-    /// the triangle cover no pixel center inside it.
+    /// the triangle cover no integer target coordinate inside it.
     pub fn scan(&self, window: ClipRect) -> Option<Scan> {
         let min_y = i64::from(self.y[0].min(self.y[1]).min(self.y[2]));
         let max_y = i64::from(self.y[0].max(self.y[1]).max(self.y[2]));
         let min_x = i64::from(self.x[0].min(self.x[1]).min(self.x[2]));
         let max_x = i64::from(self.x[0].max(self.x[1]).max(self.x[2]));
 
-        // First and last pixel whose center lies within the bounds.
-        let top = ((min_y + HALF_SUBPIXELS - 1) >> SUBPIXEL_BITS).max(i64::from(window.top));
-        let bottom =
-            (((max_y - HALF_SUBPIXELS) >> SUBPIXEL_BITS) + 1).min(i64::from(window.bottom));
-        let left = ((min_x + HALF_SUBPIXELS - 1) >> SUBPIXEL_BITS).max(i64::from(window.left));
-        let right = (((max_x - HALF_SUBPIXELS) >> SUBPIXEL_BITS) + 1).min(i64::from(window.right));
+        // First and last integer target coordinates within the bounds.
+        let top = ((min_y + SUBPIXELS - 1) >> SUBPIXEL_BITS).max(i64::from(window.top));
+        let bottom = ((max_y >> SUBPIXEL_BITS) + 1).min(i64::from(window.bottom));
+        let left = ((min_x + SUBPIXELS - 1) >> SUBPIXEL_BITS).max(i64::from(window.left));
+        let right = ((max_x >> SUBPIXEL_BITS) + 1).min(i64::from(window.right));
         if top >= bottom || left >= right {
             return None;
         }
@@ -200,10 +198,10 @@ impl Triangle {
         let is_top_left = delta_y < 0 || (delta_y == 0 && delta_x > 0);
         let threshold = if is_top_left { 0 } else { 1 };
 
-        // E at the center of pixel (0, row) and its change per row; E falls
+        // E at target coordinate (0, row) and its change per row; E falls
         // by `delta_y * SUBPIXELS` per pixel to the right.
-        let center_y = row * SUBPIXELS + HALF_SUBPIXELS;
-        let value = delta_x * (center_y - from_y) - delta_y * (HALF_SUBPIXELS - from_x);
+        let target_y = row * SUBPIXELS;
+        let value = delta_x * (target_y - from_y) + delta_y * from_x;
         let row_step = delta_x * SUBPIXELS;
 
         match delta_y {
@@ -634,9 +632,9 @@ impl WindowBounds {
 
 /// Whether a triangle certainly covers no pixel of the window, decided on
 /// the unsnapped `f32` positions without any conversion. A pixel is
-/// covered only if its center lies within the snapped bounds, which are
-/// within half a subpixel of these, so a margin of one pixel is
-/// conservative. Non-finite positions are never rejected here.
+/// covered only if its integer target coordinate lies within the snapped
+/// bounds, which are within half a subpixel of these, so a margin of one
+/// pixel is conservative. Non-finite positions are never rejected here.
 #[inline(always)]
 pub(super) fn misses_window(vertices: [&Vertex; 3], bounds: WindowBounds) -> bool {
     let [first, second, third] = vertices;
@@ -687,10 +685,9 @@ impl CoverBounds {
 }
 
 /// Whether two triangles are the halves of an axis-aligned rectangle, split
-/// along a diagonal, that covers every pixel center of the window. Their
-/// shared diagonal is rasterized once, so together they cover the whole
-/// rectangle. A rectangle reaching the window's edges covers the centers
-/// half a pixel inside them after snapping to the nearest subpixel.
+/// along a diagonal, that covers every integer target coordinate of the
+/// window. Their shared diagonal is rasterized once, so together they cover
+/// the whole rectangle.
 pub(super) fn rectangle_covers(
     first: [&Vertex; 3],
     second: [&Vertex; 3],
@@ -901,15 +898,15 @@ impl AlignedRect {
             ],
         )?;
 
-        // Centers on the left and top edges are covered, on the right and
-        // bottom edges not, as with the two triangles.
-        let first_center = |edge: i32| (edge + HALF_SUBPIXELS as i32 - 1) >> SUBPIXEL_BITS;
+        // Integer coordinates on the left and top edges are covered, on
+        // the right and bottom edges not, as with the two triangles.
+        let first_coordinate = |edge: i32| (edge + SUBPIXELS as i32 - 1) >> SUBPIXEL_BITS;
         Some(Self {
             triangle,
-            left: first_center(snapped_left),
-            top: first_center(snapped_top),
-            right: first_center(snapped_right),
-            bottom: first_center(snapped_bottom),
+            left: first_coordinate(snapped_left),
+            top: first_coordinate(snapped_top),
+            right: first_coordinate(snapped_right),
+            bottom: first_coordinate(snapped_bottom),
         })
     }
 }

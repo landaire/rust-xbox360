@@ -32,7 +32,7 @@ load("@prelude//decls:toolchains_common.bzl", "toolchains_common")
 load("@prelude//linking:link_info.bzl", "LinkStrategy")
 load("@prelude//python_bootstrap:python_bootstrap.bzl", "PythonBootstrapToolchainInfo")
 load("@prelude//rust:build_params.bzl", "MetadataKind")
-load("@prelude//rust:link_info.bzl", "RustLinkInfo", "RustProcMacroInfo", "RustProcMacroPlugin", "get_available_proc_macros")
+load("@prelude//rust:link_info.bzl", "RustLinkInfo", "RustProcMacroPlugin", "get_available_proc_macros")
 load("@prelude//rust:rust_toolchain.bzl", "RustToolchainInfo")
 load(":platforms.bzl", "xbox360_core_transition", "xbox360_std_system_transition", "xbox360_std_transition")
 
@@ -251,10 +251,12 @@ def _proc_macro_dirs(ctx: AnalysisContext, deps: list[Dependency]) -> cmd_args:
     """`-Ldependency` for the directory of each proc macro that the transitive
     rlibs use: rustc loads a crate's proc macros to read its metadata."""
     available = get_available_proc_macros(ctx)
-    labels = set()
+    labels = {}
     for dep in deps:
-        labels.update(dep[RustLinkInfo].strategies[LinkStrategy("static")].transitive_proc_macro_deps)
-    dylibs = [available[label][RustProcMacroInfo].dylib for label in sorted(labels)]
+        markers = dep[RustLinkInfo].strategies[LinkStrategy("static")].transitive_proc_macro_deps
+        for marker in markers:
+            labels[marker.label] = None
+    dylibs = [available[label][RustLinkInfo].strategies[LinkStrategy("static")].outputs[MetadataKind("link")] for label in sorted(labels)]
     return cmd_args(dylibs, format = "-Ldependency={}", parent = 1)
 
 def _extern(dep: Dependency, options: str = "") -> cmd_args:

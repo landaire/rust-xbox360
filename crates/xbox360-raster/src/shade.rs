@@ -35,9 +35,8 @@ const CHUNK: usize = 256;
 /// The normalized texture coordinate radial mapping measures from, on both
 /// axes.
 const RADIAL_CENTER: f64 = 0.5;
-/// Offset of a pixel center from its corner, and the half that rounds a
-/// floor to nearest.
-const PIXEL_CENTER: f64 = 0.5;
+/// Half of one integer step, for rounding down to nearest.
+const ROUND_HALF: f64 = 0.5;
 const FRACTION_BITS: u32 = 16;
 const ONE: i64 = 1 << FRACTION_BITS;
 const HALF: i32 = 1 << (FRACTION_BITS - 1);
@@ -244,7 +243,13 @@ impl<'a> Shader<'a> {
     /// The source of a command with a text shadow: texel alpha at the pixel
     /// and one texel up and left, combined with the vertex and shadow
     /// colors by [`shadow_source`].
-    fn shade_shadowed(&self, texture: &TexturePlanes<'_>, shadow: Rgba8, source: &mut [Rgba8], origin: ChunkOrigin) {
+    fn shade_shadowed(
+        &self,
+        texture: &TexturePlanes<'_>,
+        shadow: Rgba8,
+        source: &mut [Rgba8],
+        origin: ChunkOrigin,
+    ) {
         let len = source.len();
         let sampler = &texture.sampler;
         let u = texture.u.coordinate(origin, texture.u_step);
@@ -261,11 +266,18 @@ impl<'a> Shader<'a> {
             up_left(v).rebase(&sampler.v),
         );
         let mut colors = [Rgba8::TRANSPARENT; CHUNK];
-        self.color.for_each_color(origin, &mut colors[..len], StoreColor);
+        self.color
+            .for_each_color(origin, &mut colors[..len], StoreColor);
 
         let straight = self.blend.mode().uses_straight_source();
         for ((pixel, shadow_texel), color) in source.iter_mut().zip(&shadow_texels).zip(&colors) {
-            *pixel = shadow_source(pixel.alpha(), shadow_texel.alpha(), *color, shadow, straight);
+            *pixel = shadow_source(
+                pixel.alpha(),
+                shadow_texel.alpha(),
+                *color,
+                shadow,
+                straight,
+            );
         }
     }
 }
@@ -349,8 +361,9 @@ impl Plane {
         }
     }
 
-    /// The plane in fixed point with its value at the center of target
-    /// pixel (0, 0): 32 fraction bits when the coefficients fit, else 16.
+    /// The plane in fixed point with its value at target pixel (0, 0): 32
+    /// fraction bits when the coefficients fit, else 16. The Xenos
+    /// evaluates interpolants at integer target coordinates.
     /// The coarse form covers gradients up to 2^31 units per pixel and
     /// values up to 2^45; beyond that coefficients are limited there.
     fn fixed(&self, setup: &PlaneSetup) -> FixedPlane {
@@ -362,9 +375,7 @@ impl Plane {
         const GRADIENT_LIMIT: i64 = 1 << 47;
         const VALUE_LIMIT: i64 = 1 << 61;
 
-        let at_zero = self.origin_value
-            + self.dx * (PIXEL_CENTER - setup.origin[0])
-            + self.dy * (PIXEL_CENTER - setup.origin[1]);
+        let at_zero = self.origin_value - self.dx * setup.origin[0] - self.dy * setup.origin[1];
         let fits = |value: f64, limit: i64| value.abs() <= limit as f64;
         let fine = fits(at_zero * FINE, VALUE_LIMIT)
             && fits(self.dx * FINE, GRADIENT_LIMIT)
@@ -1089,7 +1100,7 @@ impl Axis {
 /// float to integer conversion costs a library call on the console.
 fn round_clamped(value: f64, limit: i64) -> i64 {
     let limit = limit as f64;
-    let rounded = floor_f64(value + PIXEL_CENTER);
+    let rounded = floor_f64(value + ROUND_HALF);
     let clamped = if rounded < -limit {
         -limit
     } else if rounded > limit {

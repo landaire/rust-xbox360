@@ -210,6 +210,66 @@ mod console {
         fetch_constant: [u32; 6],
     }
 
+    struct Surface {
+        buffers: [FrontBuffer; 2],
+        pitch_tiles: u32,
+        window: TiledWindow,
+    }
+
+    impl Surface {
+        fn current() -> Result<Self, DisplayError> {
+            let mut information = DisplayInformation::new();
+            // SAFETY: the block is 0x58 writable bytes.
+            unsafe { VdGetCurrentDisplayInformation(information.as_mut_ptr()) };
+            let size = FrameSize {
+                width: u32::from(information.surface_width),
+                height: u32::from(information.surface_height),
+            };
+            if size.width == 0 || size.height == 0 || size.width % TILE_EDGE != 0 {
+                return Err(DisplayError::UnsupportedMode { size });
+            }
+            let window = DisplayWindow {
+                left: information.left,
+                top: information.top,
+                right: information.right,
+                bottom: information.bottom,
+            };
+            let window = window
+                .tiled(size)
+                .ok_or(DisplayError::UnsupportedWindow {
+                    surface: size,
+                    window,
+                })?;
+            let pitch_tiles = size.width / TILE_EDGE;
+            let tiles_high = size.height.div_ceil(TILE_EDGE);
+            let bytes = pitch_tiles * tiles_high * TILE_EDGE * TILE_EDGE * 4;
+            let front_buffer = || {
+                let mut memory = PhysicalBuffer::new(bytes, Caching::WriteCombined).ok_or(
+                    DisplayError::OutOfMemory {
+                        buffer: BufferKind::FrontBuffer,
+                    },
+                )?;
+                memory.words().fill(0);
+                let fetch_constant = fetch::front_buffer(
+                    memory.virtual_address(0),
+                    pitch_tiles,
+                    size.width,
+                    size.height,
+                );
+                Ok(FrontBuffer {
+                    memory,
+                    fetch_constant,
+                })
+            };
+
+            Ok(Self {
+                buffers: [front_buffer()?, front_buffer()?],
+                pitch_tiles,
+                window,
+            })
+        }
+    }
+
     /// A submitted flip.
     #[derive(Clone, Copy)]
     struct Flip {
@@ -244,29 +304,11 @@ mod console {
         /// surface size. Frames have the size of the part of the surface
         /// that is displayed.
         pub fn new() -> Result<Self, DisplayError> {
-            let mut information = DisplayInformation::new();
-            // SAFETY: the block is 0x58 writable bytes.
-            unsafe { VdGetCurrentDisplayInformation(information.as_mut_ptr()) };
-            let size = FrameSize {
-                width: u32::from(information.surface_width),
-                height: u32::from(information.surface_height),
-            };
-            if size.width == 0 || size.height == 0 || size.width % TILE_EDGE != 0 {
-                return Err(DisplayError::UnsupportedMode { size });
-            }
-            let window = DisplayWindow { left: information.left, top: information.top, right: information.right, bottom: information.bottom };
-            let window = window.tiled(size).ok_or(DisplayError::UnsupportedWindow { surface: size, window })?;
-            let pitch_tiles = size.width / TILE_EDGE;
-            let tiles_high = size.height.div_ceil(TILE_EDGE);
-            let bytes = pitch_tiles * tiles_high * TILE_EDGE * TILE_EDGE * 4;
-            let front_buffer = || {
-                let mut memory = PhysicalBuffer::new(bytes, Caching::WriteCombined)
-                    .ok_or(DisplayError::OutOfMemory { buffer: BufferKind::FrontBuffer })?;
-                memory.words().fill(0);
-                let fetch_constant = fetch::front_buffer(memory.virtual_address(0), pitch_tiles, size.width, size.height);
-                Ok(FrontBuffer { memory, fetch_constant })
-            };
-            let buffers = [front_buffer()?, front_buffer()?];
+            let Surface {
+                buffers,
+                pitch_tiles,
+                window,
+            } = Surface::current()?;
 
             if ENGINES_OWNED.swap(true, Ordering::AcqRel) {
                 return Err(DisplayError::AlreadyOpen);
@@ -284,6 +326,31 @@ mod console {
             let mut display = Self { ring, buffers, back: 0, pitch_tiles, window, pending: None, shader_epoch: ShaderEpoch::next(), shader_owner: None };
             display.retrain_edram(Retraining::AtInit);
             Ok(display)
+        }
+
+        /// Rebuild the front buffers for the kernel's current display
+        /// surface without releasing the GPU engines.
+        pub fn reset(&mut self) -> Result<(), DisplayError> {
+            let Surface {
+                buffers,
+                pitch_tiles,
+                window,
+            } = Surface::current()?;
+
+            self.wait_for_flip();
+            let shown = self.buffers[self.back ^ 1].fetch_constant;
+            self.submit_flip(GpuAddress(0), &shown);
+            self.wait_for_flip();
+
+            self.buffers = buffers;
+            self.back = 0;
+            self.pitch_tiles = pitch_tiles;
+            self.window = window;
+            self.pending = None;
+            self.shader_epoch = ShaderEpoch::next();
+            self.shader_owner = None;
+
+            Ok(())
         }
 
         /// D3D's EDRAM retraining step (`D3D_RetrainEDRAM` 0x92132310), run
