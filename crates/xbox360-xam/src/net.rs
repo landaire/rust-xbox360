@@ -42,6 +42,8 @@ pub const CONFIG_STATUS_BYTES: usize = 0x3a;
 
 /// Capacity the dashboard gives `XamGetWCNConfigFile`.
 pub const WCN_PATH_BYTES: usize = 0x104;
+/// Capacity the dashboard gives `XNetLogonGetDnsString`.
+pub const DNS_NAME_BYTES: usize = 0x104;
 
 /// The application and messages of the `XMsgInProcessCall` logon queries.
 const LOGON_APP: u32 = 0xfc;
@@ -114,6 +116,58 @@ where
     }
 
     Ok(value)
+}
+
+/// `NetDll_XNetGetOpt` into a caller-provided byte buffer.
+///
+/// Returns the number of bytes written. XNet can update the length on both
+/// success and failure.
+pub fn option_bytes(option: XnetOption, value: &mut [u8]) -> Result<usize, OptionError> {
+    let mut length = value.len() as i32;
+    // SAFETY: XAM writes at most `length` bytes to `value`.
+    let result = unsafe {
+        xam::NetDll_XNetGetOpt(XnCaller::Title, option, value.as_mut_ptr(), &mut length)
+    };
+    if result != 0 {
+        return Err(OptionError(result));
+    }
+    usize::try_from(length)
+        .ok()
+        .filter(|&length| length <= value.len())
+        .ok_or(OptionError(-1))
+}
+
+/// `NetDll_XNetSetOpt` from a caller-provided byte buffer.
+pub fn set_option_bytes(option: XnetOption, value: &[u8]) -> Result<(), OptionError> {
+    // SAFETY: XAM reads exactly `value.len()` bytes from `value`.
+    match unsafe {
+        xam::NetDll_XNetSetOpt(
+            XnCaller::Title,
+            option,
+            value.as_ptr(),
+            value.len() as u32,
+        )
+    } {
+        0 => Ok(()),
+        result => Err(OptionError(result)),
+    }
+}
+
+/// `NetDll_XNetGetOpt` for an option used as a command with no value.
+pub fn option_command(option: XnetOption) -> Result<(), OptionError> {
+    let mut length = 0;
+    // SAFETY: XAM receives the null value used by command options.
+    match unsafe {
+        xam::NetDll_XNetGetOpt(
+            XnCaller::Title,
+            option,
+            core::ptr::null_mut(),
+            &mut length,
+        )
+    } {
+        0 => Ok(()),
+        result => Err(OptionError(result)),
+    }
 }
 
 /// `NetDll_XnpLoadConfigParams`: reads the saved configuration.
@@ -215,6 +269,16 @@ pub fn logon_state() -> Hresult {
         )
     }
 }
+/// DNS name of an Xbox LIVE service. The 2.0.6717 dashboard uses index 3
+/// for the diagnostic server and index 4 for network help.
+pub fn logon_dns_string(index: u32, buffer: &mut [u8; DNS_NAME_BYTES]) -> Option<&CStr> {
+    // SAFETY: XAM writes at most `buffer.len()` bytes to the live buffer.
+    unsafe {
+        xam::XNetLogonGetDnsString(index, buffer.as_mut_ptr(), buffer.len() as u32);
+    }
+    CStr::from_bytes_until_nul(buffer).ok()
+}
+
 
 /// The NAT type XAM measured (`XMsgInProcessCall(0xFC, 0x58006, &type,
 /// 0)`).

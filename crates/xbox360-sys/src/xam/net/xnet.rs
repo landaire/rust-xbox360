@@ -18,6 +18,22 @@ impl XnetOption {
     pub const WIRELESS_ADAPTER_STATE: Self = Self(0x2af9);
     /// An `i32`: received signal strength of the wireless adapter in dBm.
     pub const WIRELESS_RSSI: Self = Self(0x0d01_0206);
+    /// A 0x24-byte record containing the SSID length and 32 SSID bytes.
+    pub const WIRELESS_SSID: Self = Self(0x0d01_0102);
+    /// A `u32` BSS type: 0 ad-hoc, 1 infrastructure.
+    pub const WIRELESS_BSS_TYPE: Self = Self(0x0d01_0108);
+    /// A `u32` radio mode: 1 802.11b, 2 802.11a, 3 802.11g, 4 any.
+    pub const WIRELESS_MODE: Self = Self(0x0d01_0204);
+    /// The wireless security type and key, in a 0x48-byte record.
+    pub const WIRELESS_KEY: Self = Self(0x2afa);
+    /// Starts a wireless network scan. `WSAEINPROGRESS` means one is active.
+    pub const WIRELESS_SCAN_START: Self = Self(0x0d01_021a);
+    /// Variable-length wireless scan records.
+    pub const WIRELESS_SCAN_RESULTS: Self = Self(0x0d01_0217);
+    /// The wireless adapter information record.
+    pub const WIRELESS_ADAPTER_INFO: Self = Self(0x2afc);
+    /// A count followed by at most ten wireless security capabilities.
+    pub const WIRELESS_CAPABILITIES: Self = Self(0x2afd);
 }
 
 flags! {

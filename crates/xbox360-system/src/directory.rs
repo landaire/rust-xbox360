@@ -18,6 +18,8 @@ use xbox360_sys::xboxkrnl::AccessMask;
 use xbox360_sys::xboxkrnl::AnsiString;
 use xbox360_sys::xboxkrnl::CreateOptions;
 use xbox360_sys::xboxkrnl::FileDirectoryInformation;
+use xbox360_sys::xboxkrnl::FsInformationClass;
+use xbox360_sys::xboxkrnl::FsSizeInformation;
 use xbox360_sys::xboxkrnl::Handle;
 use xbox360_sys::xboxkrnl::IoStatusBlock;
 use xbox360_sys::xboxkrnl::ObjectAttributeFlags;
@@ -110,6 +112,32 @@ impl Directory {
             buffer: &self.buffer.0,
             next: Some(0),
         }))
+    }
+
+    /// Returns the allocation size and free allocation units of this
+    /// directory's volume.
+    ///
+    /// # Errors
+    ///
+    /// The status of `NtQueryVolumeInformationFile`.
+    pub fn volume_size(&self) -> Result<FsSizeInformation, KernelError> {
+        let mut io_status = IoStatusBlock::default();
+        let mut information = FsSizeInformation::default();
+
+        // SAFETY: the directory handle is open and `information` and
+        // `io_status` are live for the synchronous query.
+        let status = unsafe {
+            xboxkrnl::NtQueryVolumeInformationFile(
+                self.handle,
+                &mut io_status,
+                (&raw mut information).cast(),
+                size_of::<FsSizeInformation>() as u32,
+                FsInformationClass::Size,
+            )
+        };
+        status.result()?;
+
+        Ok(information)
     }
 }
 

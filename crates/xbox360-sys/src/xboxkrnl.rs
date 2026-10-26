@@ -7,6 +7,7 @@
 //! the fields are private. A field that the kernel acts on is a
 //! [`KernelU32`] or [`KernelU8`], which safe code can only read.
 
+mod audio;
 mod boolean;
 mod crypt;
 mod debug;
@@ -34,6 +35,9 @@ use crate::image::XexHeaderKey;
 #[cfg(any(target_os = "xbox360", xbox360_docs))]
 use crate::lib_index::XBOXKRNL;
 
+pub use self::audio::XmaContextData;
+pub use self::audio::XmaContextInit;
+pub use self::audio::XmaLoopData;
 pub use self::boolean::Boolean;
 pub use self::boolean::Boolean8;
 pub use self::crypt::DesState;
@@ -1706,6 +1710,14 @@ crate::import_thunk!(
     ordinal = 0x1CB
 );
 
+crate::import_thunk!(
+    /// Programs the configured video mode. `flags` selects display-off,
+    /// forced-output, color-space, and pixel-format options.
+    pub VdSetDisplayMode(flags: u32) -> (),
+    lib = XBOXKRNL,
+    ordinal = 0x1D3
+);
+
 import_adapter!(
     /// Overrides the display mode; nonzero on success. `scan` is 1 for
     /// interlaced and 2 for progressive [INFERENCE]; `parameters` may be
@@ -1812,7 +1824,127 @@ crate::import_thunk!(
     lib = XBOXKRNL,
     ordinal = 0x21D
 );
+crate::import_thunk!(
+    /// Creates the USB camera driver context in `workspace` and stores its
+    /// camera handle. Returns zero on success.
+    pub XUsbcamCreate(workspace: *mut u8, workspace_size: u32, camera: *mut u32) -> u32,
+    lib = XBOXKRNL,
+    ordinal = 0x222
+);
 
+crate::import_thunk!(
+    /// Destroys a USB camera driver context.
+    pub XUsbcamDestroy(camera: u32) -> (),
+    lib = XBOXKRNL,
+    ordinal = 0x223
+);
+
+crate::import_thunk!(
+    /// Allocates one hardware XMA decoder context.
+    pub XMACreateContext(context: *mut *mut XmaContextData) -> u32,
+    lib = XBOXKRNL,
+    ordinal = 0x224
+);
+
+crate::import_thunk!(
+    /// Initializes an allocated XMA decoder context.
+    pub XMAInitializeContext(context: *mut XmaContextData, init: *const XmaContextInit) -> (),
+    lib = XBOXKRNL,
+    ordinal = 0x225
+);
+
+crate::import_thunk!(
+    /// Releases a hardware XMA decoder context.
+    pub XMAReleaseContext(context: *mut XmaContextData) -> (),
+    lib = XBOXKRNL,
+    ordinal = 0x226
+);
+
+crate::import_thunk!(
+    /// Enables a hardware XMA decoder context.
+    pub XMAEnableContext(context: *mut XmaContextData) -> (),
+    lib = XBOXKRNL,
+    ordinal = 0x227
+);
+
+crate::import_thunk!(
+    /// Disables a hardware XMA decoder context. `wait` waits for in-flight
+    /// decoder work.
+    pub XMADisableContext(context: *mut XmaContextData, wait: u32) -> u32,
+    lib = XBOXKRNL,
+    ordinal = 0x228
+);
+
+crate::import_thunk!(
+    /// Returns the decoder's output ring write offset in 256-byte blocks.
+    pub XMAGetOutputBufferWriteOffset(context: *mut XmaContextData) -> u32,
+    lib = XBOXKRNL,
+    ordinal = 0x229
+);
+
+crate::import_thunk!(
+    /// Sets the output ring read offset in 256-byte blocks.
+    pub XMASetOutputBufferReadOffset(context: *mut XmaContextData, offset: u32) -> (),
+    lib = XBOXKRNL,
+    ordinal = 0x22A
+);
+
+crate::import_thunk!(
+    /// Returns the output ring read offset in 256-byte blocks.
+    pub XMAGetOutputBufferReadOffset(context: *mut XmaContextData) -> u32,
+    lib = XBOXKRNL,
+    ordinal = 0x22B
+);
+
+crate::import_thunk!(
+    /// Marks the output ring of an XMA decoder context valid.
+    pub XMASetOutputBufferValid(context: *mut XmaContextData) -> (),
+    lib = XBOXKRNL,
+    ordinal = 0x22C
+);
+
+crate::import_thunk!(
+    /// Returns whether the output ring is valid.
+    pub XMAIsOutputBufferValid(context: *mut XmaContextData) -> u32,
+    lib = XBOXKRNL,
+    ordinal = 0x22D
+);
+
+crate::import_thunk!(
+    /// Marks input buffer zero of an XMA decoder context valid.
+    pub XMASetInputBuffer0Valid(context: *mut XmaContextData) -> (),
+    lib = XBOXKRNL,
+    ordinal = 0x22E
+);
+
+crate::import_thunk!(
+    /// Returns whether input buffer zero is valid.
+    pub XMAIsInputBuffer0Valid(context: *mut XmaContextData) -> u32,
+    lib = XBOXKRNL,
+    ordinal = 0x22F
+);
+
+crate::import_thunk!(
+    /// Waits until the decoder is not working on `context`.
+    pub XMABlockWhileInUse(context: *mut XmaContextData) -> (),
+    lib = XBOXKRNL,
+    ordinal = 0x235
+);
+
+crate::import_thunk!(
+    /// Writes one USB camera configuration value.
+    pub XUsbcamSetConfig(
+        camera: u32,
+        request: u32,
+        selector: u32,
+        value: *const u8,
+        length: u32,
+        callback: usize,
+        context: usize,
+    ) -> i32,
+    lib = XBOXKRNL,
+    ordinal = 0x21C
+);
 crate::import_thunk!(
     /// Writes a boot loader image to flash. A nonzero `flags` value on return also indicates failure.
     pub XeKeysSaveBootLoader(flags: *mut u32, size: *mut u32, buffer: u32) -> NtStatus,

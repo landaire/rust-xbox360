@@ -653,6 +653,13 @@ crate::import_thunk!(
     lib = XAM,
     ordinal = 0x13C
 );
+crate::import_thunk!(
+    /// Stores a NUL-terminated Xbox LIVE service DNS name in `buffer`.
+    pub XNetLogonGetDnsString(index: u32, buffer: *mut u8, capacity: u32) -> u32,
+    lib = XAM,
+    ordinal = 0x1C6
+);
+
 
 crate::import_thunk!(
     /// Reads the capabilities of the controller of a user slot.
@@ -1953,6 +1960,14 @@ crate::import_thunk!(
     pub XamGetCachedTitleName(title: u32, buffer: *mut u16, length: *mut u32) -> Win32ErrorCode,
     lib = XAM,
     ordinal = 0x2B6
+);
+
+crate::import_thunk!(
+    /// Clears XAM's content and title caches. The 2.0.6717 dashboard passes
+    /// zero during storage maintenance and ignores the result.
+    pub XamCacheReset(flags: u32) -> u32,
+    lib = XAM,
+    ordinal = 0x2B7
 );
 
 import_adapter!(
