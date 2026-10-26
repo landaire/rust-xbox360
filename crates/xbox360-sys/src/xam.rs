@@ -889,6 +889,33 @@ crate::import_thunk!(
     ordinal = 0x20B
 );
 
+import_adapter!(
+    /// Stores at `user_index` the user slot the profile `xuid` is signed in on. `flags`
+    /// selects the XUID kinds compared, as for [`XamUserGetXUID`]; the 2.0.6717 dashboard's
+    /// Memory area passes 1. Fails when no slot has the profile. The export takes the 64-bit
+    /// `xuid` in one register.
+    pub XamUserGetIndexFromXUID(xuid: u64, flags: u32, user_index: *mut u32) -> Hresult,
+    lib = XAM,
+    ordinal = 0x211,
+    // xuid in r3:r4, flags in r5, user_index in r6.
+    prologue = [
+        "rldimi 4, 3, 32, 0",
+        "mr 3, 4",
+        "mr 4, 5",
+        "mr 5, 6",
+    ]
+);
+
+crate::import_thunk!(
+    /// Unloads the system application `app`. The 2.0.6717 dashboard passes app 0xF6 with
+    /// `unknown` 1 before a format, before it deletes the package named `IptvClient`, and in
+    /// the IPTV client download (0x9228B9A0); the meaning of `unknown` is not known and the
+    /// result is not read.
+    pub XamUnloadSysApp(app: u32, unknown: u32) -> u32,
+    lib = XAM,
+    ordinal = 0x252
+);
+
 crate::import_thunk!(
     /// Writes the gamertag of a signed-in user slot to `buffer` as NUL-terminated UTF-16,
     /// at most `length` units. The 2.0.6717 dashboard passes 16 units.

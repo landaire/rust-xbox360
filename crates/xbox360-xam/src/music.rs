@@ -5,19 +5,23 @@
 //! word is 0 carry the extended block 0x80002, 0 when they go through
 //! `XMsgStartIORequestEx`.
 
+use core::borrow::Borrow;
+use core::borrow::BorrowMut;
+use core::marker::PhantomData;
+use core::mem::ManuallyDrop;
 use core::ptr;
 
 use xbox360_status::Hresult;
+use xbox360_status::Win32Error;
 use xbox360_sys::xam;
 
-use crate::AsyncOperation;
 use crate::WideCStr;
+use crate::media::DEVICE_DESCRIPTOR_SIZE;
 use crate::media_library;
 use crate::media_library::EnumerationKind;
 use crate::media_library::EnumerationRequest;
+use crate::media_library::RECORD_HEADER_SIZE;
 use crate::title::Enumerator;
-use core::pin::Pin;
-use xbox360_status::Win32Error;
 
 /// XAM application of the music player.
 const MEDIA_APP: u32 = 0xFA;
@@ -181,23 +185,36 @@ where
 
     /// Copies the bytes at `address` to `out` when they lie inside the
     /// handle memory or the record buffer, where the addresses of queue
-    /// records point. Returns whether it copied.
-    pub fn read_block(&self, address: u32, out: &mut [u8]) -> bool {
+    /// records point. Returns whether it copied. Exclusive, as a pending
+    /// [`RecordListing`] writes the record buffer.
+    pub fn read_block(&mut self, address: u32, out: &mut [u8]) -> bool {
+        let records = self.records_range.clone();
+        self.read_within(&[self.memory_range.clone(), records], address, out)
+    }
+
+    /// [`Player::read_block`] limited to the handle memory, also while a
+    /// [`RecordListing`] writes the record buffer.
+    pub fn read_handle_block(&self, address: u32, out: &mut [u8]) -> bool {
+        self.read_within(&[self.memory_range.clone()], address, out)
+    }
+
+    fn read_within(&self, ranges: &[core::ops::Range<u32>], address: u32, out: &mut [u8]) -> bool {
         let Ok(length) = u32::try_from(out.len()) else {
             return false;
         };
         let Some(end) = address.checked_add(length) else {
             return false;
         };
-        let inside = |range: &core::ops::Range<u32>| range.start <= address && end <= range.end;
-        if !inside(&self.memory_range) && !inside(&self.records_range) {
+        if !ranges.iter().any(|range| range.start <= address && end <= range.end) {
             return false;
         }
 
         for (offset, byte) in out.iter_mut().enumerate() {
             // SAFETY: the range lies inside memory the player owns, so it is
-            // allocated, and `StableBuffer` keeps other accesses away. The
-            // read is volatile because XAM writes the memory.
+            // allocated, and `StableBuffer` keeps other accesses away; the
+            // record buffer is read only through `&mut self`, which no
+            // pending listing allows. The read is volatile because XAM
+            // writes the memory.
             *byte = unsafe { ptr::read_volatile((address as usize + offset) as *const u8) };
         }
 
@@ -323,52 +340,9 @@ where
         Ok(items.min(count))
     }
 
-    /// 0x921DB1D8: starts the song enumeration `request` for at most
-    /// `count` records and one `XamEnumerate` into the whole record buffer
-    /// with `operation`, which the owner polls. A call that does not pend
-    /// is a failure, as there. The returned listing holds the open
-    /// enumeration.
-    ///
-    /// # Safety
-    ///
-    /// Until `operation` is no longer pending (completed, or cancelled by
-    /// [`AsyncOperation::cancel`] or its drop): `operation`, the player and
-    /// the memory `request` names stay alive, and the returned listing is
-    /// not dropped.
-    pub unsafe fn start_record_listing(
-        &self,
-        request: EnumerationRequest<'_>,
-        count: u32,
-        operation: Pin<&AsyncOperation>,
-    ) -> Result<RecordListing, MusicError> {
-        const NO_FLAGS: u32 = 0;
-
-        if request.kind() != EnumerationKind::SONGS {
-            return Err(Hresult::INVALID_ARGUMENT.into());
-        }
-        let records = self.records_range.end - self.records_range.start;
-        if u64::from(count) * SONG_RECORD_SIZE as u64 > u64::from(records) {
-            return Err(Hresult::INVALID_ARGUMENT.into());
-        }
-
-        let enumerator = media_library::start_enumeration(request, count)?.into_enumerator();
-        operation.reset();
-        // SAFETY: the record buffer lies in memory the player owns; the
-        // caller keeps it, `operation` and the enumeration alive while the
-        // call pends.
-        let code = unsafe {
-            enumerator.enumerate(NO_FLAGS, self.records_range.start as usize as *mut u8, records, operation.as_ptr())
-        };
-        if code.error() != Some(Win32Error::IO_PENDING) {
-            return Err(Hresult::FAIL.into());
-        }
-
-        Ok(RecordListing { _enumerator: enumerator })
-    }
-
     /// 0x70011 (0x921DA580) of the first `count` records of the record
     /// buffer, which a completed record listing filled.
-    pub fn enqueue_listed(&self, count: u32) -> Result<(), MusicError> {
+    fn enqueue_listed(&mut self, count: u32) -> Result<(), MusicError> {
         const MESSAGE: u32 = 0x7_0011;
 
         let records = self.records_range.end - self.records_range.start;
@@ -383,27 +357,217 @@ where
     }
 }
 
-/// The open song enumeration of [`Player::start_record_listing`]; dropping
-/// it closes the handle.
-pub struct RecordListing {
-    _enumerator: Enumerator,
+/// Size of the scratch memory of a [`RecordListing`]: its overlapped block
+/// and a copy of the descriptor or record the request names.
+pub const LISTING_SCRATCH_SIZE: usize = 0x260;
+
+/// The song enumeration of a record listing (0x921DB1D8 passes flags 4).
+#[derive(Clone, Copy, Debug)]
+pub struct SongListing<'a> {
+    pub scope: media_library::ListingScope<'a>,
+    pub sort: u32,
+    pub flags: u32,
 }
 
-/// The extended error of a completed record listing (overlapped +0x18),
-/// which 0x921DC958 tests: nonnegative or `ERROR_NO_MORE_ITEMS` as an
-/// HRESULT (0x80070103) is success. `None` while the call pends.
-pub fn record_listing_succeeded(operation: Pin<&AsyncOperation>) -> Option<bool> {
-    const NO_MORE_ITEMS: u32 = 0x8007_0103;
+/// State of a [`RecordListing`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ListingState {
+    Pending,
+    /// The call is over: the record count when the extended error is
+    /// nonnegative or `ERROR_NO_MORE_ITEMS` as an HRESULT (0x80070103),
+    /// as 0x921DC958 tests; `None` for any other.
+    Complete {
+        records: Option<u32>,
+    },
+}
 
-    if operation.is_pending() {
-        return None;
+/// Why [`RecordListing::start`] did not start; the player and the scratch
+/// memory come back.
+pub struct ListingStartError<P, S> {
+    pub player: P,
+    pub scratch: S,
+    pub error: MusicError,
+}
+
+/// 0x921DB1D8: one asynchronous `XamEnumerate` of songs into the record
+/// buffer of the player. The listing holds the player exclusively (`P` is
+/// the player or a `&mut` of it) until [`RecordListing::finish`] or drop,
+/// which cancel a pending call and wait for it, so nothing else reads or
+/// writes the record buffer meanwhile. Requests that do not touch the
+/// record buffer go through [`RecordListing::player`].
+pub struct RecordListing<P, M, S>
+where
+    P: BorrowMut<Player<M>>,
+    M: StableBuffer,
+    S: StableBuffer,
+{
+    /// Open until the call is over (0x921DC958 closes it then).
+    enumerator: Option<Enumerator>,
+    overlapped: *mut xam::Overlapped,
+    /// Holds the overlapped block and the request copy.
+    scratch: ManuallyDrop<S>,
+    player: ManuallyDrop<P>,
+    _buffer: PhantomData<M>,
+}
+
+impl<P, M, S> RecordListing<P, M, S>
+where
+    P: BorrowMut<Player<M>>,
+    M: StableBuffer,
+    S: StableBuffer,
+{
+    /// Starts the enumeration `request` for at most `count` records and
+    /// one `XamEnumerate` of the whole record buffer. A call that does not
+    /// pend is a failure, as in 0x921DB1D8. `scratch` holds at least
+    /// [`LISTING_SCRATCH_SIZE`] bytes, 4-byte aligned.
+    pub fn start(
+        mut player: P,
+        mut scratch: S,
+        request: SongListing<'_>,
+        count: u32,
+    ) -> Result<Self, ListingStartError<P, S>> {
+        const NO_FLAGS: u32 = 0;
+        const REQUEST_OFFSET: usize = 0x20;
+
+        let result = (|| {
+            let records_range = Borrow::<Player<M>>::borrow(&player).records_range.clone();
+            let records = records_range.end - records_range.start;
+            if u64::from(count) * SONG_RECORD_SIZE as u64 > u64::from(records) {
+                return Err(MusicError::from(Hresult::INVALID_ARGUMENT));
+            }
+            let bytes = scratch.bytes_mut();
+            if bytes.len() < LISTING_SCRATCH_SIZE || bytes.as_ptr() as usize % 4 != 0 {
+                return Err(Hresult::INVALID_ARGUMENT.into());
+            }
+
+            let (head, copy) = bytes.split_at_mut(REQUEST_OFFSET);
+            let scope = match request.scope {
+                media_library::ListingScope::Device(descriptor) => {
+                    let copy: &mut [u8; DEVICE_DESCRIPTOR_SIZE] =
+                        (&mut copy[..DEVICE_DESCRIPTOR_SIZE]).try_into().map_err(|_| Hresult::INVALID_ARGUMENT)?;
+                    copy.copy_from_slice(descriptor);
+                    media_library::ListingScope::Device(copy)
+                }
+                media_library::ListingScope::Record(record) => {
+                    let copy: &mut [u8; RECORD_HEADER_SIZE] =
+                        (&mut copy[..RECORD_HEADER_SIZE]).try_into().map_err(|_| Hresult::INVALID_ARGUMENT)?;
+                    copy.copy_from_slice(record);
+                    media_library::ListingScope::Record(copy)
+                }
+            };
+            let request = EnumerationRequest::Songs { scope, sort: request.sort, flags: request.flags };
+            // The scratch memory holds the copy until the listing ends.
+            let enumerator = media_library::start_enumeration(request, count)?.into_enumerator();
+
+            let overlapped = head.as_mut_ptr().cast::<xam::Overlapped>();
+            // SAFETY: the scratch memory is 4-byte aligned, holds the block,
+            // and the listing owns it.
+            unsafe { ptr::write(overlapped, xam::Overlapped::default()) };
+            // SAFETY: the record buffer lies in memory the player owns, and
+            // the listing holds the player, the block and the enumeration
+            // until the call is over or cancelled.
+            let code =
+                unsafe { enumerator.enumerate(NO_FLAGS, records_range.start as usize as *mut u8, records, overlapped) };
+            if code.error() != Some(Win32Error::IO_PENDING) {
+                return Err(Hresult::FAIL.into());
+            }
+
+            Ok((enumerator, overlapped))
+        })();
+
+        match result {
+            Ok((enumerator, overlapped)) => Ok(Self {
+                enumerator: Some(enumerator),
+                overlapped,
+                scratch: ManuallyDrop::new(scratch),
+                player: ManuallyDrop::new(player),
+                _buffer: PhantomData,
+            }),
+            Err(error) => Err(ListingStartError { player, scratch, error }),
+        }
     }
 
-    core::sync::atomic::fence(core::sync::atomic::Ordering::Acquire);
-    // SAFETY: the block is live and the call no longer writes it.
-    let extended = unsafe { ptr::read_volatile(&raw const (*operation.as_ptr()).extended_error) };
+    /// The player for requests that do not touch the record buffer.
+    pub fn player(&self) -> &Player<M> {
+        Borrow::<Player<M>>::borrow(&*self.player)
+    }
 
-    Some((extended as i32) >= 0 || extended == NO_MORE_ITEMS)
+    /// The state of the call; once it is over the enumeration closes, as
+    /// in 0x921DC958.
+    pub fn state(&mut self) -> ListingState {
+        const NO_MORE_ITEMS: u32 = 0x8007_0103;
+
+        if self.is_pending() {
+            return ListingState::Pending;
+        }
+        self.enumerator = None;
+
+        core::sync::atomic::fence(core::sync::atomic::Ordering::Acquire);
+        // SAFETY: the block is live and the call no longer writes it.
+        let block = unsafe { ptr::read_volatile(self.overlapped) };
+        let succeeded = (block.extended_error as i32) >= 0 || block.extended_error == NO_MORE_ITEMS;
+
+        ListingState::Complete { records: succeeded.then_some(block.length) }
+    }
+
+    /// 0x70011 (0x921DA580) of the first `count` records the completed
+    /// listing wrote.
+    pub fn enqueue(&mut self, count: u32) -> Result<(), MusicError> {
+        match self.state() {
+            ListingState::Complete { records: Some(records) } if count <= records => {
+                BorrowMut::<Player<M>>::borrow_mut(&mut *self.player).enqueue_listed(count)
+            }
+            _ => Err(Hresult::INVALID_ARGUMENT.into()),
+        }
+    }
+
+    /// Cancels a pending call, waiting for it (0x921DA1C8), and gives the
+    /// player and the scratch memory back.
+    pub fn finish(self) -> (P, S) {
+        let mut this = ManuallyDrop::new(self);
+        this.cancel();
+        this.enumerator = None;
+
+        // SAFETY: `this` is not dropped and not used after the fields are
+        // read out once.
+        unsafe { (ManuallyDrop::take(&mut this.player), ManuallyDrop::take(&mut this.scratch)) }
+    }
+
+    fn is_pending(&self) -> bool {
+        // SAFETY: the block is live; XAM writes the result field last and
+        // the volatile read observes its stores.
+        let result = unsafe { ptr::read_volatile(&raw const (*self.overlapped).result) };
+        result.error() == Some(Win32Error::IO_PENDING)
+    }
+
+    fn cancel(&mut self) {
+        if !self.is_pending() {
+            return;
+        }
+
+        let wait = true;
+        // SAFETY: the block names the pending call and lives through it.
+        unsafe { xam::XMsgCancelIORequest(self.overlapped, wait) };
+    }
+}
+
+impl<P, M, S> Drop for RecordListing<P, M, S>
+where
+    P: BorrowMut<Player<M>>,
+    M: StableBuffer,
+    S: StableBuffer,
+{
+    fn drop(&mut self) {
+        self.cancel();
+        self.enumerator = None;
+
+        // SAFETY: the call is over, so the scratch memory and the player
+        // are released once, here.
+        unsafe {
+            ManuallyDrop::drop(&mut self.scratch);
+            ManuallyDrop::drop(&mut self.player);
+        }
+    }
 }
 
 impl<M> Drop for Player<M>
@@ -493,8 +657,9 @@ pub fn current_song(block: &mut [u8; CURRENT_SONG_SIZE]) -> Result<(), MusicErro
     unsafe { io_request(MESSAGE, &mut words) }
 }
 
-/// 0x70049 (0x921A1290): the play/pause button.
-pub fn toggle_pause() -> Result<(), MusicError> {
+/// 0x70049 (0x921A1290): the play/pause button of Now Playing sends it
+/// while the 0x70052 state is not 1, and 0x70005 while it is (0x921DCEE0).
+pub fn play_pause() -> Result<(), MusicError> {
     simple_call(0x7_0049)
 }
 
