@@ -13,6 +13,25 @@ constraint(
 )
 
 constraint(
+    name = "codegen",
+    default = "ppc32",
+    values = [
+        "ppc32",
+        "ppc64-ilp32",
+    ],
+    visibility = ["PUBLIC"],
+)
+
+config_setting(
+    name = "xbox-ppc64-ilp32",
+    constraint_values = [
+        ":codegen[ppc64-ilp32]",
+        ":target[xbox]",
+    ],
+    visibility = ["PUBLIC"],
+)
+
+constraint(
     name = "mode",
     default = "dev",
     values = [
@@ -90,6 +109,48 @@ platform(
 platform(
     name = "xbox360-sysroot",
     constraint_values = [
+        ":sysroot-none",
+        ":target[xbox]",
+    ],
+    visibility = ["PUBLIC"],
+)
+
+# Experimental configurations that use 64-bit integer registers with the
+# console's 32-bit pointers and ABI.
+platform(
+    name = "xbox360-ppc64-ilp32-core",
+    constraint_values = [
+        ":codegen[ppc64-ilp32]",
+        ":sysroot-core",
+        ":target[xbox]",
+    ],
+    visibility = ["PUBLIC"],
+)
+
+platform(
+    name = "xbox360-ppc64-ilp32-std",
+    constraint_values = [
+        ":codegen[ppc64-ilp32]",
+        ":sysroot-std",
+        ":target[xbox]",
+    ],
+    visibility = ["PUBLIC"],
+)
+
+platform(
+    name = "xbox360-ppc64-ilp32-std-system",
+    constraint_values = [
+        ":codegen[ppc64-ilp32]",
+        ":sysroot-std-system",
+        ":target[xbox]",
+    ],
+    visibility = ["PUBLIC"],
+)
+
+platform(
+    name = "xbox360-ppc64-ilp32-sysroot",
+    constraint_values = [
+        ":codegen[ppc64-ilp32]",
         ":sysroot-none",
         ":target[xbox]",
     ],

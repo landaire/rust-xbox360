@@ -14,6 +14,7 @@ load(":python.bzl", "exec_python_bootstrap_toolchain")
 load(":rust.bzl", "release_tool", "rust_release", "rust_release_toolchain")
 
 _XBOX360 = "xbox360//platforms:target[xbox]"
+_XBOX360_PPC64_ILP32 = "xbox360//platforms:xbox-ppc64-ilp32"
 _SYSROOT_CORE = "xbox360//platforms:sysroot-core"
 _SYSROOT_STD = "xbox360//platforms:sysroot-std"
 _SYSROOT_STD_SYSTEM = "xbox360//platforms:sysroot-std-system"
@@ -82,6 +83,7 @@ def xbox360_toolchains(
         }),
         rustdoc_flags = rustdoc_flags,
         rustc_target_triple = select({
+            _XBOX360_PPC64_ILP32: "powerpc64-unknown-xbox360",
             _XBOX360: "powerpc-unknown-xbox360",
             "DEFAULT": None,
         }),

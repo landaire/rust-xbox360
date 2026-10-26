@@ -28,8 +28,8 @@ codegen. Kernel structures come from the binja-xex2 `ntos` headers.
 ## Timing / SMT
 
 - `mftb`/`mftbu` read the 64-bit timebase. Frequency via
-  `KeQueryPerformanceFrequency` (~50 MHz). The std time backend reads the two
-  32-bit halves (the 32-bit target can't hold u64 in one GPR).
+  `KeQueryPerformanceFrequency` (~50 MHz). The default target reads the two
+  32-bit halves. The experimental target keeps the value in one 64-bit GPR.
 - SMT yield is `or r31,r31,r31` (`0x7FFFFB78`, ~16 dispatch cycles). Better
   than a kernel yield for spin loops.
 
@@ -53,15 +53,19 @@ the same word. `asm!(".long 0x...")` emits a 32-bit PPC word inline for
 instructions the assembler lacks: `lvlx`/`lvrx`/`stvlx`/`stvrx` and the VMX128
 operations.
 
-## Target-spec recommendations (LLVM)
+## Target specifications
 
-- 64-bit big-endian PowerPC ISA with 32-bit pointers (ILP32). This project's
-  target is 32-bit PPC BE (`powerpc`), which puts u64 in register pairs. Its
-  `max-atomic-width` is 64: the std overlay implements 8-byte atomics with
-  protected `ldarx`/`stdcx.` and `ld`/`std`. A future ppc64-BE-ILP32 target would gain those.
-- Xenon predates VSX: enable AltiVec if used, but do NOT enable `+vsx`. Xenon has
-  `isel` and the fre/frsqrte estimates (`fsel`, `fres`, `frsqrte`).
-- No `-mcpu=xenon` exists in LLVM.
+The default `powerpc-unknown-xbox360` target uses 32-bit PowerPC code generation and keeps 64-bit integers in register pairs.
+
+The experimental `powerpc64-unknown-xbox360` target enables LLVM's `+xbox360` feature. It retains 32-bit pointers and ELF32 output, but passes and returns each `i64` in one 64-bit GPR. The feature also reserves the 16-byte linkage area and eight 8-byte argument home slots observed in genuine binaries. It preserves nonvolatile GPRs at full width. It requires the matching experimental LLVM and Rust compiler builds. The unmodified Rust 1.98 release has neither the LLVM target nor the Xbox aggregate ABI classifier.
+
+Buck exposes matching `xbox360-ppc64-ilp32-core`, `-std`, `-std-system`, and `-sysroot` platforms. The standard platforms and target remain the default.
+
+Both targets have a maximum atomic width of 64 bits. The standard-library overlay implements 8-byte atomics with protected `ldarx`/`stdcx.` and `ld`/`std`.
+
+Xenon predates VSX. Enable AltiVec if used, but do not enable `+vsx`. Xenon has `isel` and the `fsel`, `fres`, and `frsqrte` estimates. LLVM has no `-mcpu=xenon` model.
+
+The reverse-engineered evidence and remaining LLVM gaps are in [`llvm-xbox360-abi-evidence.md`](llvm-xbox360-abi-evidence.md).
 
 ## Kernel ABI notes discovered building the std backend
 

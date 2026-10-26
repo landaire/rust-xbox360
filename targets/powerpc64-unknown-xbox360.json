@@ -1,0 +1,23 @@
+{
+  "arch": "powerpc64",
+  "data-layout": "E-m:e-p:32:32-Fn32-i64:64-i128:128-n32:64",
+  "llvm-target": "powerpc64-unknown-xbox360",
+  "target-endian": "big",
+  "target-pointer-width": 32,
+  "max-atomic-width": 64,
+  "os": "xbox360",
+  "env": "",
+  "vendor": "unknown",
+  "cpu": "generic",
+  "features": "+hard-float",
+  "linker": "rust-lld",
+  "linker-flavor": "gnu-lld",
+  "panic-strategy": "abort",
+  "relocation-model": "static",
+  "code-model": "small",
+  "eh-frame-header": false,
+  "no-default-libraries": true,
+  "dynamic-linking": false,
+  "executables": true,
+  "emit-debug-gdb-scripts": false
+}

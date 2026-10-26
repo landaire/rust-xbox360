@@ -254,7 +254,7 @@ timeout at the top of the script if required.
 
 ## Compiling C
 
-`xex-link` is language-agnostic: any LLVM front end that emits a big-endian PowerPC ELF is supported. `xbox360_c_title` in `buck/xex.bzl` compiles C sources with `clang` from the Buck2 daemon's `PATH` (`--target=powerpc-unknown-none-eabi -ffreestanding -fno-builtin`), links them with the Rust release's `rust-lld`, and converts the result with `xex-link`. The C example demonstrates the full path:
+`xex-link` is language-agnostic: any LLVM front end that emits a big-endian PowerPC ELF is supported. `xbox360_c_title` in `buck/xex.bzl` compiles C sources with `clang` from the Buck2 daemon's `PATH` (`--target=powerpc64-unknown-xbox360 -ffreestanding -fno-builtin`), links them with the Rust release's `rust-lld`, and converts the result with `xex-link`. The C example demonstrates the full path:
 
 ```
 buck2 build //examples/chello:chello --show-output
