@@ -87,7 +87,11 @@ def sysroot_crates(library_source: str):
     libraries = {}
     for key, crate in SYSROOT_CRATES.items():
         name = _target_name(key)
-        if crate["registry_sha256"]:
+        if key == "xbox360-sys@0.1.0":
+            srcs = ["//toolchain/rust-std-xbox360:xbox360-sys"]
+            prefix = "xbox360-sys/"
+            manifest_dir = "//toolchain/rust-std-xbox360:xbox360-sys"
+        elif crate["registry_sha256"]:
             archive = name + "-crate"
             native.http_archive(
                 name = archive,

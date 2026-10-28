@@ -334,10 +334,11 @@ macro_rules! import_thunk {
     };
 }
 
-/// Define an import that takes nine or ten 32-bit arguments. SysV passes the
-/// last two on the stack at sp+8 and sp+0xc. The console callee reads them
-/// from the 8-byte parameter slots at sp+0x50 and sp+0x58 of its caller
-/// frame. The forms and rules of [`import_thunk!`] apply.
+/// Define an import that takes nine or ten 32-bit arguments. PPC32 SysV passes
+/// the last two at sp+8 and sp+0xc. The PPC64 ILP32 target uses the console's
+/// 8-byte parameter slots at sp+0x50 and sp+0x58. The stub copies either layout
+/// into those console slots in its own frame. The forms and rules of
+/// [`import_thunk!`] apply.
 #[macro_export]
 macro_rules! import_thunk_stack {
     ($(#[$meta:meta])* $vis:vis safe $name:ident($($arg:ident: $argty:ty),* $(,)?) -> !, lib = $lib:expr, ordinal = $ord:expr) => {
@@ -444,10 +445,10 @@ macro_rules! __import_stub {
                     "mflr 0",
                     "stw 0, 0x74(1)",
                     "li 12, 0",
-                    "lwz 11, 0x78(1)",
+                    "lwz 11, {arg9}(1)",
                     "stw 12, 0x50(1)",
                     "stw 11, 0x54(1)",
-                    "lwz 11, 0x7c(1)",
+                    "lwz 11, {arg10}(1)",
                     "stw 12, 0x58(1)",
                     "stw 11, 0x5c(1)",
                     "bl 2f",
@@ -461,6 +462,8 @@ macro_rules! __import_stub {
                     ".long 0x4e800020", // blr
                     ".popsection",
                     record = const (1u32 << 24) | (($lib as u32) << 16) | ($ord as u32),
+                    arg9 = const if cfg!(target_arch = "powerpc64") { 0xc4 } else { 0x78 },
+                    arg10 = const if cfg!(target_arch = "powerpc64") { 0xcc } else { 0x7c },
                 )
             }
         }

@@ -493,6 +493,27 @@ Xbox function. That expanded the fixed-size `DbgPrint` import record from 16 to
 `is64BitELFABI()` keeps Xbox ELF32 thunks at 16 bytes while preserving the
 28-byte function body for ELF64 LV2.
 
+The Rust `examples/stdhello` title was also compiled with the patched Rust
+toolchain and LLVM backend, converted to XEX, and launched on the same physical
+console. Its big-endian `STAGE` word at `0x82040000` reached:
+
+```text
+00 00 00 55
+```
+
+That terminal value is written only after the title allocates and iterates a
+`Vec`, performs formatted output, creates, writes, reopens, and reads a file,
+then starts and joins four threads sharing an `Arc<Mutex<u32>>`.
+
+This run exposed two additional mixed-ABI defects. An indirect Rust trait call
+used `bctrl`, but frame lowering only checked the ABI-selected link-register
+view and omitted the LR save. Xbox ILP32 code can define either `LR` or `LR8`,
+so `MustSaveLR` now checks both. The filesystem call then exposed an import
+adapter that still read its ninth argument from PPC32 SysV `sp+8`. The Xbox
+caller had placed it in the low word of the 8-byte home slot at `sp+0x50`.
+Loading that incoming slot before constructing the import frame made the same
+title reach `0x55` on hardware.
+
 ## LLVM consequences
 
 The current experimental patch implements the evidence-backed subset:

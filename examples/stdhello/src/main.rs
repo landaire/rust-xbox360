@@ -30,12 +30,13 @@ fn fs_test() -> std::io::Result<bool> {
     const FS_MESSAGE: &[u8] = b"hello from the xbox 360 std::fs backend\n";
 
     {
-        File::create(FS_PATH)?.write_all(FS_MESSAGE)?;
+        let mut file = File::create(FS_PATH)?;
+        file.write_all(FS_MESSAGE)?;
     }
 
     let mut buf = [0u8; 256];
-    let len = File::open(FS_PATH)?.read(&mut buf)?;
-
+    let mut file = File::open(FS_PATH)?;
+    let len = file.read(&mut buf)?;
     Ok(&buf[..len] == FS_MESSAGE)
 }
 
@@ -64,6 +65,7 @@ extern "C" fn real_main() {
     set_stage(0x01);
 
     let squares: Vec<u32> = (1..=8).map(|value| value * value).collect();
+    set_stage(0x02);
     println!("stdhello: sum of squares = {}", squares.iter().sum::<u32>());
     set_stage(0x11);
 

@@ -7,3 +7,14 @@ filegroup(
     },
     visibility = ["PUBLIC"],
 )
+
+# Keep this package as a direct source input. Projecting it back out of the
+# assembled library directory hides incremental vendor edits from Buck.
+filegroup(
+    name = "xbox360-sys",
+    srcs = {
+        path.removeprefix("library/vendor/xbox360-sys-0.1.0/"): path
+        for path in glob(["library/vendor/xbox360-sys-0.1.0/**"])
+    },
+    visibility = ["//sysroot:"],
+)
