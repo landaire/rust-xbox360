@@ -163,6 +163,67 @@ The dashboard wrapper at `0x92114238` consumes and stores the returned value as 
 
 The ABI therefore returns a scalar `i64` in one 64-bit `r3`, not in `r3:r4`.
 
+## Narrow integer arguments and returns
+
+Self-authored probes `p07_ext.c`, `p18_ext2.c`, `p20_narrow.c`, and
+`p21_bool.c` (compiled with `/TP` for C++ `bool`) were compiled with both
+compiler versions above:
+
+```text
+cl.exe /nologo /c /O2 /FAs /Fa<probe>.O2.asm /Fo<probe>.O2.obj <probe>.c
+cl.exe /nologo /c /Od /FAs /Fa<probe>.Od.asm /Fo<probe>.Od.obj <probe>.c
+dumpbin /nologo /disasm /relocations <probe>.O2.obj
+```
+
+Both versions produce identical code at both optimization levels, apart from
+temporary label names. The bits above the declared width of `signed char`,
+`short`, `unsigned char`, and `unsigned short` are not defined in either
+direction. Callers do not extend values loaded from memory or forwarded from
+another call, and callees return loaded or forwarded values as they are:
+
+```asm
+mem_s8:    lbz     r3, 0(r3)          ; signed char passed zero-extended
+           b       sink_s8
+rload_s8:  lbz     r3, 0(r3)          ; signed char returned zero-extended
+           blr
+r_fwd_u8:  blr                        ; incoming register returned unchanged
+r_call_u8: b       get_u8             ; callee's register returned unchanged
+```
+
+Every consumer re-extends before it uses a narrow value in a wider context:
+
+```asm
+t_s8:      extsb   r11, r3
+t_u8:      clrlwi  r11, r3, 24
+u_s8:      bl      get_s8
+           extsb   r11, r3
+u_u16:     bl      get_u16
+           clrlwi  r11, r3, 16
+```
+
+A ninth narrow argument is written and read only at its natural position in
+the 8-byte slot; the other bytes of the slot are not written:
+
+```asm
+s_add_s8:  add     r11, r3, r4
+           stb     r11, 0x57(r1)
+t9_u8:     lbz     r11, 0x57(r1)
+t9_u16:    lhz     r11, 0x56(r1)
+```
+
+`bool` differs. Every producer writes a clean 0 or 1 to the whole register
+(`c_and_b: clrlwi r3, r3, 31`; `c_cmp_b: ... clrlwi r3, r8, 31`), and
+consumers test the low byte (`t_b: clrlwi r3, r3, 24`). A `bool` whose bits
+1-7 are not clear reads as true.
+
+Frontends therefore attach no `signext` or `zeroext` to `i8` and `i16`
+arguments and returns, and keep `zeroext` on `i1`. `zeroext` on a narrow stack
+argument would also be wrong: LLVM then reads it with `lwz` at slot offset 4
+and does not re-extend, but bytes 4-6 of the slot hold stale data from an MSVC
+caller. Without the attribute LLVM reads `lbz` at slot offset 7 and re-extends,
+as MSVC does. 32-bit `int` values are not extended to 64 bits by either side
+(`pass_s32: extsw; addi r3, r11, 1` may carry out of the low word).
+
 ## Caller parameter home area
 
 The variadic kernel `DbgPrint` entry at `0x800af5e8` stores the incoming variable argument registers before acquiring its frame:
@@ -408,9 +469,63 @@ Aggregate returns use three classes:
 
 LLVM frontends must express these source-level classes using scalar coercions,
 `byval`, and `sret`: 5-8 byte returns are coerced to `i64`, larger returns use
-`sret`, and fixed aggregate arguments use `byval`. Raw LLVM IR aggregate
-returns do not retain enough source ABI classification for the backend and are
-diagnosed.
+`sret`, and fixed aggregate arguments use `byval`. The backend does not diagnose
+raw LLVM IR aggregate returns. Internal conventions, such as Rust `ScalarPair`
+returns, use them, and they reach return lowering already split into scalar
+registers. Only the C-level classification above is an MSVC compatibility
+claim.
+
+### The hidden result pointer is returned in `r3`
+
+Probe `p19_sret.c` returns a 16-byte structure after a call. The callee keeps
+the hidden pointer and returns it in `r3`:
+
+```asm
+sret_call:
+7c7e1b78  mr      r30, r3
+...
+f97e0000  std     r11, 0(r30)
+7fc3f378  mr      r3, r30
+f95e0008  std     r10, 8(r30)
+...
+4e800020  blr
+```
+
+The caller reads the result through the returned `r3`, not through its own
+buffer address:
+
+```asm
+use_sret:
+38610050  addi    r3, r1, 80
+          bl      get_s16
+e8630008  ld      r3, 8(r3)
+```
+
+An `sret` function therefore copies its incoming pointer to `r3` before it
+returns.
+
+### Copy width
+
+Probes `p09_aggcopy.c` and `p10_copy8.c` show that MSVC never accesses memory
+wider than the known alignment when it copies structures or expands a
+fixed-size `memcpy` (`/O2` and `/Od` agree):
+
+```text
+copy_s16 (int members, align 4):  lwz r11,0(r4) ; stw r11,0(r3) ; ... 4 word pairs
+memcpy8 (void *, 8 bytes):        li r9,8 ; mtctr r9 ; lbzu/stbu loop
+copy_l16 (__int64 members):       ld/std x2
+sret_call12 (12-byte result):     stw r3,0(r31) ; stw r11,4(r31) ; stw r10,8(r31)
+```
+
+The only 8-byte accesses on 4-aligned addresses are by-value aggregate argument
+loads into `X4` onward (`call_s12: ld r4, 0(r11)`) and explicitly misaligned
+`__int64` objects (`#pragma pack(4)`: `ld r3, 4(r3)`; `__unaligned`: plain
+`ld`/`std`). On hardware, a title built with LLVM that stored a copy with a
+misaligned `std` to write-combined GPU memory stopped with
+STATUS_DATATYPE_MISALIGNMENT. LLVM therefore selects copy and `memset`
+access types no wider than the known alignment and does not merge adjacent
+stores past it. Explicitly misaligned scalar `i64` accesses keep their width,
+as in MSVC.
 
 ## Stack and preserved GPR behavior
 
@@ -432,6 +547,180 @@ Kernel functions use a 32-bit stack pointer update and 16-byte frame sizes while
 The helper continues through the higher nonvolatile GPRs before `KeSetTimerEx` executes `stwu r1, -144(r1)`. This is an ILP32 frame model with 64-bit GPR preservation, not an LP64 frame model.
 
 The kernel image also contains a `.pdata` section at `0x8006be00..0x80072db0`. LLVM support intended to emit directly linkable Xbox PE objects will need compatible unwind metadata and constrained prologues. ELF-only experimentation does not satisfy that requirement.
+
+## Frame layout
+
+Probes `p02_gpr.c`, `p03_fpr.c`, `p04_cr.c`, and `p12_vmxnoarg.c` were
+compiled with `/O2` and `/Od` and disassembled with `dumpbin`. The save
+helpers were disassembled from the static runtime library members that define
+`__savegprlr_N`, `__savefpr_N`, and `__savevmx_N`.
+
+The return address is stored 8 bytes below the incoming stack pointer before
+the frame is claimed, and is reloaded from there after the frame is released:
+
+```asm
+keep1:
+7d8802a6  mflr    r12
+9181fff8  stw     r12, -8(r1)
+fbe1fff0  std     r31, -0x10(r1)
+9421ffa0  stwu    r1, -0x60(r1)
+...
+38210060  addi    r1, r1, 96
+8181fff8  lwz     r12, -8(r1)
+7d8803a6  mtlr    r12
+ebe1fff0  ld      r31, -0x10(r1)
+```
+
+The kernel contains 1415 instances of `stw r12, -8(r1)`.
+
+Nonvolatile GPRs are saved at full width directly below the LR word: `X31` at
+-16 down to `X14` at -152 (`-8 - 8 * (32 - N)`). The helper confirms the
+slots:
+
+```asm
+__savegprlr_14:  f9c1ff68  std  r14, -0x98(r1)
+...
+__savegprlr_31:  fbe1fff0  std  r31, -0x10(r1)
+                 9181fff8  stw  r12, -8(r1)
+```
+
+Nonvolatile FPRs `f14` through `f31` are saved directly below the GPR save
+area. With `r31` saved, `f31` is at -24:
+
+```asm
+fkeep_gpr:
+          stw     r12, -8(r1)
+fbe1fff0  std     r31, -0x10(r1)
+dbe1ffe8  stfd    fr31, -0x18(r1)
+          stwu    r1, -0x70(r1)
+```
+
+With all GPRs saved, the FPR helper base is the bottom of the GPR area
+(`fkeep_all: addi r12, r1, -152; bl __savefpr_14`), and `__savefpr_N` stores
+`fN` at `r12 - 8 * (32 - N)`.
+
+CR is not kept live across calls in compiled code: `cr_live3` recomputes its
+comparisons into GPRs and retests them with `cmpwi cr6` after the call, and
+all five `mfcr` instructions in the kernel are in hand-written code at
+`0x800A0000..0x800A6FFF`. LLVM keeps `cr2`-`cr4` live across calls and saves
+them in the word at -4, which no compiled MSVC code uses.
+
+LLVM uses the same layout: LR at -8 before `stwu`, the CR word at -4, `X31` at
+-16 through `X14` at -152, and FPRs below the GPRs. It uses `r0` instead of
+`r12` as the LR scratch register, always saves inline instead of calling the
+helpers, and emits no `.pdata`.
+
+## Vector register volatility
+
+Probe `p13_vmx100.c` keeps 100 vector values live across a call. MSVC saves
+only `v64`-`v127`, through the VMX128 helper, and spills values held in
+`v0`-`v63` to stack temporaries around the call:
+
+```asm
+vkeep100:
+          mflr    r12
+          bl      __savegprlr_14
+3981ff60  addi    r12, r1, -160
+          bl      __savevmx_64
+          stwu    r1, -0x780(r1)
+...
+          stvx128 vr20, r0, r8          ; r8 = stack temporary, before bl ext_v
+```
+
+```asm
+__savevmx_64:  3960fc00  li       r11, -1024
+               100b61cb  stvx128  vr64, r11, r12
+```
+
+`v0`-`v63` are volatile and `v64`-`v127` are preserved. The helper block for
+`v14`-`v31` exists in the library, but no compiled function was seen to call
+it. LLVM does not model `v32`-`v127`, so it treats every vector register it can
+allocate as volatile and spills vector values that are live across a call.
+Vector arguments and returns (`__vector4` in `v1`, `v2`, ... and returned in
+`v1`) are diagnosed by LLVM.
+
+## Stack probes
+
+MSVC touches every 4 KiB page of a large frame from the top down before it
+moves the stack pointer. Frames of 4096 bytes or less are not probed, because
+the back-chain `stwu` is the touch. Frames from 4097 to 20479 bytes use inline
+loads; larger frames and every `_alloca` call `_RtlCheckStack12` with
+`r12 = -size`:
+
+```asm
+frame_8000:   e981f000  ld      r12, -0x1000(r1)
+              9421e060  stwu    r1, -0x1fa0(r1)
+frame_20384:  3980b000  li      r12, -20480
+                        bl      _RtlCheckStack12
+              7c21616e  stwux   r1, r1, r12
+dyn_alloca:             neg     r11, r3
+                        clrrwi  r12, r11, 4
+                        bl      _RtlCheckStack12
+                        lwz     r10, 0(r1)
+                        stwux   r10, r1, r12
+```
+
+The helper was extracted from the static C runtime library
+(`link /lib /extract:obj\xbox\chkstk.obj`) and disassembled:
+
+```asm
+_RtlCheckStack12:
+7d6c00d0  neg     r11, r12
+380b0fff  addi    r0, r11, 4095
+7c006671  srawi.  r0, r0, 12
+4c810020  blelr
+7c2b0b78  mr      r11, r1
+7c0903a6  mtctr   r0
+840bf000  lwzu    r0, -0x1000(r11)
+4200fffc  bdnz    -4
+4e800020  blr
+```
+
+It reads one word per 4 KiB page below the old stack pointer and does nothing
+else: it does not read a stack limit, does not use `r13`, and makes no kernel
+call. It clobbers `r0`, `r11`, CTR, CR0, and XER[CA].
+
+A self-authored title tested this on a development kit. `threadinfo` and
+`walkmem` showed that the main thread of a XEX without a stack-size header, and
+a thread from `ExCreateThread` with stack size 0, each get a 16 KiB stack from
+the title's 4 KiB-page pool. Exactly one unmapped 4 KiB page lies below each
+stack, and live pool memory lies below that. Thread stacks are committed when
+the thread is created: the first touch 960 KiB below the stack pointer of a
+1 MiB thread stack succeeded without probes. Results on a 16 KiB stack:
+
+| Frame | Not probed | Probed every 4 KiB |
+| --- | --- | --- |
+| 16 KiB | Access violation in the guard page | Access violation in the guard page |
+| 20 KiB | No fault; pool word at 0x30001E00 overwritten | not run |
+| 24 KiB | No fault; live pool word at 0x30000E00 overwritten | Access violation in the guard page |
+| 64 KiB, 256 KiB | Fault only where the target page happened to be unmapped or write-protected | Access violation in the guard page |
+
+The probes protect against overflow; they are not needed to commit memory.
+The stride must not exceed 4096 bytes, because the guard is one page. MSVC's
+20480-byte helper threshold is not a stride and must not be used as LLVM's
+`stack-probe-size`.
+
+LLVM enables inline stack probes for this target by default, with the default
+4096-byte probe size. Prologues of frames larger than 4096 bytes and dynamic
+allocations step the stack pointer with `stwu`/`stwux` one 4 KiB block at a
+time. LLVM's `lf_24k` frame on the same 16 KiB stack stopped with
+STATUS_STACK_OVERFLOW (0xC00000FD) and wrote nothing below the guard page:
+
+```asm
+lf_24k:
+mflr    0
+stw     0, 4(1)
+mr      0, 1
+stwu    0, -4048(1)
+li      12, 5
+mtctr   12
+1: stwu 0, -4096(1)
+bdnz    1b
+```
+
+This listing predates the LR move to -8. Because LLVM moves `r1` while it
+probes, an overflow is reported as STATUS_STACK_OVERFLOW from the kernel rather
+than as an access violation at the probe, as with MSVC.
 
 ## Hypervisor calls
 
@@ -531,11 +820,29 @@ The current experimental patch implements the evidence-backed subset:
 - Fixed `byval` aggregates are packed into 8-byte GPR and stack chunks.
 - The standard nonvolatile GPR set is saved and restored at full width,
   including when a register holds a pointer.
-- The save area below the incoming stack pointer is available before a frame is
-  claimed. CR2 uses the fixed `-4` slot; full-width GPR saves use their
-  negative save-area offsets.
+- LR is stored at incoming SP-8 before `stwu` and reloaded from there after
+  the frame is released. CR uses the fixed `-4` word, full-width GPR saves use
+  `X31` at -16 through `X14` at -152, and FPR saves lie below the GPR area.
+- No vector register is callee-saved; vector values live across a call are
+  spilled. Vector arguments and returns are diagnosed.
+- `sret` functions return the hidden result pointer in `r3`.
+- Copies and `memset` use accesses no wider than their known alignment, and
+  stores are not merged past it.
+- Inline stack probes are on by default with a 4096-byte stride, for
+  prologues and dynamic allocations.
+- Position-independent code is rejected; titles are linked at fixed
+  addresses.
+- FastISel is disabled; `-O0` uses SelectionDAG, because FastISel assumes
+  64-bit pointers on a 64-bit processor.
+- Initial-exec TLS loads the 32-bit thread-pointer offset from the GOT with
+  `lwz` and `R_PPC_GOT_TPREL16`.
+- Guaranteed tail calls (`-tailcallopt`) use a signed stack delta, so a callee
+  that needs a larger parameter area grows the stack.
 - The data layout, pointers, and emitted ELF objects remain 32-bit and
   big-endian.
+
+Clang and the Rust classifier attach no extension attribute to `char`/`i8`
+and `short`/`i16` arguments and returns and keep `zeroext` on `_Bool`/`bool`.
 
 LLVM's existing PS3 support supplies reusable PPC64 ILP32 target and data-layout
 plumbing. The Xbox target deliberately does not inherit the PS3 ELFv1 function
@@ -573,9 +880,14 @@ The following items remain separate work and must not be claimed as implemented:
 
 - Exact MSVC helper-thunk prologue selection and `.pdata` emission.
 - Big-endian PowerPC COFF/PE object emission and relocations.
-- VMX128 register and instruction support.
+- VMX128 register and instruction support, including preservation of
+  `v64`-`v127` and vector arguments in `v1` onward.
 - A checked model for vectors, integers wider than 128 bits, variadic
   aggregates, and direct `f32` variadic IR.
 - Dedicated hypervisor-call intrinsics or assembly stubs.
+
+Known limitation: `xex-link` writes no default stack size header, so the main
+thread gets a 16 KiB stack, as does every thread created with stack size 0. A
+title that needs more stack must create its threads with an explicit size.
 
 The target remains optional and experimental until those gaps are closed.

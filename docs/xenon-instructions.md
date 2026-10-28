@@ -35,8 +35,8 @@ codegen. Kernel structures come from the binja-xex2 `ntos` headers.
 
 ## SIMD (VMX / VMX128)
 
-- 128 vector registers (Vr0-Vr127), double stock AltiVec's 32. The calling
-  convention must save the full nonvolatile VMX128 set (CONTEXT saves all 128).
+- 128 vector registers (Vr0-Vr127), double stock AltiVec's 32. The console
+  compiler preserves v64-v127 across calls; v0-v63 are volatile.
 - Unaligned SIMD idiom: `lvlx`/`lvrx` (+ `stvlx`/`stvrx`) with `lvsl`/`lvsr`
   shift-control vectors.
 - VMX128-only ops (graphics): `vmsum3fp128`/`vmsum4fp128` (dot products),
@@ -57,7 +57,7 @@ operations.
 
 The default `powerpc-unknown-xbox360` target uses 32-bit PowerPC code generation and keeps 64-bit integers in register pairs.
 
-The experimental `powerpc64-unknown-xbox360` target enables LLVM's `+xbox360` feature. It retains 32-bit pointers and ELF32 output, but passes and returns each `i64` in one 64-bit GPR. The feature also reserves the 16-byte linkage area and eight 8-byte argument home slots observed in genuine binaries. It preserves nonvolatile GPRs at full width. It requires the matching experimental LLVM and Rust compiler builds. The unmodified Rust 1.98 release has neither the LLVM target nor the Xbox aggregate ABI classifier.
+The experimental `powerpc64-unknown-xbox360` target enables LLVM's `+xbox360` feature. It retains 32-bit pointers and ELF32 output, but passes and returns each `i64` in one 64-bit GPR. The feature also reserves the 16-byte linkage area and eight 8-byte argument home slots observed in genuine binaries. It uses the console compiler's frame layout (LR at SP-8 before `stwu`, CR at -4, full-width GPR saves from -16 down, FPRs below them), returns the `sret` pointer in `r3`, does not extend `i8`/`i16` arguments or returns, never widens copies past their known alignment, and probes the stack every 4 KiB. It treats every vector register as volatile and rejects vector arguments and position-independent code. It requires the matching experimental LLVM and Rust compiler builds. The unmodified Rust 1.98 release has neither the LLVM target nor the Xbox aggregate ABI classifier.
 
 Buck exposes matching `xbox360-ppc64-ilp32-core`, `-std`, `-std-system`, and `-sysroot` platforms. The standard platforms and target remain the default.
 
