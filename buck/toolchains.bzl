@@ -8,6 +8,7 @@ load("@prelude//toolchains:cxx.bzl", "cxx_tools_info_toolchain")
 load("@prelude//toolchains:genrule.bzl", "system_genrule_toolchain")
 load("@prelude//toolchains:python.bzl", "remote_python_toolchain")
 load("@prelude//toolchains:remote_test_execution.bzl", "remote_test_execution_toolchain")
+load(":custom_toolchain.bzl", "buck_llvm", "buck_rust", "path_clang", "xbox360_clang")
 load(":cxx.bzl", "host_cxx_tools", "linker_override_toolchain", "rust_lld")
 load(":flags.bzl", "XBOX360_RUSTC_FLAGS")
 load(":python.bzl", "exec_python_bootstrap_toolchain")
@@ -19,42 +20,85 @@ _SYSROOT_CORE = "xbox360//platforms:sysroot-core"
 _SYSROOT_STD = "xbox360//platforms:sysroot-std"
 _SYSROOT_STD_SYSTEM = "xbox360//platforms:sysroot-std-system"
 
+
 def xbox360_toolchains(
         rustc_flags = [],
         rustc_binary_flags = [],
         rustdoc_flags: list[str] = [],
         xbox360_rustc_flags = [],
-        xbox360_rustc_binary_flags = []):
+        xbox360_rustc_binary_flags = [],
+        toolchain = "ppc32"):
     """Declares the toolchains.
 
     `rustc_flags` and `rustc_binary_flags` (for binaries and tests) apply
     to host crates, `xbox360_rustc_flags` and `xbox360_rustc_binary_flags`
     to console crates, after the flags of buck/flags.bzl. Console flags also
     apply to the standard library crates. `rustdoc_flags` apply to every
-    rustdoc run.
+    rustdoc run. `toolchain` is either the release PPC32 toolchain or the
+    source-built experimental PPC64 toolchain.
     """
-    rust_release(name = "rust-release")
+    if toolchain not in ["ppc32", "ppc64"]:
+        fail("toolchain must be \"ppc32\" or \"ppc64\", not {}".format(repr(toolchain)))
+    custom_compiler = toolchain == "ppc64"
+    if custom_compiler:
+        buck_llvm(
+            name = "custom-llvm",
+            llvm = "xbox360//toolchain:local-llvm",
+            visibility = ["PUBLIC"],
+        )
+        buck_rust(
+            name = "rust-release",
+            dist = "xbox360//toolchain:local-rust",
+            visibility = ["PUBLIC"],
+        )
+        llvm_tools_release = ":custom-llvm"
+    else:
+        rust_release(name = "rust-release")
 
-    # llvm-objdump and the other LLVM tools of the Rust release, which
-    # understand the same instructions as its rustc.
-    rust_release(
-        name = "llvm-tools",
-        components = ["llvm-tools-preview"],
-    )
+        # llvm-objdump and the other LLVM tools of the Rust release, which
+        # understand the same instructions as its rustc.
+        rust_release(
+            name = "llvm-tools",
+            components = ["llvm-tools-preview"],
+        )
+        llvm_tools_release = ":llvm-tools"
 
     release_tool(
         name = "llvm-objdump",
-        path = "lib/rustlib/{host_triple}/bin/llvm-objdump",
-        release = ":llvm-tools",
+        path = "bin/llvm-objdump" if custom_compiler else "lib/rustlib/{host_triple}/bin/llvm-objdump",
+        release = llvm_tools_release,
         visibility = ["PUBLIC"],
     )
 
     release_tool(
         name = "llvm-objcopy",
-        path = "lib/rustlib/{host_triple}/bin/llvm-objcopy",
-        release = ":llvm-tools",
+        path = "bin/llvm-objcopy" if custom_compiler else "lib/rustlib/{host_triple}/bin/llvm-objcopy",
+        release = llvm_tools_release,
         visibility = ["PUBLIC"],
     )
+
+    if custom_compiler:
+        release_tool(
+            name = "clang-bin",
+            path = "bin/clang",
+            release = ":custom-llvm",
+        )
+        xbox360_clang(
+            name = "clang",
+            target_triple = "powerpc64-unknown-xbox360",
+            tool = ":clang-bin",
+            visibility = ["PUBLIC"],
+        )
+        release_tool(
+            name = "clang++",
+            path = "bin/clang++",
+            release = ":custom-llvm",
+        )
+    else:
+        path_clang(
+            name = "clang",
+            visibility = ["PUBLIC"],
+        )
 
     rust_release_toolchain(
         name = "rust",
@@ -112,12 +156,11 @@ def xbox360_toolchains(
         visibility = ["PUBLIC"],
     )
 
-    # On Linux the linker driver can be GCC or Clang: the `-fuse-ld=lld`
-    # that the prelude adds resolves to the lld that rustc bundles, so no
-    # system lld is needed.
+    # The PPC64 toolchain uses its pinned clang and LLD for host Rust links.
+    # The release toolchain keeps using the host C++ driver.
     host_cxx_tools(
         name = "linux-cxx-tools",
-        linker = "c++",
+        linker_tool = ":clang++" if custom_compiler else None,
     )
 
     cxx_tools_info_toolchain(
@@ -129,11 +172,19 @@ def xbox360_toolchains(
         }),
     )
 
-    rust_lld(
-        name = "rust-lld",
-        release = ":rust-release",
-        visibility = ["PUBLIC"],
-    )
+    if custom_compiler:
+        release_tool(
+            name = "rust-lld",
+            path = "bin/ld.lld",
+            release = ":custom-llvm",
+            visibility = ["PUBLIC"],
+        )
+    else:
+        rust_lld(
+            name = "rust-lld",
+            release = ":rust-release",
+            visibility = ["PUBLIC"],
+        )
 
     # Xbox 360 executables are linked by rust-lld alone, without the host
     # linker driver and its flags.

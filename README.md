@@ -2,9 +2,10 @@
 
 A toolchain that compiles Rust (and any other LLVM language, such as C) to a XEX
 executable that runs on the Xbox 360. It replaces Microsoft's proprietary
-toolchain. Compilation targets 32-bit big-endian PowerPC; a single post-link
-step, `xex-link`, converts the resulting ELF into a devkit-signed XEX. Titles
-are verified under the Xenia emulator.
+toolchain. The default targets 32-bit big-endian PowerPC; the experimental
+PPC64 mode uses 64-bit registers with the console's ELF32 ABI and 32-bit
+pointers. A single post-link step, `xex-link`, converts the resulting ELF into
+a devkit-signed XEX.
 
 The standard library is supported through an overlay that teaches Rust std about
 the `xbox360` target. A title may therefore use `std::thread`, `std::net`,
@@ -32,7 +33,12 @@ the `xbox360` target. A title may therefore use `std::thread`, `std::net`,
   standard-library source; other versions are not supported.
 - Xenia, built separately, for verification. The helper script
   `tools/run-xenia.sh` invokes it.
-- For C titles: `clang` with the PowerPC target, on the `PATH` of the Buck2 daemon. Buck2 does not download it. The build of a C title fails with a message if it is absent. Run `buck2 kill` after you change `PATH`.
+- For C titles with the release toolchain: `clang` with the PowerPC target,
+  on the `PATH` of the Buck2 daemon. Run `buck2 kill` after changing `PATH`.
+  The optional source-built toolchain supplies its own clang.
+- For the PPC64 source-built toolchain on Linux: CMake, Ninja, a C and C++
+  compiler, binutils, `patch`, and Python 3. A Nix shell can provide them:
+  `nix-shell -p cmake ninja gcc binutils patch python3`.
 
 `xex-link` builds the XEX with the `xex2` and `xenon_types` crates of the [acceleration](https://github.com/landaire/acceleration) project, pinned to a Git commit.
 
@@ -52,6 +58,75 @@ builds one.
 To move to another Buck2 release, replace `toolchains/buck2` with the `buck2` DotSlash file of that release, `https://github.com/facebook/buck2/releases/download/<tag>/buck2`. To move to another DotSlash release, change the version and SHA-256 values in both bootstrap scripts and run them again.
 
 `xbox360_title` in `buck/xex.bzl` builds a title. It compiles a Rust executable for the console, with or without the standard library, and converts it with `xex-link` (`//crates/xex-link:xex-link`) using the title's manifest. `buck2 run toolchains//:llvm-objdump -- ARGS` runs the Rust release's llvm-objdump.
+
+### Experimental source-built compiler
+
+The default `ppc32` toolchain keeps the release Rust compiler and existing
+`powerpc-unknown-xbox360` target. The experimental `ppc64` toolchain uses a
+source-built Rust 1.98 compiler and matching LLVM revision, then targets
+`powerpc64-unknown-xbox360`.
+
+Initialize only the source submodules that the compiler build needs. Do not use
+`--recursive`; the Rust repository's LLVM submodule is not used:
+
+```
+git submodule update --init toolchain/buck2-rustc-bootstrap
+git -C toolchain/buck2-rustc-bootstrap submodule update --init rust
+git -C toolchain/buck2-rustc-bootstrap/rust \
+  submodule update --init library/backtrace
+```
+
+Build the compiler distributions once:
+
+```
+nix-shell -p cmake ninja clang gcc binutils python3 --run \
+  'python3 buck/build_custom_toolchain.py --jobs 4'
+```
+
+The bootstrap has its own Buck root and cache. Rust crates are native Buck
+actions. LLVM, clang, and LLD use their CMake/Ninja build because LLVM is not
+buckified. That build state lives in
+`$XDG_CACHE_HOME/buck2-rustc-bootstrap/xbox360-llvm`, or the corresponding
+directory under `~/.cache` when `XDG_CACHE_HOME` is unset. The builder mirrors
+new LLVM archives there without touching unchanged files, so a one-file LLVM
+change rebuilds that file rather than the project.
+
+The resulting LLVM, clang, LLD, rustc, rustdoc, clippy-driver, and host standard
+library are installed in the ignored `toolchain/local-llvm` and
+`toolchain/local-rust` directories, which the main Buck graph imports. An
+unchanged setup invocation returns without replacing either directory.
+`--jobs` limits both Buck's Rust actions and LLVM's nested Ninja build; lower it
+on a memory-constrained host.
+
+Select exactly one toolchain with `xbox360.toolchain`; omitting it selects
+`ppc32`:
+
+```
+bin/buck2 build -j 4 -c xbox360.toolchain=ppc64 \
+  //examples/hello:hello //examples/stdhello:stdhello //examples/chello:chello
+```
+
+The source-built stack pins these revisions:
+
+- `landaire/llvm-project` branch `xbox360-abi-rust-1.98`, commit
+  `aa06e8ebabae50f409c60fd8717ae57201a5034f`;
+- `landaire-contrib/buck2-rustc-bootstrap` branch `xbox360-rust-1.98`, commit
+  `5004141b91ea89e8436988255abe8c56a152fcf5`;
+- `landaire/rust` branch `xbox360-abi-rust-1.98`, commit
+  `e52263c3cec8ece1b4b0ff1b00d56c0b5218d498`.
+
+The bootstrap downloads LLVM as a digest-checked archive. LLVM is not a
+submodule. The bootstrap submodule pins the Rust source revision and its small
+Xbox target patch.
+
+The reusable main-graph targets are `toolchains//:custom-llvm` and
+`toolchains//:rust-release`. `toolchains//:clang`,
+`toolchains//:rust-lld`, `toolchains//:llvm-objdump`, and
+`toolchains//:llvm-objcopy` expose individual tools.
+
+The PPC64 build still produces big-endian `elf32-powerpc` intermediates and
+32-bit addresses. Its ABI bridges use 64-bit `std` and `ld` instructions to
+preserve the full nonvolatile registers. The final targets remain XEX files.
 
 Pass `rewrite = True` to make the title smaller. The executable is then compiled as one fat LTO unit, and `xbox360-asm-rewrite` replaces the register saves and restores in each function's prologue and epilogue with calls to shared helper routines, as Microsoft's compiler does. The build fails if the relinked image differs from the one rustc links, or if a rewritable sequence remains. `examples/stdhello` uses it. The `[rewrite-report]` and `[refusals]` subtargets show what changed and what was left alone.
 
@@ -103,6 +178,29 @@ the `xbox360` external cell, pinned to a commit:
 ```
 
 Its `toolchains/BUCK` calls `xbox360_toolchains()` from `@xbox360//buck:toolchains.bzl`, which takes the project's rustc and rustdoc flags for host and console crates. The target constraint is `xbox360//platforms:target`, with the generated `[host]` and `[xbox]` values. Console targets use `xbox360_title`, or the `xbox360//platforms:xbox360-core`, `-std` and `-std-system` configurations through the transitions in `buck/platforms.bzl`.
+
+To select the PPC64 dogfood toolchain from an external project, add this to the
+project's root `.buckconfig`:
+
+```ini
+[xbox360]
+  toolchain = ppc64
+```
+
+Pass the same choice from the project's `toolchains/BUCK`. Use `ppc32` instead
+to select the existing release toolchain:
+
+```python
+load("@xbox360//buck:toolchains.bzl", "xbox360_toolchains")
+
+xbox360_toolchains(
+    toolchain = read_root_config("xbox360", "toolchain", "ppc32"),
+)
+```
+
+The `ppc64` mode requires this repository to be a local cell with the compiler
+distributions installed by `buck/build_custom_toolchain.py`. The default
+`ppc32` mode still works from the Git external cell without them.
 
 `@xbox360//buck:profiles.bzl` provides dev, release and symbol-free release flags for the shared `xbox360//platforms:mode` constraint. A project may expose it as `//config:mode` with an `alias`, but its `PACKAGE` modifier aliases must name `xbox360//platforms:mode[dev]`, `[release]` and `[release-no-symbols]` directly. Its `profiled_rust_binary` keeps Linux debug information in the `[symbols]` subtarget and leaves the executable stripped. The project's `rust-toolchain.toml` should name the release in `buck/rust_release.bzl`; `buck/update_rust_release.py --check PATH` compares them.
 
@@ -254,13 +352,22 @@ timeout at the top of the script if required.
 
 ## Compiling C
 
-`xex-link` is language-agnostic: any LLVM front end that emits a big-endian PowerPC ELF is supported. `xbox360_c_title` in `buck/xex.bzl` compiles C sources with `clang` from the Buck2 daemon's `PATH` (`--target=powerpc64-unknown-xbox360 -ffreestanding -fno-builtin`), links them with the Rust release's `rust-lld`, and converts the result with `xex-link`. The C example demonstrates the full path:
+`xex-link` is language-agnostic: any LLVM front end that emits a big-endian
+PowerPC ELF is supported. `xbox360_c_title` in `buck/xex.bzl` compiles C
+sources with `toolchains//:clang`
+(`--target=powerpc64-unknown-xbox360 -ffreestanding -fno-builtin`), links them
+with `toolchains//:rust-lld`, and converts the result with `xex-link`. The C
+example demonstrates the full path:
 
 ```
 buck2 build //examples/chello:chello --show-output
 ```
 
-The host `clang` must include the PowerPC target (`clang -print-targets`). No C library exists for the console. The title declares its imports as thunks in the `.xthunks` section, as `examples/chello/hello.c` does.
+The release configuration resolves `toolchains//:clang` from the Buck2
+daemon's `PATH`; that clang must include the PowerPC target
+(`clang -print-targets`). The source-built configuration uses its pinned custom
+clang. No C library exists for the console. The title declares its imports as
+thunks in the `.xthunks` section, as `examples/chello/hello.c` does.
 
 ## Linker options
 

@@ -11,6 +11,12 @@ RUST_SRC = {
     "url": "https://static.rust-lang.org/dist/2026-08-20/rust-src-1.98.0.tar.xz",
 }
 
+# Complete compiler source, used only by the optional custom toolchain.
+RUST_COMPILER_SRC = {
+    "sha256": "271fa73d8174f53d713c46a8310da7bf7cfdcfb8b7cfd1c2b74b84a83ae9fb1e",
+    "url": "https://static.rust-lang.org/dist/2026-08-20/rustc-1.98.0-src.tar.xz",
+}
+
 # os -> cpu -> host triple and component archives.
 RUST_HOSTS = {
     "linux": {
@@ -28,6 +34,10 @@ RUST_HOSTS = {
                 "clippy-preview": {
                     "sha256": "bc9b5636170e4b067794bfb8962c6f22b2aee5cb7358f4d9523072bb2976062a",
                     "url": "https://static.rust-lang.org/dist/2026-08-20/clippy-1.98.0-aarch64-unknown-linux-gnu.tar.xz",
+                },
+                "cargo": {
+                    "sha256": "5784379d73ac881d15a9e67eed2882cd58c747c276221c23cdf9aff37e015ff6",
+                    "url": "https://static.rust-lang.org/dist/2026-08-20/cargo-1.98.0-aarch64-unknown-linux-gnu.tar.xz",
                 },
                 "llvm-tools-preview": {
                     "sha256": "36ae262040980fc6503880a14fd52639ac189aa46a780b22ccce086d009d3160",
@@ -49,6 +59,10 @@ RUST_HOSTS = {
                 "clippy-preview": {
                     "sha256": "646c6bd2450ea4c32a3c78ad7a3727294eea1f1519718a3f1487424021695ffa",
                     "url": "https://static.rust-lang.org/dist/2026-08-20/clippy-1.98.0-x86_64-unknown-linux-gnu.tar.xz",
+                },
+                "cargo": {
+                    "sha256": "2f512d170d3dd23e16ababcda32ee2e6d5172d861a7af1f504e0b1e270cafab9",
+                    "url": "https://static.rust-lang.org/dist/2026-08-20/cargo-1.98.0-x86_64-unknown-linux-gnu.tar.xz",
                 },
                 "llvm-tools-preview": {
                     "sha256": "100c9e4326c2526101c98e751893f5cc8448337a980395f89ebc8f99fc7ce392",
@@ -73,6 +87,10 @@ RUST_HOSTS = {
                     "sha256": "5916330cbbf3a46c172123287f370810cf28b9a0013b971c764054846e7f920a",
                     "url": "https://static.rust-lang.org/dist/2026-08-20/clippy-1.98.0-aarch64-apple-darwin.tar.xz",
                 },
+                "cargo": {
+                    "sha256": "2c2a8bbf3cba4353c0ca2cf1ba8280603f3ca82ceebb538fee4a1a987147f743",
+                    "url": "https://static.rust-lang.org/dist/2026-08-20/cargo-1.98.0-aarch64-apple-darwin.tar.xz",
+                },
                 "llvm-tools-preview": {
                     "sha256": "e072fa083f15c77a3789ec454029a3b447603816213d714678c46d9e5011c769",
                     "url": "https://static.rust-lang.org/dist/2026-08-20/llvm-tools-1.98.0-aarch64-apple-darwin.tar.xz",
@@ -93,6 +111,10 @@ RUST_HOSTS = {
                 "clippy-preview": {
                     "sha256": "e4c976879ad68e093522c1079a6c45beb1cdad059fe5b564f8c3950e1a4e0758",
                     "url": "https://static.rust-lang.org/dist/2026-08-20/clippy-1.98.0-x86_64-apple-darwin.tar.xz",
+                },
+                "cargo": {
+                    "sha256": "3526be8588e7f80cf0604ce184dd8af89798786e389d5deea4ae4ffe2f104265",
+                    "url": "https://static.rust-lang.org/dist/2026-08-20/cargo-1.98.0-x86_64-apple-darwin.tar.xz",
                 },
                 "llvm-tools-preview": {
                     "sha256": "6b672c229793cb1c593a1b420c910db291728d5397e9f0579db3ededf5ca9cea",
@@ -117,6 +139,10 @@ RUST_HOSTS = {
                     "sha256": "dda638c196ad00b9eccc1b1a188efdb22015a54b3765006c06852476318f9657",
                     "url": "https://static.rust-lang.org/dist/2026-08-20/clippy-1.98.0-aarch64-pc-windows-msvc.tar.xz",
                 },
+                "cargo": {
+                    "sha256": "6d939ba34b790d4e03cdaca6c1568d9bc14cdb7b06c29c6213c266ea70478b6b",
+                    "url": "https://static.rust-lang.org/dist/2026-08-20/cargo-1.98.0-aarch64-pc-windows-msvc.tar.xz",
+                },
                 "llvm-tools-preview": {
                     "sha256": "34184744515bc2571406eeccc4ba0ea837861a08106ba6e2c9e76f717827bf41",
                     "url": "https://static.rust-lang.org/dist/2026-08-20/llvm-tools-1.98.0-aarch64-pc-windows-msvc.tar.xz",
@@ -137,6 +163,10 @@ RUST_HOSTS = {
                 "clippy-preview": {
                     "sha256": "a455faff8a1ab32c7f5cb7ae6c7514a691e8da3d1bb4b712793f8abc4041bb0c",
                     "url": "https://static.rust-lang.org/dist/2026-08-20/clippy-1.98.0-x86_64-pc-windows-msvc.tar.xz",
+                },
+                "cargo": {
+                    "sha256": "c781bbfd0d0859349a14f82c04073521c036f7ada59c0fd14ef0722d035bb361",
+                    "url": "https://static.rust-lang.org/dist/2026-08-20/cargo-1.98.0-x86_64-pc-windows-msvc.tar.xz",
                 },
                 "llvm-tools-preview": {
                     "sha256": "4985d6c47ed8eaa0b18d633d3f4a2021b2c320a2e30bd9aab368e9aac16309dc",

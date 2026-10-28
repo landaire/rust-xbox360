@@ -1,5 +1,12 @@
 """Configuration transitions into the Xbox 360 target."""
 
+def xbox360_codegen_default(toolchain: str) -> str:
+    if toolchain == "ppc32":
+        return "ppc32"
+    if toolchain == "ppc64":
+        return "ppc64-ilp32"
+    fail("xbox360.toolchain must be \"ppc32\" or \"ppc64\", not {}".format(repr(toolchain)))
+
 _REFS = {
     "target": "xbox360//platforms:target",
     "cpu": "prelude//cpu/constraints:cpu",

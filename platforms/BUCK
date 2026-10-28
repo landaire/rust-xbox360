@@ -1,4 +1,6 @@
-load("//buck:platforms.bzl", "sysroot_build_transition")
+load("//buck:platforms.bzl", "sysroot_build_transition", "xbox360_codegen_default")
+
+_DEFAULT_CODEGEN = xbox360_codegen_default(read_root_config("xbox360", "toolchain", "ppc32"))
 
 # Host targets use the detected host platform. Xbox targets enter the
 # configuration through the transitions in buck/platforms.bzl.
@@ -14,7 +16,7 @@ constraint(
 
 constraint(
     name = "codegen",
-    default = "ppc32",
+    default = _DEFAULT_CODEGEN,
     values = [
         "ppc32",
         "ppc64-ilp32",

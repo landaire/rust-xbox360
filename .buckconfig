@@ -23,4 +23,4 @@
   execution_platforms = prelude//platforms:default
 
 [project]
-  ignore = .git, .jj, .tools, target, .rustsrc-backup
+  ignore = .git, .jj, .tools, target, .rustsrc-backup, toolchain/buck2-rustc-bootstrap

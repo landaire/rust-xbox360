@@ -34,6 +34,7 @@ load("@prelude//python_bootstrap:python_bootstrap.bzl", "PythonBootstrapToolchai
 load("@prelude//rust:build_params.bzl", "MetadataKind")
 load("@prelude//rust:link_info.bzl", "RustLinkInfo", "RustProcMacroInfo", "RustProcMacroPlugin", "get_available_proc_macros")
 load("@prelude//rust:rust_toolchain.bzl", "RustToolchainInfo")
+load(":custom_toolchain.bzl", "Xbox360ClangInfo")
 load(":platforms.bzl", "xbox360_core_transition", "xbox360_std_system_transition", "xbox360_std_transition")
 
 Xbox360ExecutableInfo = provider(fields = {
@@ -175,15 +176,13 @@ xex_std = rule(impl = _xex_impl, attrs = _XEX_ATTRS | _SYSROOT_LIBRARY_ATTRS | {
 xex_std_system = rule(impl = _xex_impl, attrs = _XEX_ATTRS | _SYSROOT_LIBRARY_ATTRS | {"elf": attrs.dep()}, cfg = xbox360_std_system_transition)
 
 def _xbox360_c_title_impl(ctx: AnalysisContext) -> list[Provider]:
-    python = ctx.attrs._python_bootstrap_toolchain[PythonBootstrapToolchainInfo].interpreter
     objects = []
     for src in ctx.attrs.srcs:
         obj = ctx.actions.declare_output("objects", src.short_path + ".o")
         ctx.actions.run(
             cmd_args(
-                python,
-                ctx.attrs._run_clang,
-                "--target=powerpc-unknown-none-eabi",
+                ctx.attrs._clang[RunInfo],
+                "--target=" + ctx.attrs._clang[Xbox360ClangInfo].target_triple,
                 # No C library exists for the console.
                 "-ffreestanding",
                 "-fno-builtin",
@@ -222,16 +221,19 @@ def _xbox360_c_title_impl(ctx: AnalysisContext) -> list[Provider]:
         "reservations": [DefaultInfo(default_output = reservations)],
     } | _debugger_files(ctx, image, None))]
 
-# A XEX from C sources. clang from PATH compiles them for big-endian
-# PowerPC without a C library, and the Rust release's rust-lld links the
-# objects with the GNU ld script `link_script`.
+# A XEX from C sources. The configured clang compiles them for big-endian
+# PowerPC without a C library, and rust-lld links the objects with the GNU ld
+# script `link_script`.
 xbox360_c_title = rule(
     impl = _xbox360_c_title_impl,
     attrs = _XEX_ATTRS | {
         "compiler_flags": attrs.list(attrs.string(), default = []),
         "link_script": attrs.source(),
         "srcs": attrs.list(attrs.source()),
-        "_run_clang": attrs.source(default = "xbox360//buck:run_clang.py"),
+        "_clang": attrs.exec_dep(
+            providers = [RunInfo, Xbox360ClangInfo],
+            default = "toolchains//:clang",
+        ),
         "_rust_lld": attrs.exec_dep(providers = [RunInfo], default = "toolchains//:rust-lld"),
     },
 )

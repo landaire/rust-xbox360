@@ -1,0 +1,19 @@
+load("//buck:local_toolchain.bzl", "local_toolchain_dist")
+
+local_toolchain_dist(
+    name = "local-llvm",
+    srcs = {
+        path.removeprefix("local-llvm/"): path
+        for path in glob(["local-llvm/**"])
+    },
+    visibility = ["PUBLIC"],
+)
+
+local_toolchain_dist(
+    name = "local-rust",
+    srcs = {
+        path.removeprefix("local-rust/"): path
+        for path in glob(["local-rust/**"])
+    },
+    visibility = ["PUBLIC"],
+)

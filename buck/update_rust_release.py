@@ -28,11 +28,10 @@ DIST_URL = "https://static.rust-lang.org/dist"
 # `stable` or `1.98` would move for rustup but not for Buck2.
 RELEASE_PATTERN = re.compile(r"\d+\.\d+\.\d+")
 
-# Components that Buck2 runs: rustc and rustdoc, the host standard
-# library, and clippy-driver for the toolchain (RUST_TOOLCHAIN_COMPONENTS
-# in rust.bzl), and the LLVM tools (llvm-objdump and others) built from the
-# release's LLVM.
-COMPONENTS = ["rustc", "rust-std", "clippy-preview", "llvm-tools-preview"]
+# Components that Buck2 may run: rustc and rustdoc, the host standard
+# library, clippy-driver, Cargo for bootstrapping a source-built compiler,
+# and the LLVM tools bundled with the release.
+COMPONENTS = ["rustc", "rust-std", "clippy-preview", "cargo", "llvm-tools-preview"]
 
 # Buck2 `prelude//os` and `prelude//cpu` constraint names to Rust host
 # triples.
@@ -59,7 +58,7 @@ def archive(manifest, component, triple):
     return entry["xz_url"], entry["xz_hash"]
 
 
-def render(version, manifest):
+def render(version, manifest, compiler_src_url, compiler_src_sha256):
     src_url, src_sha256 = archive(manifest, "rust-src", "*")
     lines = [
         '"""Rust archives that Buck2 downloads.',
@@ -73,6 +72,12 @@ def render(version, manifest):
         "RUST_SRC = {",
         f'    "sha256": "{src_sha256}",',
         f'    "url": "{src_url}",',
+        "}",
+        "",
+        "# Complete compiler source, used only by the optional custom toolchain.",
+        "RUST_COMPILER_SRC = {",
+        f'    "sha256": "{compiler_src_sha256}",',
+        f'    "url": "{compiler_src_url}",',
         "}",
         "",
         "# os -> cpu -> host triple and component archives.",
@@ -130,7 +135,15 @@ def main():
         version = pinned_release(RUST_TOOLCHAIN_TOML)
         with urllib.request.urlopen(f"{DIST_URL}/channel-rust-{version}.toml", timeout=60) as response:
             manifest = tomllib.load(response)
-        OUTPUT.write_text(render(version, manifest), encoding="utf-8")
+        compiler_src_url = (
+            f"{DIST_URL}/{manifest['date']}/rustc-{version}-src.tar.xz"
+        )
+        with urllib.request.urlopen(compiler_src_url + ".sha256", timeout=60) as response:
+            compiler_src_sha256 = response.read().decode().split()[0]
+        OUTPUT.write_text(
+            render(version, manifest, compiler_src_url, compiler_src_sha256),
+            encoding="utf-8",
+        )
         return 0
 
     generated = generated_release()
