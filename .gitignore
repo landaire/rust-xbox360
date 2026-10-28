@@ -7,11 +7,9 @@ stdout
 /.rustsrc-backup/
 *.o
 /buck-out
-/toolchain/local-llvm/
-/toolchain/local-rust/
-/toolchain/.local-llvm.new/
-/toolchain/.local-rust.new/
-/toolchain/.local-toolchain-stamp
+# A local buck2-rustc-bootstrap checkout for `rustc_bootstrap = disabled`
+# (README).
+/toolchain/buck2-rustc-bootstrap/
 # DotSlash and the Buck2 it fetches (bootstrap.sh, bootstrap.ps1).
 /.tools
 __pycache__/

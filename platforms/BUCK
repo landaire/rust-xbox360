@@ -1,6 +1,4 @@
-load("//buck:platforms.bzl", "sysroot_build_transition", "xbox360_codegen_default")
-
-_DEFAULT_CODEGEN = xbox360_codegen_default(read_root_config("xbox360", "toolchain", "ppc32"))
+load("//buck:platforms.bzl", "execution_platforms", "host_execution_platform", "sysroot_build_transition")
 
 # Host targets use the detected host platform. Xbox targets enter the
 # configuration through the transitions in buck/platforms.bzl.
@@ -16,7 +14,7 @@ constraint(
 
 constraint(
     name = "codegen",
-    default = _DEFAULT_CODEGEN,
+    default = "ppc32",
     values = [
         "ppc32",
         "ppc64-ilp32",
@@ -162,5 +160,33 @@ platform(
 sysroot_build_transition(
     name = "sysroot-build-transition",
     sysroot_none = ":sysroot-none",
+    visibility = ["PUBLIC"],
+)
+
+# The host, configured for PPC64: proc macros and build scripts of PPC64
+# configurations build there, with the compiler that loads them.
+host_execution_platform(
+    name = "host-ppc64",
+    base = "prelude//platforms:default",
+    constraint_values = [":codegen[ppc64-ilp32]"],
+)
+
+# `[build] execution_platforms` of projects that use this cell.
+execution_platforms(
+    name = "execution",
+    platforms = [
+        "prelude//platforms:default",
+        ":host-ppc64",
+        "rustc_bootstrap//platforms:execution",
+    ],
+    visibility = ["PUBLIC"],
+)
+
+# The host with PPC64 code generation, for building titles directly:
+# `--target-platforms xbox360//platforms:ppc64`.
+platform(
+    name = "ppc64",
+    constraint_values = [":codegen[ppc64-ilp32]"],
+    deps = ["prelude//platforms:default"],
     visibility = ["PUBLIC"],
 )

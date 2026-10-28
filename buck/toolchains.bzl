@@ -8,101 +8,150 @@ load("@prelude//toolchains:cxx.bzl", "cxx_tools_info_toolchain")
 load("@prelude//toolchains:genrule.bzl", "system_genrule_toolchain")
 load("@prelude//toolchains:python.bzl", "remote_python_toolchain")
 load("@prelude//toolchains:remote_test_execution.bzl", "remote_test_execution_toolchain")
-load(":custom_toolchain.bzl", "buck_llvm", "buck_rust", "path_clang", "xbox360_clang")
+load(":custom_toolchain.bzl", "bootstrap_dist", "path_clang", "xbox360_clang")
 load(":cxx.bzl", "host_cxx_tools", "linker_override_toolchain", "rust_lld")
 load(":flags.bzl", "XBOX360_RUSTC_FLAGS")
 load(":python.bzl", "exec_python_bootstrap_toolchain")
 load(":rust.bzl", "release_tool", "rust_release", "rust_release_toolchain")
 
 _XBOX360 = "xbox360//platforms:target[xbox]"
+_PPC64 = "xbox360//platforms:codegen[ppc64-ilp32]"
 _XBOX360_PPC64_ILP32 = "xbox360//platforms:xbox-ppc64-ilp32"
 _SYSROOT_CORE = "xbox360//platforms:sysroot-core"
 _SYSROOT_STD = "xbox360//platforms:sysroot-std"
 _SYSROOT_STD_SYSTEM = "xbox360//platforms:sysroot-std-system"
 
+# Configurations of the rustc_bootstrap cell, which builds the PPC64 compiler.
+# The prelude's rules in that cell reach their toolchains through this cell.
+_BOOTSTRAP = "rustc_bootstrap//constraints:bootstrap=true"
+
+def _by_codegen(ppc32, ppc64):
+    return select({
+        _PPC64: ppc64,
+        "DEFAULT": ppc32,
+    })
 
 def xbox360_toolchains(
         rustc_flags = [],
         rustc_binary_flags = [],
         rustdoc_flags: list[str] = [],
         xbox360_rustc_flags = [],
-        xbox360_rustc_binary_flags = [],
-        toolchain = "ppc32"):
+        xbox360_rustc_binary_flags = []):
     """Declares the toolchains.
 
     `rustc_flags` and `rustc_binary_flags` (for binaries and tests) apply
     to host crates, `xbox360_rustc_flags` and `xbox360_rustc_binary_flags`
     to console crates, after the flags of buck/flags.bzl. Console flags also
     apply to the standard library crates. `rustdoc_flags` apply to every
-    rustdoc run. `toolchain` is either the release PPC32 toolchain or the
-    source-built experimental PPC64 toolchain.
+    rustdoc run.
+
+    The `xbox360//platforms:codegen` constraint selects the compiler. With
+    its default, `ppc32`, the Rust release and its LLVM tools build every
+    crate. With `ppc64-ilp32`, the rustc and LLVM that the rustc_bootstrap
+    cell builds from source build both the console crates and the host crates
+    (proc macros, build scripts and tools) in the same configuration.
     """
-    if toolchain not in ["ppc32", "ppc64"]:
-        fail("toolchain must be \"ppc32\" or \"ppc64\", not {}".format(repr(toolchain)))
-    custom_compiler = toolchain == "ppc64"
-    if custom_compiler:
-        buck_llvm(
-            name = "custom-llvm",
-            llvm = "xbox360//toolchain:local-llvm",
-            visibility = ["PUBLIC"],
-        )
-        buck_rust(
-            name = "rust-release",
-            dist = "xbox360//toolchain:local-rust",
-            visibility = ["PUBLIC"],
-        )
-        llvm_tools_release = ":custom-llvm"
-    else:
-        rust_release(name = "rust-release")
 
-        # llvm-objdump and the other LLVM tools of the Rust release, which
-        # understand the same instructions as its rustc.
-        rust_release(
-            name = "llvm-tools",
-            components = ["llvm-tools-preview"],
-        )
-        llvm_tools_release = ":llvm-tools"
+    # PPC32: the Rust release.
+    rust_release(name = "rust-release")
+
+    # llvm-objdump and the other LLVM tools of the Rust release, which
+    # understand the same instructions as its rustc.
+    rust_release(
+        name = "llvm-tools",
+        components = ["llvm-tools-preview"],
+    )
+
+    # PPC64: the compiler and LLVM installation built from source.
+    bootstrap_dist(
+        name = "rust-ppc64",
+        dist = "rustc_bootstrap//stage1:dist",
+    )
+
+    bootstrap_dist(
+        name = "llvm-ppc64",
+        dist = "rustc_bootstrap//stage0:ci_llvm",
+    )
 
     release_tool(
+        name = "llvm-objdump-ppc32",
+        path = "lib/rustlib/{host_triple}/bin/llvm-objdump",
+        release = ":llvm-tools",
+    )
+
+    release_tool(
+        name = "llvm-objdump-ppc64",
+        path = "bin/llvm-objdump",
+        release = ":llvm-ppc64",
+    )
+
+    native.alias(
         name = "llvm-objdump",
-        path = "bin/llvm-objdump" if custom_compiler else "lib/rustlib/{host_triple}/bin/llvm-objdump",
-        release = llvm_tools_release,
+        actual = _by_codegen(":llvm-objdump-ppc32", ":llvm-objdump-ppc64"),
         visibility = ["PUBLIC"],
     )
 
     release_tool(
+        name = "llvm-objcopy-ppc32",
+        path = "lib/rustlib/{host_triple}/bin/llvm-objcopy",
+        release = ":llvm-tools",
+    )
+
+    release_tool(
+        name = "llvm-objcopy-ppc64",
+        path = "bin/llvm-objcopy",
+        release = ":llvm-ppc64",
+    )
+
+    native.alias(
         name = "llvm-objcopy",
-        path = "bin/llvm-objcopy" if custom_compiler else "lib/rustlib/{host_triple}/bin/llvm-objcopy",
-        release = llvm_tools_release,
+        actual = _by_codegen(":llvm-objcopy-ppc32", ":llvm-objcopy-ppc64"),
         visibility = ["PUBLIC"],
     )
 
-    if custom_compiler:
-        release_tool(
-            name = "clang-bin",
-            path = "bin/clang",
-            release = ":custom-llvm",
-        )
-        xbox360_clang(
-            name = "clang",
-            target_triple = "powerpc64-unknown-xbox360",
-            tool = ":clang-bin",
-            visibility = ["PUBLIC"],
-        )
-        release_tool(
-            name = "clang++",
-            path = "bin/clang++",
-            release = ":custom-llvm",
-        )
-    else:
-        path_clang(
-            name = "clang",
-            visibility = ["PUBLIC"],
-        )
+    # rustc passes `-flavor gnu` itself because the Xbox 360 target
+    # specifications select the gnu-lld linker flavor.
+    rust_lld(
+        name = "rust-lld-ppc32",
+        release = ":rust-release",
+    )
+
+    release_tool(
+        name = "rust-lld-ppc64",
+        path = "bin/ld.lld",
+        release = ":llvm-ppc64",
+    )
+
+    native.alias(
+        name = "rust-lld",
+        actual = _by_codegen(":rust-lld-ppc32", ":rust-lld-ppc64"),
+        visibility = ["PUBLIC"],
+    )
+
+    path_clang(
+        name = "clang-ppc32",
+    )
+
+    release_tool(
+        name = "clang-ppc64",
+        path = "bin/clang",
+        release = ":llvm-ppc64",
+    )
+
+    xbox360_clang(
+        name = "clang",
+        linker = _by_codegen(":rust-lld-ppc32", ":rust-lld-ppc64"),
+        target_triple = _by_codegen("powerpc-unknown-none-eabi", "powerpc64-unknown-xbox360"),
+        tool = _by_codegen(":clang-ppc32", ":clang-ppc64"),
+        visibility = ["PUBLIC"],
+    )
 
     rust_release_toolchain(
-        name = "rust",
+        name = "xbox360-rust",
         default_edition = "2021",
+        # Proc macros and build scripts of PPC64 configurations run on the
+        # PPC64 host execution platform, whose rustc can load their metadata.
+        exec_compatible_with = _by_codegen([], [_PPC64]),
         explicit_sysroot = select({
             _XBOX360: True,
             "DEFAULT": False,
@@ -111,7 +160,7 @@ def xbox360_toolchains(
             _XBOX360: "abort",
             "DEFAULT": "unwind",
         }),
-        release = ":rust-release",
+        release = _by_codegen(":rust-release", ":rust-ppc64"),
         rust_target_path = select({
             _XBOX360: "xbox360//targets:specs",
             "DEFAULT": None,
@@ -123,7 +172,10 @@ def xbox360_toolchains(
         rustc_flags = select({
             # Custom target specifications are unstable.
             _XBOX360: ["-Zunstable-options"] + XBOX360_RUSTC_FLAGS + xbox360_rustc_flags,
-            "DEFAULT": rustc_flags,
+            # The host linker driver runs with `-fuse-ld=lld`. The Rust
+            # release ships that lld; the source-built compiler finds the
+            # one of its LLVM.
+            "DEFAULT": rustc_flags + _by_codegen([], ["-Clink-arg=-B$(location :llvm-ppc64)/bin"]),
         }),
         rustdoc_flags = rustdoc_flags,
         rustc_target_triple = select({
@@ -153,14 +205,23 @@ def xbox360_toolchains(
             _SYSROOT_STD_SYSTEM: "xbox360//sysroot:std-system",
             "DEFAULT": None,
         }),
+    )
+
+    native.toolchain_alias(
+        name = "rust",
+        actual = select({
+            _BOOTSTRAP: "rustc_bootstrap//toolchains:rust",
+            "DEFAULT": ":xbox360-rust",
+        }),
         visibility = ["PUBLIC"],
     )
 
-    # The PPC64 toolchain uses its pinned clang and LLD for host Rust links.
-    # The release toolchain keeps using the host C++ driver.
+    # On Linux the linker driver can be GCC or Clang: the `-fuse-ld=lld`
+    # that the prelude adds resolves to the lld that rustc bundles, so no
+    # system lld is needed.
     host_cxx_tools(
         name = "linux-cxx-tools",
-        linker_tool = ":clang++" if custom_compiler else None,
+        linker = "c++",
     )
 
     cxx_tools_info_toolchain(
@@ -172,28 +233,23 @@ def xbox360_toolchains(
         }),
     )
 
-    if custom_compiler:
-        release_tool(
-            name = "rust-lld",
-            path = "bin/ld.lld",
-            release = ":custom-llvm",
-            visibility = ["PUBLIC"],
-        )
-    else:
-        rust_lld(
-            name = "rust-lld",
-            release = ":rust-release",
-            visibility = ["PUBLIC"],
-        )
-
     # Xbox 360 executables are linked by rust-lld alone, without the host
     # linker driver and its flags.
     linker_override_toolchain(
-        name = "cxx",
+        name = "xbox360-cxx",
         base = ":cxx-host",
         linker = select({
-            _XBOX360: ":rust-lld",
+            _XBOX360_PPC64_ILP32: ":rust-lld-ppc64",
+            _XBOX360: ":rust-lld-ppc32",
             "DEFAULT": None,
+        }),
+    )
+
+    native.toolchain_alias(
+        name = "cxx",
+        actual = select({
+            _BOOTSTRAP: "rustc_bootstrap//toolchains:cxx",
+            "DEFAULT": ":xbox360-cxx",
         }),
         visibility = ["PUBLIC"],
     )

@@ -35,10 +35,10 @@ the `xbox360` target. A title may therefore use `std::thread`, `std::net`,
   `tools/run-xenia.sh` invokes it.
 - For C titles with the release toolchain: `clang` with the PowerPC target,
   on the `PATH` of the Buck2 daemon. Run `buck2 kill` after changing `PATH`.
-  The optional source-built toolchain supplies its own clang.
-- For the PPC64 source-built toolchain on Linux: CMake, Ninja, a C and C++
-  compiler, binutils, `patch`, and Python 3. A Nix shell can provide them:
-  `nix-shell -p cmake ninja gcc binutils patch python3`.
+  The PPC64 toolchain supplies its own clang.
+- For the PPC64 toolchain: an x86_64 Linux host with a C and C++ compiler
+  (`cc` and `c++`, with the C++ standard library), binutils, `unzip`, and
+  Python 3. Buck2 downloads CMake and Ninja.
 
 `xex-link` builds the XEX with the `xex2` and `xenon_types` crates of the [acceleration](https://github.com/landaire/acceleration) project, pinned to a Git commit.
 
@@ -59,70 +59,60 @@ To move to another Buck2 release, replace `toolchains/buck2` with the `buck2` Do
 
 `xbox360_title` in `buck/xex.bzl` builds a title. It compiles a Rust executable for the console, with or without the standard library, and converts it with `xex-link` (`//crates/xex-link:xex-link`) using the title's manifest. `buck2 run toolchains//:llvm-objdump -- ARGS` runs the Rust release's llvm-objdump.
 
-### Experimental source-built compiler
+### Experimental PPC64 toolchain
 
-The default `ppc32` toolchain keeps the release Rust compiler and existing
-`powerpc-unknown-xbox360` target. The experimental `ppc64` toolchain uses a
-source-built Rust 1.98 compiler and matching LLVM revision, then targets
-`powerpc64-unknown-xbox360`.
-
-Initialize only the source submodules that the compiler build needs. Do not use
-`--recursive`; the Rust repository's LLVM submodule is not used:
-
-```
-git submodule update --init toolchain/buck2-rustc-bootstrap
-git -C toolchain/buck2-rustc-bootstrap submodule update --init rust
-git -C toolchain/buck2-rustc-bootstrap/rust \
-  submodule update --init library/backtrace
-```
-
-Build the compiler distributions once:
+The `xbox360//platforms:codegen` constraint selects the compiler. Its default,
+`ppc32`, uses the Rust release and the `powerpc-unknown-xbox360` target.
+`ppc64-ilp32` targets `powerpc64-unknown-xbox360` with a Rust 1.98 compiler
+and LLVM that Buck2 builds from source in the same build, through the
+`rustc_bootstrap` cell ([buck2-rustc-bootstrap], branch `xbox360-rust-1.98`,
+pinned in `.buckconfig`). That cell downloads the Rust fork, its
+`library/backtrace` submodule, LLVM, CMake, and Ninja as SHA-256-pinned
+archives; `stage0/custom_llvm.bzl` there pins the LLVM commit.
 
 ```
-nix-shell -p cmake ninja clang gcc binutils python3 --run \
-  'python3 buck/build_custom_toolchain.py --jobs 4'
-```
-
-The bootstrap has its own Buck root and cache. Rust crates are native Buck
-actions. LLVM, clang, and LLD use their CMake/Ninja build because LLVM is not
-buckified. That build state lives in
-`$XDG_CACHE_HOME/buck2-rustc-bootstrap/xbox360-llvm`, or the corresponding
-directory under `~/.cache` when `XDG_CACHE_HOME` is unset. The builder mirrors
-new LLVM archives there without touching unchanged files, so a one-file LLVM
-change rebuilds that file rather than the project.
-
-The resulting LLVM, clang, LLD, rustc, rustdoc, clippy-driver, and host standard
-library are installed in the ignored `toolchain/local-llvm` and
-`toolchain/local-rust` directories, which the main Buck graph imports. An
-unchanged setup invocation returns without replacing either directory.
-`--jobs` limits both Buck's Rust actions and LLVM's nested Ninja build; lower it
-on a memory-constrained host.
-
-Select exactly one toolchain with `xbox360.toolchain`; omitting it selects
-`ppc32`:
-
-```
-bin/buck2 build -j 4 -c xbox360.toolchain=ppc64 \
+bin/buck2 build -j 8 --target-platforms xbox360//platforms:ppc64 \
   //examples/hello:hello //examples/stdhello:stdhello //examples/chello:chello
 ```
 
-The source-built stack pins these revisions:
+A project with the prelude's configuration modifiers selects it with a
+`PACKAGE` alias for `xbox360//platforms:codegen[ppc64-ilp32]`, as in
+`//path:target?ppc64`. The `xbox360-ppc64-ilp32-*` platforms configure the
+standard library crates directly. PPC32 and PPC64 builds have different
+configurations, so their outputs never share paths, and both can be built by
+one command.
 
-- `landaire/llvm-project` branch `xbox360-abi-rust-1.98`, commit
-  `aa06e8ebabae50f409c60fd8717ae57201a5034f`;
-- `landaire-contrib/buck2-rustc-bootstrap` branch `xbox360-rust-1.98`, commit
-  `5004141b91ea89e8436988255abe8c56a152fcf5`;
-- `landaire/rust` branch `xbox360-abi-rust-1.98`, commit
-  `e52263c3cec8ece1b4b0ff1b00d56c0b5218d498`.
+The first PPC64 build compiles LLVM, clang, and LLD (about 25 minutes with 8
+jobs) and then rustc. LLVM uses its CMake/Ninja build, run locally and never
+uploaded to a cache; `xbox360.toolchain_jobs` in the root `.buckconfig` sets
+its job count (default 8). Its build tree persists in
+`$XDG_CACHE_HOME/buck2-rustc-bootstrap/xbox360-llvm` (or under `~/.cache`),
+keyed by the build configuration, so a new LLVM pin rebuilds only the files
+that changed; every build installs into a fresh Buck2 output. Building rustc
+needs several GB of memory per job; pass `-j` to Buck2 on a memory-constrained
+host. Only x86_64 Linux hosts can build the PPC64 toolchain; elsewhere the
+build stops during analysis. PPC32 builds work on every host and do not build
+the compiler.
 
-The bootstrap downloads LLVM as a digest-checked archive. LLVM is not a
-submodule. The bootstrap submodule pins the Rust source revision and its small
-Xbox target patch.
+In PPC64 configurations, host crates (proc macros, build scripts, and tools)
+are built with the same source-built compiler, on the
+`xbox360//platforms:host-ppc64` execution platform, so that the compiler can
+load them. Host targets in the default configuration keep the Rust release
+and the host C++ toolchain.
 
-The reusable main-graph targets are `toolchains//:custom-llvm` and
-`toolchains//:rust-release`. `toolchains//:clang`,
-`toolchains//:rust-lld`, `toolchains//:llvm-objdump`, and
-`toolchains//:llvm-objcopy` expose individual tools.
+To work on the bootstrap, check it out at `toolchain/buck2-rustc-bootstrap`
+and add this to `.buckconfig.local`:
+
+```ini
+[external_cells]
+  rustc_bootstrap = disabled
+```
+
+`toolchains//:clang`, `toolchains//:rust-lld`, `toolchains//:llvm-objdump`,
+and `toolchains//:llvm-objcopy` select their PPC32 or PPC64 tool by the same
+constraint.
+
+[buck2-rustc-bootstrap]: https://github.com/landaire-contrib/buck2-rustc-bootstrap
 
 The PPC64 build still produces big-endian `elf32-powerpc` intermediates and
 32-bit addresses. Its ABI bridges use 64-bit `std` and `ld` instructions to
@@ -163,44 +153,37 @@ Use std when you can. For what std does not cover, or for code without std, two 
 ### From another Buck2 project
 
 A project that builds for the host and the console uses this repository as
-the `xbox360` external cell, pinned to a commit:
+the `xbox360` external cell, pinned to a commit, together with the
+`rustc_bootstrap` cell named in this repository's `.buckconfig` (the PPC64
+toolchain refers to it; PPC32 builds only read its configuration targets)
+and this repository's execution platforms:
 
 ```ini
 [cells]
   xbox360 = rust-xbox360
+  rustc_bootstrap = buck2-rustc-bootstrap
 
 [external_cells]
   xbox360 = git
+  rustc_bootstrap = git
 
 [external_cell_xbox360]
   git_origin = https://github.com/landaire/rust-xbox360
   commit_hash = <commit>
+
+[external_cell_rustc_bootstrap]
+  git_origin = https://github.com/landaire-contrib/buck2-rustc-bootstrap
+  commit_hash = <the commit in this repository's .buckconfig>
+
+[build]
+  execution_platforms = xbox360//platforms:execution
 ```
 
 Its `toolchains/BUCK` calls `xbox360_toolchains()` from `@xbox360//buck:toolchains.bzl`, which takes the project's rustc and rustdoc flags for host and console crates. The target constraint is `xbox360//platforms:target`, with the generated `[host]` and `[xbox]` values. Console targets use `xbox360_title`, or the `xbox360//platforms:xbox360-core`, `-std` and `-std-system` configurations through the transitions in `buck/platforms.bzl`.
 
-To select the PPC64 dogfood toolchain from an external project, add this to the
-project's root `.buckconfig`:
-
-```ini
-[xbox360]
-  toolchain = ppc64
-```
-
-Pass the same choice from the project's `toolchains/BUCK`. Use `ppc32` instead
-to select the existing release toolchain:
-
-```python
-load("@xbox360//buck:toolchains.bzl", "xbox360_toolchains")
-
-xbox360_toolchains(
-    toolchain = read_root_config("xbox360", "toolchain", "ppc32"),
-)
-```
-
-The `ppc64` mode requires this repository to be a local cell with the compiler
-distributions installed by `buck/build_custom_toolchain.py`. The default
-`ppc32` mode still works from the Git external cell without them.
+To build a target with the PPC64 toolchain, add a modifier alias for
+`xbox360//platforms:codegen[ppc64-ilp32]` to the project's root `PACKAGE` and
+build `//path:target?ppc64`; see "Experimental PPC64 toolchain" above.
 
 `@xbox360//buck:profiles.bzl` provides dev, release and symbol-free release flags for the shared `xbox360//platforms:mode` constraint. A project may expose it as `//config:mode` with an `alias`, but its `PACKAGE` modifier aliases must name `xbox360//platforms:mode[dev]`, `[release]` and `[release-no-symbols]` directly. Its `profiled_rust_binary` keeps Linux debug information in the `[symbols]` subtarget and leaves the executable stripped. The project's `rust-toolchain.toml` should name the release in `buck/rust_release.bzl`; `buck/update_rust_release.py --check PATH` compares them.
 
@@ -354,20 +337,20 @@ timeout at the top of the script if required.
 
 `xex-link` is language-agnostic: any LLVM front end that emits a big-endian
 PowerPC ELF is supported. `xbox360_c_title` in `buck/xex.bzl` compiles C
-sources with `toolchains//:clang`
-(`--target=powerpc64-unknown-xbox360 -ffreestanding -fno-builtin`), links them
-with `toolchains//:rust-lld`, and converts the result with `xex-link`. The C
-example demonstrates the full path:
+sources with the `toolchains//:clang` toolchain (`-ffreestanding
+-fno-builtin`, for `powerpc-unknown-none-eabi`, or `powerpc64-unknown-xbox360`
+with the PPC64 toolchain), links them with its LLD, and converts the result
+with `xex-link`. The C example demonstrates the full path:
 
 ```
 buck2 build //examples/chello:chello --show-output
 ```
 
-The release configuration resolves `toolchains//:clang` from the Buck2
-daemon's `PATH`; that clang must include the PowerPC target
-(`clang -print-targets`). The source-built configuration uses its pinned custom
-clang. No C library exists for the console. The title declares its imports as
-thunks in the `.xthunks` section, as `examples/chello/hello.c` does.
+The PPC32 toolchain runs `clang` from the Buck2 daemon's `PATH`; that clang
+must include the PowerPC target (`clang -print-targets`). The PPC64 toolchain
+uses the clang that it builds. No C library exists for the console. The title
+declares its imports as thunks in the `.xthunks` section, as
+`examples/chello/hello.c` does.
 
 ## Linker options
 

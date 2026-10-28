@@ -42,9 +42,6 @@ linker_override_toolchain = rule(
 )
 
 def _host_cxx_tools_impl(ctx: AnalysisContext) -> list[Provider]:
-    linker = ctx.attrs.linker
-    if ctx.attrs.linker_tool:
-        linker = ctx.attrs.linker_tool[RunInfo]
     return [
         DefaultInfo(),
         CxxToolsInfo(
@@ -57,7 +54,7 @@ def _host_cxx_tools_impl(ctx: AnalysisContext) -> list[Provider]:
             cvtres_compiler = None,
             archiver = "ar",
             archiver_type = "gnu",
-            linker = linker,
+            linker = ctx.attrs.linker,
             linker_type = LinkerType("gnu"),
         ),
     ]
@@ -66,8 +63,7 @@ def _host_cxx_tools_impl(ctx: AnalysisContext) -> list[Provider]:
 host_cxx_tools = rule(
     impl = _host_cxx_tools_impl,
     attrs = {
-        "linker": attrs.string(default = "c++"),
-        "linker_tool": attrs.option(attrs.exec_dep(providers = [RunInfo]), default = None),
+        "linker": attrs.string(),
     },
 )
 

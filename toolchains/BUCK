@@ -1,5 +1,3 @@
 load("@xbox360//buck:toolchains.bzl", "xbox360_toolchains")
 
-xbox360_toolchains(
-    toolchain = read_root_config("xbox360", "toolchain", "ppc32"),
-)
+xbox360_toolchains()

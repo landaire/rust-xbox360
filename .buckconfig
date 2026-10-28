@@ -3,6 +3,7 @@
   prelude = prelude
   toolchains = toolchains
   none = none
+  rustc_bootstrap = toolchain/buck2-rustc-bootstrap
 
 [cell_aliases]
   config = prelude
@@ -11,8 +12,14 @@
   fbsource = none
   buck = none
 
+# The source-built PPC64 compiler comes from rustc_bootstrap.
 [external_cells]
   prelude = bundled
+  rustc_bootstrap = git
+
+[external_cell_rustc_bootstrap]
+  git_origin = https://github.com/landaire-contrib/buck2-rustc-bootstrap
+  commit_hash = e81b1b72d66ecb6da95c8f8a3089d0902a442200
 
 [parser]
   target_platform_detector_spec = target:xbox360//...->prelude//platforms:default \
@@ -20,7 +27,7 @@
     target:toolchains//...->prelude//platforms:default
 
 [build]
-  execution_platforms = prelude//platforms:default
+  execution_platforms = xbox360//platforms:execution
 
 [project]
-  ignore = .git, .jj, .tools, target, .rustsrc-backup, toolchain/buck2-rustc-bootstrap
+  ignore = .git, .jj, .tools, target, .rustsrc-backup

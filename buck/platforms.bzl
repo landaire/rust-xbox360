@@ -1,11 +1,58 @@
-"""Configuration transitions into the Xbox 360 target."""
+"""Configuration transitions into the Xbox 360 target, and execution platforms."""
 
-def xbox360_codegen_default(toolchain: str) -> str:
-    if toolchain == "ppc32":
-        return "ppc32"
-    if toolchain == "ppc64":
-        return "ppc64-ilp32"
-    fail("xbox360.toolchain must be \"ppc32\" or \"ppc64\", not {}".format(repr(toolchain)))
+load("@prelude//cfg/exec_platform:marker.bzl", "get_exec_platform_marker")
+
+def _host_execution_platform_impl(ctx: AnalysisContext) -> list[Provider]:
+    base = ctx.attrs.base[ExecutionPlatformInfo]
+    constraints = dict(base.configuration.constraints)
+    for value in ctx.attrs.constraint_values:
+        info = value[ConstraintValueInfo]
+        constraints[info.setting.label] = info
+    return [
+        DefaultInfo(),
+        ExecutionPlatformInfo(
+            label = ctx.label.raw_target(),
+            configuration = ConfigurationInfo(
+                constraints = constraints,
+                values = base.configuration.values,
+            ),
+            executor_config = base.executor_config,
+        ),
+    ]
+
+# `base` with `constraint_values` added.
+host_execution_platform = rule(
+    impl = _host_execution_platform_impl,
+    attrs = {
+        "base": attrs.dep(providers = [ExecutionPlatformInfo]),
+        "constraint_values": attrs.list(attrs.dep(providers = [ConstraintValueInfo])),
+    },
+)
+
+def _execution_platforms_impl(ctx: AnalysisContext) -> list[Provider]:
+    platforms = []
+    for dep in ctx.attrs.platforms:
+        registration = dep.get(ExecutionPlatformRegistrationInfo)
+        if registration:
+            platforms.extend(registration.platforms)
+        else:
+            platforms.append(dep[ExecutionPlatformInfo])
+    return [
+        DefaultInfo(),
+        ExecutionPlatformRegistrationInfo(
+            platforms = platforms,
+            exec_marker_constraint = get_exec_platform_marker(),
+        ),
+    ]
+
+# The execution platforms of `platforms` (platforms or registrations), in
+# order; Buck2 uses the first compatible one.
+execution_platforms = rule(
+    impl = _execution_platforms_impl,
+    attrs = {
+        "platforms": attrs.list(attrs.dep()),
+    },
+)
 
 _REFS = {
     "target": "xbox360//platforms:target",

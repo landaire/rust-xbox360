@@ -202,7 +202,7 @@ def _xbox360_c_title_impl(ctx: AnalysisContext) -> list[Provider]:
     image = ctx.actions.declare_output("image")
     ctx.actions.run(
         cmd_args(
-            ctx.attrs._rust_lld[RunInfo],
+            ctx.attrs._clang[Xbox360ClangInfo].linker,
             "-flavor",
             "gnu",
             objects,
@@ -222,19 +222,18 @@ def _xbox360_c_title_impl(ctx: AnalysisContext) -> list[Provider]:
     } | _debugger_files(ctx, image, None))]
 
 # A XEX from C sources. The configured clang compiles them for big-endian
-# PowerPC without a C library, and rust-lld links the objects with the GNU ld
-# script `link_script`.
+# PowerPC without a C library, and its linker links the objects with the GNU
+# ld script `link_script`.
 xbox360_c_title = rule(
     impl = _xbox360_c_title_impl,
     attrs = _XEX_ATTRS | {
         "compiler_flags": attrs.list(attrs.string(), default = []),
         "link_script": attrs.source(),
         "srcs": attrs.list(attrs.source()),
-        "_clang": attrs.exec_dep(
+        "_clang": attrs.toolchain_dep(
             providers = [RunInfo, Xbox360ClangInfo],
             default = "toolchains//:clang",
         ),
-        "_rust_lld": attrs.exec_dep(providers = [RunInfo], default = "toolchains//:rust-lld"),
     },
 )
 

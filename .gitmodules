@@ -1,3 +1,0 @@
-[submodule "toolchain/buck2-rustc-bootstrap"]
-	path = toolchain/buck2-rustc-bootstrap
-	url = git@github.com:landaire-contrib/buck2-rustc-bootstrap.git
