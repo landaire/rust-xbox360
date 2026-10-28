@@ -830,8 +830,10 @@ The current experimental patch implements the evidence-backed subset:
   stores are not merged past it.
 - Inline stack probes are on by default with a 4096-byte stride, for
   prologues and dynamic allocations.
-- Position-independent code is rejected; titles are linked at fixed
-  addresses.
+- Position-independent code uses the 32-bit ELF PIC model: a full-width `r30`
+  PIC base, `.got2`, GOT loads for addresses and PLT calls. Titles use the
+  static model by default, because the console loads them at fixed addresses;
+  PIC serves loaders that apply ELF PIC relocations.
 - FastISel is disabled; `-O0` uses SelectionDAG, because FastISel assumes
   64-bit pointers on a 64-bit processor.
 - Initial-exec TLS loads the 32-bit thread-pointer offset from the GOT with
