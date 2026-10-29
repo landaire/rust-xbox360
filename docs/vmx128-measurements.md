@@ -2,10 +2,11 @@
 
 Measured on the development kit, kernel 2.0.21256, hardware thread 1.
 The timebase is 50 MHz; cycle counts use 64 core cycles per tick (3.2 GHz).
-Tables contain medians of seven timed repetitions from one complete run.
-They are not measurements of several consoles or repeated title launches.
+Each timing column contains medians of seven timed repetitions from one
+complete run. Before and after columns use separate title launches on the
+same console, not measurements across several consoles.
 
-## Toolchain and validation
+## Baseline toolchain and validation
 
 - LLVM 22.1.8, source `137023df40d95a06cd4393a7e4b26aae5b8dd7ee`.
 - Rust 1.98, source `a199a11abab9720154e5e2eff1887960432e8c95`.
@@ -103,7 +104,7 @@ four times as many registers provide four times the speed.
 The larger register file permits more independent work in the first sequence.
 A different classic sequence already approaches the larger-register result.
 
-## Compiler auto-vectorization
+## Baseline compiler auto-vectorization
 
 The 44 C kernels contain scalar loops, including restricted pointers,
 reductions, conversions, fixed global arrays, and fixed-trip loops. This is
@@ -148,6 +149,123 @@ results are not included in that minimum. Many ordinary LLVM loops remain
 slower than SDK output. The instruction statistics record stack-memory
 operations inside several such loops, including three in the float-add loop
 and six in the float-to-int loop.
+
+## Xbox-specific lowering
+
+The updated compiler uses LLVM source
+`2f714b11080e5a449de3969e3c4477cf5cbe92ab` and bootstrap
+`f75e1005adc480d93d59f1ef7ad49554f12f6020`. The Rust source is unchanged.
+The corresponding complete upstream LLVM branch is
+`4ab22204eb45c45a92fc631f45c0270ea4697218`.
+
+Changes specific to the Xbox target:
+
+- Unaligned vector stores use rotated byte, halfword or word element stores
+  instead of a vector stack spill followed by scalar reloads. Partial and
+  volatile accesses retain exact memory widths.
+- Non-strict scalar `f32`/`f64` to signed `i32` stores at alignment 4 or greater
+  use `fctiwz` and `stfiwx` without an intermediate stack transfer.
+- Signed halfword loads use `lhz` and `extsh` rather than the slower `lha`.
+- Size optimization uses code-size vectorization costs, including alignment
+  permutations and scalar memory transfers. Vectorizers remain enabled.
+- Ordinary register-only C sibling calls can avoid a frame when the
+  PPC64-ILP32 calling convention permits it. Interposable PIC calls retain
+  their required call sequence.
+- `__builtin_ppc_get_pcr()` permits direct r13-based addressing. Calls can
+  change the PCR base; a captured value remains distinct across a call.
+  This interface does not provide affinity or asynchronous sampling guarantees.
+- Missing classic integer vector operations remain unavailable when VMX128
+  registers and encodings are disabled. The classic-only comparison profiles
+  do not imply a different processor.
+
+The common vector register pressure model remains conservative at 32
+registers because integer and floating-point allocations overlap. Machine
+register allocation still has all 128 registers where their instruction
+classes permit them.
+
+The AltiVec saturation side-effect and conversion-immediate checks also apply
+to non-Xbox targets: those are instruction-semantic corrections, not Xbox
+performance preferences.
+
+The permanent SIMD/ABI title passed 81 checks, including generic vector
+accesses and scalar conversion stores on physical write-combined memory.
+Separate temporary compiled probes checked exact-width partial and wide
+vector accesses before their scaffolding was removed.
+
+- [Updated SIMD and ABI checks](measurements/vmx128-lowering-semantics.txt)
+- [Partial and wide memory checks](measurements/vmx128-partial-memory.txt)
+
+Standalone kernel reductions compiled with the checksum-pinned Clang and
+`-Os -ffreestanding`:
+
+| Reduction | Baseline code bytes | Updated code bytes |
+| --- | --- | --- |
+| Conditional sibling call | 44 | 16 |
+| Short matrix subtraction | 156 | 68 |
+
+The sibling call has no stack frame. The matrix update uses a scalar inner
+loop rather than a vector permutation and stack-transfer sequence. Ordinary
+scalar dot-product and division expressions retain their original semantics;
+the compatibility header uses native target intrinsics for hardware dot
+products and reciprocal estimates.
+
+The native compatibility test passed with the pinned compiler in C and C++.
+Both kernel object sets, 17559 and 16547, built successfully (950 compile
+actions). This is compilation coverage, not a kernel boot test.
+
+### Updated compiler comparison
+
+The complete updated run passed 451 instruction-model kernels, 33 memory
+kernels, all transform cases and all 2808 external compiler-output cases.
+The independent scalar oracles and compiler-reference checks reported no
+mismatch. The run used hardware thread 1, seven repetitions and a 4 ms timing
+target, matching the baseline.
+
+| Compiler configuration | Baseline kernels with SIMD, out of 44 | Updated kernels with SIMD, out of 44 |
+| --- | --- | --- |
+| SDK C compiler `/O2` | 0 | 0 |
+| Clang `-O3 -mno-altivec` | 0 | 0 |
+| Clang `-O3 -mno-vmx128` | 25 | 35 |
+| Clang `-O3`, VMX128 | 25 | 35 |
+| Clang `-O3 -ffast-math`, VMX128 | 26 | 36 |
+| Rust `-O3`, VMX128 | 24 | 32 |
+
+Aligned 1024-element cases, ordinary Clang `-O3` with VMX128 and no fast math:
+
+| Kernel | Baseline LLVM cycles/element | Updated LLVM cycles/element | Updated SDK cycles/element | LLVM before/after speedup |
+| --- | --- | --- | --- | --- |
+| Restricted float add | 24.125 | 8.370 | 6.113 | 2.88 |
+| Unsigned-byte average | 6.182 | 3.654 | 20.139 | 1.69 |
+| Float clamp | 22.809 | 7.510 | 85.312 | 3.04 |
+| Float-to-int conversion | 73.457 | 4.266 | 5.309 | 17.22 |
+| Signed-halfword dot product | 57.327 | 18.252 | 18.769 | 3.14 |
+| Unsigned-byte-to-float conversion | 90.361 | 98.212 | 52.986 | 0.92 |
+| Float dot product | 10.738 | 11.312 | 6.281 | 0.95 |
+
+| Comparison over the 42 non-runtime kernels | Baseline wins against SDK | Updated wins against SDK | Baseline geometric mean SDK/LLVM | Updated geometric mean SDK/LLVM |
+| --- | --- | --- | --- | --- |
+| Ordinary Clang `-O3`, VMX128 | 18 | 28 | 0.762 | 1.669 |
+| Per-kernel minimum across six Clang profiles | 27 | 31 | 1.066 | 2.097 |
+
+Ordinary LLVM improved on 38 of the 42 kernels, with a geometric mean
+before/after speedup of 2.190. This is not a uniform improvement: the two
+conversion/reduction regressions above remain, and two other differences
+are below 0.2 percent. One launch per compiler revision does not establish
+statistical significance for small changes.
+
+Throughput improvements also consume more code at `-O3`:
+
+| Kernel | Baseline instructions | Updated instructions | Baseline stack-memory instructions in loops | Updated stack-memory instructions in loops |
+| --- | --- | --- | --- | --- |
+| Restricted float add | 51 | 230 | 3 | 0 |
+| Float-to-int conversion | 42 | 207 | 6 | 0 |
+
+The size-optimized kernel reductions above use `-Os`, not these throughput
+settings. The memory measurements retain the earlier conclusion: changing
+to vector instructions alone does not improve large-buffer bandwidth.
+
+- [Updated instruction, memory and compiler timings](measurements/vmx128-lowering-console.csv)
+- [Updated linked instruction statistics](measurements/vmx128-lowering-static.csv)
 
 ## Reproduction
 

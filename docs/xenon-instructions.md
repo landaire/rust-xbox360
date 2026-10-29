@@ -63,7 +63,8 @@ fix produced none.
 - 128 vector registers (v0-v127), four times stock AltiVec's 32. Xenon has no
   VSX, no vector integer multiply, and lacks some AltiVec instructions
   (`vmsum*`, `vmul[eo]*`, `vsum*`, `vmh[r]addshs`, `vmladduhm`, `dst*`);
-  LLVM expands their intrinsics into scalar code.
+  LLVM expands their intrinsics into scalar code. Disabling VMX128 registers
+  and encodings does not make these missing classic instructions available.
 - The PPC64 target (`+altivec,+vmx128`) allocates all 128 registers and emits
   the VMX128 forms for float arithmetic, fused multiply-add, min/max,
   estimates, rounding, conversions, compares, logical operations, selects,
@@ -75,12 +76,21 @@ fix produced none.
 - `lvsl128` and `lvsr128` raise an illegal instruction exception on the
   console; the classic `lvsl`/`lvsr` work. All other VMX128 loads and stores
   (`lvx128`, `lvxl128`, `lvlx128`, `lvrx128`, `lvlxl128`, `lvrxl128` and the
-  stores) execute.
-- Unaligned access: `lvlx(p) | lvrx(p + 16)` loads the 16 bytes at `p`;
+  stores) execute on cached memory.
+- Cached unaligned access: `lvlx(p) | lvrx(p + 16)` loads the 16 bytes at `p`;
   `stvlx(v, p); stvrx(v, p + 16)` stores them. With `n = p & 15`, `lvlx`
   loads `p..(p | 15)` into bytes `0..16 - n` and `lvrx` loads
   `(p & !15)..p` into bytes `16 - n..16` (nothing when `p` is aligned); the
   other bytes are zero.
+  Page-edge probes include an unmapped page on an aligned, zero-length right
+  access. `lvlx128` faults with alignment exception 0x80000002 on physical
+  write-combined memory; partial-vector pairs cannot implement generic
+  unaligned pointers whose cache mode is unknown.
+- Classic `stvebx`, `stvehx` and `stvewx` preserve adjacent bytes on physical
+  write-combined memory at every naturally aligned lane.
+- Saturating `vaddshs`, `vaddubs`, `vsubuhs`, `vctsxs` and `vctuxs` update
+  sticky VSCR SAT, including when the vector result is unused. In-range
+  conversions leave SAT clear. Native intrinsics preserve these side effects.
 - VMX128-only operations: `vmsum3fp128`/`vmsum4fp128` (dot products),
   `vpermwi128` (word permute by immediate), `vrlimi128` (rotate and insert
   words), `vpkd3d128`/`vupkd3d128` (D3D vertex format pack and unpack).

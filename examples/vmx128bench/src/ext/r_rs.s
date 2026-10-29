@@ -375,7 +375,8 @@ rs_k_clamp_i16_r:
 	sthu 6, 2(3)
 	beqlr	0
 .Lrs_BB12_3:
-	lhau 6, 2(4)
+	lhzu 6, 2(4)
+	extsh 6, 6
 	cmpwi	6, -1000
 	ble 0, .Lrs_BB12_5
 	cmpwi	6, 1000
@@ -475,12 +476,13 @@ rs_k_dot_i16:
 	andc 7, 5, 6
 	cmplwi	7, 0
 	beq	0, .Lrs_BB16_8
-	stwu 1, -48(1)
+	stwu 1, -64(1)
 	li 6, 0
 	cmpwi	5, 2
 	li 8, 0
-	std 29, 16(1)
-	std 30, 24(1)
+	std 28, 24(1)
+	std 29, 32(1)
+	std 30, 40(1)
 	blt	0, .Lrs_BB16_5
 	rlwinm 8, 7, 0, 1, 30
 	addi 9, 3, -4
@@ -488,15 +490,19 @@ rs_k_dot_i16:
 	mr	12, 8
 	li 11, 0
 .Lrs_BB16_3:
-	lhau 0, 4(9)
+	lhzu 0, 4(9)
 	addi 12, 12, -2
-	lhau 30, 4(10)
+	lhzu 30, 4(10)
 	cmplwi	12, 0
-	lha 29, 2(9)
+	lhz 29, 2(9)
+	extsh 0, 0
+	lhz 28, 2(10)
+	extsh 30, 30
 	mullw 0, 30, 0
-	lha 30, 2(10)
 	add 6, 0, 6
-	mullw 0, 30, 29
+	extsh 0, 29
+	extsh 30, 28
+	mullw 0, 30, 0
 	add 11, 0, 11
 	bne	0, .Lrs_BB16_3
 	cmplw	5, 8
@@ -509,17 +515,20 @@ rs_k_dot_i16:
 	add 3, 3, 7
 	add 4, 4, 7
 .Lrs_BB16_6:
-	lhau 7, 2(4)
+	lhzu 7, 2(3)
 	addi 5, 5, -1
-	lhau 8, 2(3)
+	lhzu 8, 2(4)
 	cmplwi	5, 0
-	mullw 7, 7, 8
+	extsh 7, 7
+	extsh 8, 8
+	mullw 7, 8, 7
 	add 6, 7, 6
 	bne	0, .Lrs_BB16_6
 .Lrs_BB16_7:
-	ld 30, 24(1)
-	ld 29, 16(1)
-	addi 1, 1, 48
+	ld 30, 40(1)
+	ld 29, 32(1)
+	ld 28, 24(1)
+	addi 1, 1, 64
 	mr	3, 6
 	blr
 .Lrs_BB16_8:

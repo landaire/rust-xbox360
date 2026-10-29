@@ -1,0 +1,82 @@
+PASS codegen.float_format
+PASS msvc.call.sum16
+PASS msvc.call.after13
+PASS msvc.call.mix
+PASS msvc.call.return_and_store
+PASS msvc.call.structs_in
+PASS msvc.call.structs_out
+PASS msvc.call.char
+PASS msvc.callback.sum16
+PASS msvc.callback.mix
+PASS msvc.callback.structs
+PASS msvc.callback.char
+PASS msvc.callback.rust_to_rust16
+PASS msvc.pressure
+PASS msvc.keep_across.asm_clobber_v0_v63
+PASS msvc.keep_across.rust_pressure
+PASS msvc.keep_across.rust_keep_across
+PASS regs.inline_v127
+PASS regs.inline_call_clobbers
+PASS regs.pressure
+PASS regs.keep_across.asm_clobber_v0_v63
+PASS regs.keep_across.rust_pressure
+PASS regs.keep_across.rust_keep_across
+PASS regs.keep_across.msvc_pressure
+PASS regs.keep_across.msvc_keep_across
+PASS regs.preserves_v64_v127.rust_pressure
+PASS regs.preserves_v64_v127.rust_keep_across
+PASS regs.preserves_v64_v127.msvc_pressure
+PASS regs.preserves_v64_v127.msvc_keep_across
+PASS vmx128.vscr.vaddshs: reset=[00000000, 00000000, 00000000, 00010000], saturated=[00000000, 00000000, 00000000, 00010001], result=[7fff8000, 7fff8000, 7fff8000, 7fff8000]
+PASS vmx128.vscr.vaddubs: reset=[00000000, 00000000, 00000000, 00010000], saturated=[00000000, 00000000, 00000000, 00010001], result=[ffffffff, ffffffff, ffffffff, ffffffff]
+PASS vmx128.vscr.vsubuhs: reset=[00000000, 00000000, 00000000, 00010000], saturated=[00000000, 00000000, 00000000, 00010001], result=[00000000, 00000000, 00000000, 00000000]
+PASS vmx128.vscr.vctsxs: in-range reset=[00000000, 00000000, 00000000, 00010000], observed=[00000000, 00000000, 00000000, 00010000], result=[fffffffe, ffffffff, 00000000, 0000002a]; saturating reset=[00000000, 00000000, 00000000, 00010000], observed=[00000000, 00000000, 00000000, 00010001], result=[80000000, 7fffffff, 80000000, 7fffffff]
+PASS vmx128.vscr.vctuxs: in-range reset=[00000000, 00000000, 00000000, 00010000], observed=[00000000, 00000000, 00000000, 00010000], result=[00000000, 00000001, 0000002a, 00010000]; saturating reset=[00000000, 00000000, 00000000, 00010000], observed=[00000000, 00000000, 00000000, 00010001], result=[00000000, ffffffff, 00000000, ffffffff]
+PASS vmx128.memory.mode: probes-only (ordinary LLVM vector memory tests disabled)
+PASS vmx128.write_combined.element_stores: STVEBX all 16 lanes; STVEHX all 8 aligned lanes; STVEWX all 4 aligned lanes; full-page canaries
+PASS llvm.partial.cached: 6/8/12/24/40/72-byte vectors, exact align1/2/4 accesses and page canaries
+PASS llvm.partial.write_combined: 6/8/12/24/40/72-byte vectors, exact align1/2/4 accesses and page canaries
+PASS vmx128.dot3.exact
+PASS vmx128.dot4.exact
+PASS vmx128.dot4.cancellation
+PASS vmx128.dot3.error: max error 3.510704219341278 ulp of the largest product (bound 4)
+PASS vmx128.dot4.error: max error 3.951152205467224 ulp of the largest product (bound 4)
+PASS vmx128.permute_words.all
+PASS vmx128.rotate_insert.all
+PASS vmx128.pack_d3d.all
+PASS vmx128.pack_d3d.saturation
+PASS vmx128.unpack_d3d.all
+PASS vmx128.load_left_right
+PASS vmx128.store_left_right
+PASS vmx128.load_store_unaligned
+PASS vmx128.unaligned.guard_pages
+PASS vmx128.mul_add
+PASS vmx128.max_min
+PASS vmx128.round
+PASS vmx128.convert
+PASS vmx128.compare
+PASS vmx128.bounds
+PASS vmx128.select_bits
+PASS vmx128.word_shifts
+PASS vmx128.permute_bytes
+PASS vmx128.splat_merge_octets
+PASS vmx128.recip_estimate: [1,2) exhaustive: max relative error 1.936e-4 = 2^-12.33 at 1.7807006e0; 2^-100..2^100 sampled: max relative error 1.928e-4 = 2^-12.34 at -1.5657293e13
+PASS vmx128.rsqrt_estimate: [1,4) exhaustive: max relative error 1.959e-4 = 2^-12.32 at 2.0616453e0
+PASS vmx128.exp2_estimate: x in [-32, 32] sampled: max relative error 4.910e-3 = 2^-7.67 at 1.29374695e1
+PASS vmx128.log2_estimate: max absolute error 6.287e-3 = 2^-7.31 at 8.999727e-22
+PASS simd.f32.arithmetic
+PASS simd.f32.mul_add
+PASS simd.f32.compare_select
+PASS simd.f32.min_max_clamp
+PASS simd.f32.sign
+PASS simd.f32.round
+PASS simd.f32.reduce
+PASS simd.convert
+PASS simd.splat_shuffle
+PASS simd.i32.arithmetic
+PASS simd.i32.shift_logical
+PASS simd.i32.compare_min_max
+PASS simd.i16_u8.saturating
+PASS simd.load_store.aligned
+PASS simd.load_store.unaligned
+vmx128test: 81 passed, 0 failed

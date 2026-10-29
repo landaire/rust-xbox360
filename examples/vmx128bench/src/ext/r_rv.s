@@ -39,46 +39,201 @@ rv_k_abs_i32_r:
 .Lrv_func_begin1:
 	cmpwi	5, 1
 	bltlr	0
-	stwu 1, -32(1)
+	stwu 1, -176(1)
 	cmplwi	5, 4
-	sub	7, 3, 4
-	li 6, 0
-	bc 12, 0, .Lrv_BB1_6
-	cmplwi	7, 16
-	bc 12, 0, .Lrv_BB1_6
-	rlwinm 6, 5, 0, 1, 29
+	sub	6, 3, 4
+	li 0, 0
+	std 14, 24(1)
+	std 15, 32(1)
+	std 16, 40(1)
+	std 17, 48(1)
+	std 18, 56(1)
+	std 19, 64(1)
+	std 20, 72(1)
+	std 21, 80(1)
+	std 22, 88(1)
+	std 23, 96(1)
+	std 24, 104(1)
+	std 25, 112(1)
+	std 26, 120(1)
+	std 27, 128(1)
+	std 28, 136(1)
+	std 29, 144(1)
+	std 30, 152(1)
+	std 31, 160(1)
+	bc 12, 0, .Lrv_BB1_11
+	cmplwi	6, 128
+	bc 12, 0, .Lrv_BB1_11
+	cmplwi	5, 32
+	blt	0, .Lrv_BB1_8
+	rlwinm 22, 5, 0, 1, 26
 	li 7, 0
-	li 8, 15
+	li 8, 16
+	li 9, 32
+	li 10, 48
+	li 11, 64
+	li 12, 80
+	li 0, 96
+	li 30, 112
+	vspltisw128 8, 0
+	li 19, 60
+	li 18, 56
+	li 17, 52
+	li 16, 76
+	li 15, 72
+	li 14, 68
+	li 31, 92
+	li 6, 88
+	li 29, 84
+	li 28, 108
+	li 27, 104
+	li 26, 100
+	li 25, 124
+	li 24, 120
+	li 23, 116
+	stw 22, 20(1)
+.Lrv_BB1_5:
+	add 21, 4, 7
+	lvx128 9, 4, 7
+	li 20, 127
+	lvx128 10, 21, 8
+	addi 22, 22, -32
+	lvx128 11, 21, 9
+	cmplwi	22, 0
+	lvsl 3, 4, 7
+	vperm128 9, 9, 10, 3
+	vperm128 0, 10, 11, 3
+	lvx128 12, 21, 10
+	vsubuwm 18, 8, 0
+	vsubuwm 10, 8, 9
+	lvx128 13, 21, 11
+	vmaxsw 18, 0, 18
+	vmaxsw 9, 9, 10
+	lvx128 14, 21, 12
+	vperm128 11, 11, 12, 3
+	lvx128 15, 21, 0
+	vperm128 10, 12, 13, 3
+	lvx128 16, 21, 30
+	lvx128 17, 21, 20
+	add 21, 3, 7
+	lvsr 7, 21, 8
+	vperm128 7, 18, 18, 7
+	li 20, 28
+	stvewx 7, 21, 20
+	li 20, 24
+	stvewx 7, 21, 20
+	li 20, 20
+	stvewx 7, 21, 20
+	li 20, 44
+	stvewx 7, 21, 8
+	vsubuwm 7, 8, 11
+	lvsr 2, 21, 9
+	vmaxsw 11, 11, 7
+	vperm128 2, 11, 11, 2
+	lvsr 6, 21, 10
+	stvewx 2, 21, 20
+	li 20, 40
+	stvewx 2, 21, 20
+	li 20, 36
+	stvewx 2, 21, 20
+	li 20, 12
+	stvewx 2, 21, 9
+	vsubuwm 2, 8, 10
+	vmaxsw 2, 10, 2
+	lvsr 1, 21, 11
+	vperm128 2, 2, 2, 6
+	vperm128 6, 13, 14, 3
+	stvewx 2, 21, 19
+	stvewx 2, 21, 18
+	stvewx 2, 21, 17
+	stvewx 2, 21, 10
+	vsubuwm 2, 8, 6
+	vmaxsw 2, 6, 2
+	lvsr 5, 21, 12
+	vperm128 2, 2, 2, 1
+	vperm128 1, 14, 15, 3
+	vsubuwm 6, 8, 1
+	stvewx 2, 21, 16
+	vmaxsw 1, 1, 6
+	stvewx 2, 21, 15
+	stvewx 2, 21, 14
+	stvewx 2, 21, 11
+	vperm128 2, 1, 1, 5
+	vperm128 5, 15, 16, 3
+	vperm128 3, 16, 17, 3
+	vsubuwm 1, 8, 5
+	lvsr 4, 3, 7
+	vmaxsw 5, 5, 1
+	vperm128 4, 9, 9, 4
+	lvsr 0, 21, 0
+	stvewx 2, 21, 31
+	stvewx 2, 21, 6
+	stvewx 2, 21, 29
+	stvewx 2, 21, 12
+	vperm128 2, 5, 5, 0
+	vsubuwm 5, 8, 3
+	lvsr 7, 21, 30
+	vmaxsw 3, 3, 5
+	stvewx 4, 21, 20
+	li 20, 8
+	stvewx 4, 21, 20
+	li 20, 4
+	stvewx 2, 21, 28
+	stvewx 2, 21, 27
+	stvewx 2, 21, 26
+	stvewx 2, 21, 0
+	vperm128 2, 3, 3, 7
+	stvewx 4, 3, 7
+	addi 7, 7, 128
+	stvewx 4, 21, 20
+	stvewx 2, 21, 25
+	stvewx 2, 21, 24
+	stvewx 2, 21, 23
+	stvewx 2, 21, 30
+	bne	0, .Lrv_BB1_5
+	lwz 0, 20(1)
+	cmplw	5, 0
+	beq	0, .Lrv_BB1_13
+	andi. 6, 5, 28
+	beq	0, .Lrv_BB1_11
+.Lrv_BB1_8:
+	mr	10, 0
+	rlwinm 0, 5, 0, 1, 29
+	li 6, 15
 	vspltisw128 2, 0
-	addi 9, 1, 16
-	mr	10, 6
-.Lrv_BB1_4:
-	add 11, 4, 7
-	lvx128 3, 4, 7
-	mr	12, 3
-	lvx128 4, 11, 8
-	addi 10, 10, -4
-	lvsl 5, 4, 7
-	cmplwi	10, 0
+	li 7, 12
+	li 8, 8
+	sub	9, 10, 0
+	slwi 10, 10, 2
+	li 11, 4
+.Lrv_BB1_9:
+	add 12, 4, 10
+	lvx128 3, 4, 10
+	addi 9, 9, 4
+	lvx128 4, 12, 6
+	add 12, 3, 10
+	lvsl 5, 4, 10
+	cmplwi	9, 0
 	vperm128 3, 3, 4, 5
 	vsubuwm 4, 2, 3
 	vmaxsw 3, 3, 4
-	stvx128 3, 0, 9
-	ld 11, 16(1)
-	stdux 11, 12, 7
-	ld 11, 24(1)
-	addi 7, 7, 16
-	std 11, 8(12)
-	bne	0, .Lrv_BB1_4
-	cmplw	5, 6
-	beq	0, .Lrv_BB1_8
-.Lrv_BB1_6:
-	sub	5, 5, 6
-	slwi 6, 6, 2
+	lvsr 4, 3, 10
+	vperm128 3, 3, 3, 4
+	stvewx 3, 3, 10
+	addi 10, 10, 16
+	stvewx 3, 12, 7
+	stvewx 3, 12, 8
+	stvewx 3, 12, 11
+	bne	0, .Lrv_BB1_9
+	cmplw	5, 0
+	beq	0, .Lrv_BB1_13
+.Lrv_BB1_11:
+	slwi 6, 0, 2
 	addi 6, 6, -4
+	sub	5, 5, 0
 	add 4, 4, 6
 	add 3, 3, 6
-.Lrv_BB1_7:
+.Lrv_BB1_12:
 	lwzu 6, 4(4)
 	addi 5, 5, -1
 	cmplwi	5, 0
@@ -86,9 +241,27 @@ rv_k_abs_i32_r:
 	xor 6, 6, 7
 	sub	6, 6, 7
 	stwu 6, 4(3)
-	bne	0, .Lrv_BB1_7
-.Lrv_BB1_8:
-	addi 1, 1, 32
+	bne	0, .Lrv_BB1_12
+.Lrv_BB1_13:
+	ld 31, 160(1)
+	ld 30, 152(1)
+	ld 29, 144(1)
+	ld 28, 136(1)
+	ld 27, 128(1)
+	ld 26, 120(1)
+	ld 25, 112(1)
+	ld 24, 104(1)
+	ld 23, 96(1)
+	ld 22, 88(1)
+	ld 21, 80(1)
+	ld 20, 72(1)
+	ld 19, 64(1)
+	ld 18, 56(1)
+	ld 17, 48(1)
+	ld 16, 40(1)
+	ld 15, 32(1)
+	ld 14, 24(1)
+	addi 1, 1, 176
 	blr
 .Lrv_func_end1:
 	.size	rv_k_abs_i32_r, .Lrv_func_end1-.Lrv_func_begin1
@@ -175,15 +348,32 @@ rv_k_add_f32_r:
 .Lrv_func_begin3:
 	cmpwi	6, 1
 	bltlr	0
-	stwu 1, -64(1)
-	cmplwi	6, 8
-	li 7, 0
-	std 30, 40(1)
+	stwu 1, -176(1)
+	std 18, 56(1)
+	cmplwi	6, 4
+	li 18, 0
+	std 14, 24(1)
+	std 15, 32(1)
+	std 16, 40(1)
+	std 17, 48(1)
+	std 19, 64(1)
+	std 20, 72(1)
+	std 21, 80(1)
+	std 22, 88(1)
+	std 23, 96(1)
+	std 24, 104(1)
+	std 25, 112(1)
+	std 26, 120(1)
+	std 27, 128(1)
+	std 28, 136(1)
+	std 29, 144(1)
+	std 30, 152(1)
+	std 31, 160(1)
 	bge 0, .Lrv_BB3_5
 .Lrv_BB3_2:
-	sub	6, 6, 7
-	slwi 7, 7, 2
+	slwi 7, 18, 2
 	addi 7, 7, -4
+	sub	6, 6, 18
 	add 4, 4, 7
 	add 5, 5, 7
 	add 3, 3, 7
@@ -196,44 +386,207 @@ rv_k_add_f32_r:
 	stfsu 0, 4(3)
 	bne	0, .Lrv_BB3_3
 .Lrv_BB3_4:
-	ld 30, 40(1)
-	addi 1, 1, 64
+	ld 31, 160(1)
+	ld 30, 152(1)
+	ld 29, 144(1)
+	ld 28, 136(1)
+	ld 27, 128(1)
+	ld 26, 120(1)
+	ld 25, 112(1)
+	ld 24, 104(1)
+	ld 23, 96(1)
+	ld 22, 88(1)
+	ld 21, 80(1)
+	ld 20, 72(1)
+	ld 19, 64(1)
+	ld 18, 56(1)
+	ld 17, 48(1)
+	ld 16, 40(1)
+	ld 15, 32(1)
+	ld 14, 24(1)
+	addi 1, 1, 176
 	blr
 .Lrv_BB3_5:
-	sub	8, 3, 4
-	cmplwi	8, 16
-	sub	8, 3, 5
+	sub	7, 3, 4
+	cmplwi	7, 128
+	sub	7, 3, 5
 	bc 12, 0, .Lrv_BB3_2
-	cmplwi	8, 16
+	cmplwi	7, 128
 	bc 12, 0, .Lrv_BB3_2
-	rlwinm 7, 6, 0, 1, 29
+	cmplwi	6, 32
+	blt	0, .Lrv_BB3_12
+	rlwinm 18, 6, 0, 1, 26
 	li 8, 0
-	li 9, 15
-	addi 10, 1, 16
-	mr	11, 7
-.Lrv_BB3_8:
-	add 12, 4, 8
-	lvx128 2, 4, 8
-	mr	30, 3
-	lvx128 3, 12, 9
-	add 12, 5, 8
-	lvx128 4, 5, 8
-	addi 11, 11, -4
-	lvx128 5, 12, 9
-	cmplwi	11, 0
-	lvsl 0, 4, 8
-	vperm128 2, 2, 3, 0
-	lvsl 1, 5, 8
-	vperm128 3, 4, 5, 1
+	li 9, 16
+	li 10, 32
+	li 11, 48
+	li 12, 64
+	li 0, 80
+	li 30, 96
+	li 29, 112
+	li 28, 127
+	li 15, 76
+	li 14, 72
+	li 31, 68
+	li 27, 92
+	li 26, 88
+	li 25, 84
+	li 24, 108
+	li 23, 104
+	li 22, 100
+	li 21, 124
+	li 20, 120
+	li 19, 116
+	mr	7, 18
+.Lrv_BB3_9:
+	add 17, 4, 8
+	lvx128 29, 4, 8
+	li 16, 28
+	lvx128 5, 17, 9
+	addi 7, 7, -32
+	lvx128 0, 17, 10
+	cmplwi	7, 0
+	lvx128 1, 17, 11
+	lvx128 6, 17, 12
+	lvx128 7, 17, 0
+	lvx128 8, 17, 30
+	lvx128 9, 17, 29
+	lvx128 10, 17, 28
+	add 17, 5, 8
+	lvx128 11, 5, 8
+	lvx128 12, 17, 9
+	lvx128 13, 17, 10
+	lvsl 2, 4, 8
+	vperm128 31, 5, 0, 2
+	lvsl 3, 5, 8
+	vperm128 30, 12, 13, 3
+	lvx128 14, 17, 11
+	vaddfp128 31, 31, 30
+	lvx128 15, 17, 12
+	lvx128 16, 17, 0
+	lvx128 17, 17, 30
+	lvx128 18, 17, 29
+	lvx128 19, 17, 28
+	add 17, 3, 8
+	lvsr 4, 17, 9
+	vperm128 4, 31, 31, 4
+	stvewx 4, 17, 16
+	li 16, 24
+	stvewx 4, 17, 16
+	li 16, 20
+	stvewx 4, 17, 16
+	li 16, 44
+	stvewx 4, 17, 9
+	vperm128 4, 0, 1, 2
+	vperm128 0, 13, 14, 3
+	vaddfp128 4, 4, 0
+	lvsr 0, 17, 10
+	vperm128 4, 4, 4, 0
+	vperm128 0, 14, 15, 3
+	stvewx 4, 17, 16
+	li 16, 40
+	stvewx 4, 17, 16
+	li 16, 36
+	stvewx 4, 17, 16
+	li 16, 60
+	stvewx 4, 17, 10
+	vperm128 4, 1, 6, 2
+	vaddfp128 4, 4, 0
+	lvsr 0, 17, 11
+	vperm128 4, 4, 4, 0
+	vperm128 0, 15, 16, 3
+	stvewx 4, 17, 16
+	li 16, 56
+	stvewx 4, 17, 16
+	li 16, 52
+	stvewx 4, 17, 16
+	li 16, 12
+	stvewx 4, 17, 11
+	vperm128 4, 6, 7, 2
+	lvsr 1, 17, 12
+	vaddfp128 4, 4, 0
+	vperm128 0, 16, 17, 3
+	vperm128 4, 4, 4, 1
+	lvsr 1, 17, 0
+	stvewx 4, 17, 15
+	stvewx 4, 17, 14
+	stvewx 4, 17, 31
+	stvewx 4, 17, 12
+	vperm128 4, 7, 8, 2
+	vaddfp128 4, 4, 0
+	vperm128 0, 17, 18, 3
+	vperm128 4, 4, 4, 1
+	lvsr 1, 17, 30
+	stvewx 4, 17, 27
+	stvewx 4, 17, 26
+	stvewx 4, 17, 25
+	stvewx 4, 17, 0
+	vperm128 4, 8, 9, 2
+	vaddfp128 4, 4, 0
+	vperm128 0, 18, 19, 3
+	vperm128 3, 11, 12, 3
+	vperm128 4, 4, 4, 1
+	lvsr 1, 17, 29
+	stvewx 4, 17, 24
+	stvewx 4, 17, 23
+	stvewx 4, 17, 22
+	stvewx 4, 17, 30
+	vperm128 4, 9, 10, 2
+	vperm128 2, 29, 5, 2
+	vaddfp128 4, 4, 0
 	vaddfp128 2, 2, 3
-	stvx128 2, 0, 10
-	ld 12, 16(1)
-	stdux 12, 30, 8
-	ld 12, 24(1)
-	addi 8, 8, 16
-	std 12, 8(30)
-	bne	0, .Lrv_BB3_8
-	cmplw	6, 7
+	vperm128 4, 4, 4, 1
+	stvewx 4, 17, 21
+	stvewx 4, 17, 20
+	stvewx 4, 17, 19
+	stvewx 4, 17, 29
+	lvsr 4, 3, 8
+	vperm128 2, 2, 2, 4
+	stvewx 2, 17, 16
+	li 16, 8
+	stvewx 2, 17, 16
+	li 16, 4
+	stvewx 2, 3, 8
+	addi 8, 8, 128
+	stvewx 2, 17, 16
+	bne	0, .Lrv_BB3_9
+	cmplw	6, 18
+	beq	0, .Lrv_BB3_4
+	andi. 7, 6, 28
+	beq	0, .Lrv_BB3_2
+.Lrv_BB3_12:
+	mr	11, 18
+	rlwinm 18, 6, 0, 1, 29
+	li 7, 15
+	li 8, 12
+	li 9, 8
+	sub	10, 11, 18
+	slwi 11, 11, 2
+	li 12, 4
+.Lrv_BB3_13:
+	add 30, 4, 11
+	lvx128 2, 4, 11
+	addi 10, 10, 4
+	lvx128 3, 30, 7
+	add 30, 5, 11
+	lvx128 4, 5, 11
+	cmplwi	10, 0
+	lvx128 5, 30, 7
+	add 30, 3, 11
+	lvsl 0, 4, 11
+	vperm128 2, 2, 3, 0
+	lvsl 1, 5, 11
+	vperm128 3, 4, 5, 1
+	lvsr 4, 3, 11
+	vaddfp128 2, 2, 3
+	vperm128 2, 2, 2, 4
+	stvewx 2, 3, 11
+	addi 11, 11, 16
+	stvewx 2, 30, 8
+	stvewx 2, 30, 9
+	stvewx 2, 30, 12
+	bne	0, .Lrv_BB3_13
+	cmplw	6, 18
 	bne	0, .Lrv_BB3_2
 	b .Lrv_BB3_4
 .Lrv_func_end3:
@@ -247,10 +600,14 @@ rv_k_add_i16_r:
 .Lrv_func_begin4:
 	cmpwi	6, 1
 	bltlr	0
-	stwu 1, -64(1)
+	stwu 1, -80(1)
 	cmplwi	6, 16
 	li 7, 0
-	std 30, 40(1)
+	std 26, 24(1)
+	std 27, 32(1)
+	std 28, 40(1)
+	std 29, 48(1)
+	std 30, 56(1)
 	bge 0, .Lrv_BB4_5
 .Lrv_BB4_2:
 	sub	6, 6, 7
@@ -268,8 +625,12 @@ rv_k_add_i16_r:
 	sthu 7, 2(3)
 	bne	0, .Lrv_BB4_3
 .Lrv_BB4_4:
-	ld 30, 40(1)
-	addi 1, 1, 64
+	ld 30, 56(1)
+	ld 29, 48(1)
+	ld 28, 40(1)
+	ld 27, 32(1)
+	ld 26, 24(1)
+	addi 1, 1, 80
 	blr
 .Lrv_BB4_5:
 	sub	8, 3, 4
@@ -281,29 +642,40 @@ rv_k_add_i16_r:
 	rlwinm 7, 6, 0, 1, 28
 	li 8, 0
 	li 9, 15
-	addi 10, 1, 16
-	mr	11, 7
+	li 10, 14
+	li 11, 12
+	li 12, 10
+	li 0, 8
+	li 30, 6
+	li 29, 4
+	li 28, 2
+	mr	27, 7
 .Lrv_BB4_8:
-	add 12, 4, 8
+	add 26, 4, 8
 	lvx128 2, 4, 8
-	mr	30, 3
-	lvx128 3, 12, 9
-	add 12, 5, 8
+	addi 27, 27, -8
+	lvx128 3, 26, 9
+	add 26, 5, 8
 	lvx128 4, 5, 8
-	addi 11, 11, -8
-	lvx128 5, 12, 9
-	cmplwi	11, 0
+	cmplwi	27, 0
+	lvx128 5, 26, 9
+	add 26, 3, 8
 	lvsl 0, 4, 8
 	vperm128 2, 2, 3, 0
 	lvsl 1, 5, 8
 	vperm128 3, 4, 5, 1
 	vadduhm 2, 3, 2
-	stvx128 2, 0, 10
-	ld 12, 16(1)
-	stdux 12, 30, 8
-	ld 12, 24(1)
+	lvsr 3, 3, 8
+	vperm128 2, 2, 2, 3
+	stvehx 2, 3, 8
 	addi 8, 8, 16
-	std 12, 8(30)
+	stvehx 2, 26, 10
+	stvehx 2, 26, 11
+	stvehx 2, 26, 12
+	stvehx 2, 26, 0
+	stvehx 2, 26, 30
+	stvehx 2, 26, 29
+	stvehx 2, 26, 28
 	bne	0, .Lrv_BB4_8
 	cmplw	6, 7
 	bne	0, .Lrv_BB4_2
@@ -319,15 +691,32 @@ rv_k_add_i32:
 .Lrv_func_begin5:
 	cmpwi	6, 1
 	bltlr	0
-	stwu 1, -64(1)
-	cmplwi	6, 20
-	li 7, 0
-	std 30, 40(1)
+	stwu 1, -176(1)
+	std 18, 56(1)
+	cmplwi	6, 4
+	li 18, 0
+	std 14, 24(1)
+	std 15, 32(1)
+	std 16, 40(1)
+	std 17, 48(1)
+	std 19, 64(1)
+	std 20, 72(1)
+	std 21, 80(1)
+	std 22, 88(1)
+	std 23, 96(1)
+	std 24, 104(1)
+	std 25, 112(1)
+	std 26, 120(1)
+	std 27, 128(1)
+	std 28, 136(1)
+	std 29, 144(1)
+	std 30, 152(1)
+	std 31, 160(1)
 	bge 0, .Lrv_BB5_5
 .Lrv_BB5_2:
-	slwi 8, 7, 2
-	sub	6, 6, 7
-	addi 7, 8, -4
+	slwi 7, 18, 2
+	addi 7, 7, -4
+	sub	6, 6, 18
 	add 4, 4, 7
 	add 5, 5, 7
 	add 3, 3, 7
@@ -340,44 +729,207 @@ rv_k_add_i32:
 	stwu 7, 4(3)
 	bne	0, .Lrv_BB5_3
 .Lrv_BB5_4:
-	ld 30, 40(1)
-	addi 1, 1, 64
+	ld 31, 160(1)
+	ld 30, 152(1)
+	ld 29, 144(1)
+	ld 28, 136(1)
+	ld 27, 128(1)
+	ld 26, 120(1)
+	ld 25, 112(1)
+	ld 24, 104(1)
+	ld 23, 96(1)
+	ld 22, 88(1)
+	ld 21, 80(1)
+	ld 20, 72(1)
+	ld 19, 64(1)
+	ld 18, 56(1)
+	ld 17, 48(1)
+	ld 16, 40(1)
+	ld 15, 32(1)
+	ld 14, 24(1)
+	addi 1, 1, 176
 	blr
 .Lrv_BB5_5:
-	sub	8, 3, 4
-	cmplwi	8, 16
-	sub	8, 3, 5
+	sub	7, 3, 4
+	cmplwi	7, 128
+	sub	7, 3, 5
 	bc 12, 0, .Lrv_BB5_2
-	cmplwi	8, 16
+	cmplwi	7, 128
 	bc 12, 0, .Lrv_BB5_2
-	rlwinm 7, 6, 0, 1, 29
+	cmplwi	6, 32
+	blt	0, .Lrv_BB5_12
+	rlwinm 18, 6, 0, 1, 26
 	li 8, 0
-	li 9, 15
-	addi 10, 1, 16
-	mr	11, 7
-.Lrv_BB5_8:
-	add 12, 4, 8
-	lvx128 2, 4, 8
-	mr	30, 3
-	lvx128 3, 12, 9
-	add 12, 5, 8
-	lvx128 4, 5, 8
-	addi 11, 11, -4
-	lvx128 5, 12, 9
-	cmplwi	11, 0
-	lvsl 0, 4, 8
+	li 9, 16
+	li 10, 32
+	li 11, 48
+	li 12, 64
+	li 0, 80
+	li 30, 96
+	li 29, 112
+	li 28, 127
+	li 15, 76
+	li 14, 72
+	li 31, 68
+	li 27, 92
+	li 26, 88
+	li 25, 84
+	li 24, 108
+	li 23, 104
+	li 22, 100
+	li 21, 124
+	li 20, 120
+	li 19, 116
+	mr	7, 18
+.Lrv_BB5_9:
+	add 17, 4, 8
+	lvx128 7, 4, 8
+	li 16, 28
+	lvx128 8, 17, 9
+	addi 7, 7, -32
+	lvx128 0, 17, 10
+	cmplwi	7, 0
+	lvx128 9, 17, 11
+	lvx128 10, 17, 12
+	lvx128 11, 17, 0
+	lvx128 12, 17, 30
+	lvx128 13, 17, 29
+	lvx128 14, 17, 28
+	add 17, 5, 8
+	lvx128 15, 5, 8
+	lvx128 16, 17, 9
+	lvx128 6, 17, 10
+	lvsl 2, 4, 8
+	vperm128 1, 8, 0, 2
+	vperm128 0, 0, 9, 2
+	lvsl 3, 5, 8
+	vperm128 28, 16, 6, 3
+	lvx128 17, 17, 11
+	vadduwm 28, 28, 1
+	lvx128 18, 17, 12
+	lvx128 19, 17, 0
+	vperm128 6, 6, 17, 3
+	lvx128 31, 17, 30
+	vadduwm 6, 6, 0
+	lvx128 30, 17, 29
+	lvx128 29, 17, 28
+	add 17, 3, 8
+	lvsr 5, 17, 9
+	vperm128 5, 28, 28, 5
+	stvewx 5, 17, 16
+	li 16, 24
+	lvsr 1, 17, 10
+	vperm128 1, 6, 6, 1
+	stvewx 5, 17, 16
+	li 16, 20
+	stvewx 5, 17, 16
+	li 16, 44
+	stvewx 1, 17, 16
+	li 16, 40
+	stvewx 1, 17, 16
+	li 16, 36
+	stvewx 1, 17, 16
+	li 16, 12
+	stvewx 1, 17, 10
+	vperm128 1, 7, 8, 2
+	vperm128 8, 15, 16, 3
+	lvsr 4, 3, 8
+	vadduwm 8, 8, 1
+	vperm128 4, 8, 8, 4
+	vperm128 8, 9, 10, 2
+	vperm128 9, 17, 18, 3
+	stvewx 5, 17, 9
+	vadduwm 8, 9, 8
+	vperm128 9, 18, 19, 3
+	stvewx 4, 17, 16
+	li 16, 8
+	lvsr 5, 17, 11
+	vperm128 5, 8, 8, 5
+	vperm128 8, 10, 11, 2
+	stvewx 4, 17, 16
+	li 16, 4
+	stvewx 4, 17, 16
+	li 16, 60
+	stvewx 5, 17, 16
+	li 16, 56
+	lvsr 0, 17, 12
+	vadduwm 8, 9, 8
+	stvewx 5, 17, 16
+	li 16, 52
+	stvewx 5, 17, 16
+	stvewx 5, 17, 11
+	vperm128 5, 8, 8, 0
+	vperm128 0, 11, 12, 2
+	vperm128 8, 19, 31, 3
+	lvsr 6, 17, 0
+	vadduwm 0, 8, 0
+	stvewx 5, 17, 15
+	stvewx 5, 17, 14
+	stvewx 5, 17, 31
+	stvewx 5, 17, 12
+	vperm128 5, 0, 0, 6
+	vperm128 0, 12, 13, 2
+	vperm128 6, 31, 30, 3
+	vperm128 2, 13, 14, 2
+	vperm128 3, 30, 29, 3
+	lvsr 7, 17, 30
+	vadduwm 0, 6, 0
+	vadduwm 2, 3, 2
+	lvsr 1, 17, 29
+	vperm128 2, 2, 2, 1
+	stvewx 5, 17, 27
+	stvewx 5, 17, 26
+	stvewx 5, 17, 25
+	stvewx 5, 17, 0
+	vperm128 5, 0, 0, 7
+	stvewx 4, 3, 8
+	addi 8, 8, 128
+	stvewx 5, 17, 24
+	stvewx 5, 17, 23
+	stvewx 5, 17, 22
+	stvewx 5, 17, 30
+	stvewx 2, 17, 21
+	stvewx 2, 17, 20
+	stvewx 2, 17, 19
+	stvewx 2, 17, 29
+	bne	0, .Lrv_BB5_9
+	cmplw	6, 18
+	beq	0, .Lrv_BB5_4
+	andi. 7, 6, 28
+	beq	0, .Lrv_BB5_2
+.Lrv_BB5_12:
+	mr	11, 18
+	rlwinm 18, 6, 0, 1, 29
+	li 7, 15
+	li 8, 12
+	li 9, 8
+	sub	10, 11, 18
+	slwi 11, 11, 2
+	li 12, 4
+.Lrv_BB5_13:
+	add 30, 4, 11
+	lvx128 2, 4, 11
+	addi 10, 10, 4
+	lvx128 3, 30, 7
+	add 30, 5, 11
+	lvx128 4, 5, 11
+	cmplwi	10, 0
+	lvx128 5, 30, 7
+	add 30, 3, 11
+	lvsl 0, 4, 11
 	vperm128 2, 2, 3, 0
-	lvsl 1, 5, 8
+	lvsl 1, 5, 11
 	vperm128 3, 4, 5, 1
 	vadduwm 2, 3, 2
-	stvx128 2, 0, 10
-	ld 12, 16(1)
-	stdux 12, 30, 8
-	ld 12, 24(1)
-	addi 8, 8, 16
-	std 12, 8(30)
-	bne	0, .Lrv_BB5_8
-	cmplw	6, 7
+	lvsr 3, 3, 11
+	vperm128 2, 2, 2, 3
+	stvewx 2, 3, 11
+	addi 11, 11, 16
+	stvewx 2, 30, 8
+	stvewx 2, 30, 9
+	stvewx 2, 30, 12
+	bne	0, .Lrv_BB5_13
+	cmplw	6, 18
 	bne	0, .Lrv_BB5_2
 	b .Lrv_BB5_4
 .Lrv_func_end5:
@@ -391,15 +943,32 @@ rv_k_add_i32_r:
 .Lrv_func_begin6:
 	cmpwi	6, 1
 	bltlr	0
-	stwu 1, -64(1)
-	cmplwi	6, 20
-	li 7, 0
-	std 30, 40(1)
+	stwu 1, -176(1)
+	std 18, 56(1)
+	cmplwi	6, 4
+	li 18, 0
+	std 14, 24(1)
+	std 15, 32(1)
+	std 16, 40(1)
+	std 17, 48(1)
+	std 19, 64(1)
+	std 20, 72(1)
+	std 21, 80(1)
+	std 22, 88(1)
+	std 23, 96(1)
+	std 24, 104(1)
+	std 25, 112(1)
+	std 26, 120(1)
+	std 27, 128(1)
+	std 28, 136(1)
+	std 29, 144(1)
+	std 30, 152(1)
+	std 31, 160(1)
 	bge 0, .Lrv_BB6_5
 .Lrv_BB6_2:
-	sub	6, 6, 7
-	slwi 7, 7, 2
+	slwi 7, 18, 2
 	addi 7, 7, -4
+	sub	6, 6, 18
 	add 4, 4, 7
 	add 5, 5, 7
 	add 3, 3, 7
@@ -412,44 +981,207 @@ rv_k_add_i32_r:
 	stwu 7, 4(3)
 	bne	0, .Lrv_BB6_3
 .Lrv_BB6_4:
-	ld 30, 40(1)
-	addi 1, 1, 64
+	ld 31, 160(1)
+	ld 30, 152(1)
+	ld 29, 144(1)
+	ld 28, 136(1)
+	ld 27, 128(1)
+	ld 26, 120(1)
+	ld 25, 112(1)
+	ld 24, 104(1)
+	ld 23, 96(1)
+	ld 22, 88(1)
+	ld 21, 80(1)
+	ld 20, 72(1)
+	ld 19, 64(1)
+	ld 18, 56(1)
+	ld 17, 48(1)
+	ld 16, 40(1)
+	ld 15, 32(1)
+	ld 14, 24(1)
+	addi 1, 1, 176
 	blr
 .Lrv_BB6_5:
-	sub	8, 3, 4
-	cmplwi	8, 16
-	sub	8, 3, 5
+	sub	7, 3, 4
+	cmplwi	7, 128
+	sub	7, 3, 5
 	bc 12, 0, .Lrv_BB6_2
-	cmplwi	8, 16
+	cmplwi	7, 128
 	bc 12, 0, .Lrv_BB6_2
-	rlwinm 7, 6, 0, 1, 29
+	cmplwi	6, 32
+	blt	0, .Lrv_BB6_12
+	rlwinm 18, 6, 0, 1, 26
 	li 8, 0
-	li 9, 15
-	addi 10, 1, 16
-	mr	11, 7
-.Lrv_BB6_8:
-	add 12, 4, 8
-	lvx128 2, 4, 8
-	mr	30, 3
-	lvx128 3, 12, 9
-	add 12, 5, 8
-	lvx128 4, 5, 8
-	addi 11, 11, -4
-	lvx128 5, 12, 9
-	cmplwi	11, 0
-	lvsl 0, 4, 8
+	li 9, 16
+	li 10, 32
+	li 11, 48
+	li 12, 64
+	li 0, 80
+	li 30, 96
+	li 29, 112
+	li 28, 127
+	li 15, 76
+	li 14, 72
+	li 31, 68
+	li 27, 92
+	li 26, 88
+	li 25, 84
+	li 24, 108
+	li 23, 104
+	li 22, 100
+	li 21, 124
+	li 20, 120
+	li 19, 116
+	mr	7, 18
+.Lrv_BB6_9:
+	add 17, 4, 8
+	lvx128 7, 4, 8
+	li 16, 28
+	lvx128 8, 17, 9
+	addi 7, 7, -32
+	lvx128 0, 17, 10
+	cmplwi	7, 0
+	lvx128 9, 17, 11
+	lvx128 10, 17, 12
+	lvx128 11, 17, 0
+	lvx128 12, 17, 30
+	lvx128 13, 17, 29
+	lvx128 14, 17, 28
+	add 17, 5, 8
+	lvx128 15, 5, 8
+	lvx128 16, 17, 9
+	lvx128 6, 17, 10
+	lvsl 2, 4, 8
+	vperm128 1, 8, 0, 2
+	vperm128 0, 0, 9, 2
+	lvsl 3, 5, 8
+	vperm128 28, 16, 6, 3
+	lvx128 17, 17, 11
+	vadduwm 28, 28, 1
+	lvx128 18, 17, 12
+	lvx128 19, 17, 0
+	vperm128 6, 6, 17, 3
+	lvx128 31, 17, 30
+	vadduwm 6, 6, 0
+	lvx128 30, 17, 29
+	lvx128 29, 17, 28
+	add 17, 3, 8
+	lvsr 5, 17, 9
+	vperm128 5, 28, 28, 5
+	stvewx 5, 17, 16
+	li 16, 24
+	lvsr 1, 17, 10
+	vperm128 1, 6, 6, 1
+	stvewx 5, 17, 16
+	li 16, 20
+	stvewx 5, 17, 16
+	li 16, 44
+	stvewx 1, 17, 16
+	li 16, 40
+	stvewx 1, 17, 16
+	li 16, 36
+	stvewx 1, 17, 16
+	li 16, 12
+	stvewx 1, 17, 10
+	vperm128 1, 7, 8, 2
+	vperm128 8, 15, 16, 3
+	lvsr 4, 3, 8
+	vadduwm 8, 8, 1
+	vperm128 4, 8, 8, 4
+	vperm128 8, 9, 10, 2
+	vperm128 9, 17, 18, 3
+	stvewx 5, 17, 9
+	vadduwm 8, 9, 8
+	vperm128 9, 18, 19, 3
+	stvewx 4, 17, 16
+	li 16, 8
+	lvsr 5, 17, 11
+	vperm128 5, 8, 8, 5
+	vperm128 8, 10, 11, 2
+	stvewx 4, 17, 16
+	li 16, 4
+	stvewx 4, 17, 16
+	li 16, 60
+	stvewx 5, 17, 16
+	li 16, 56
+	lvsr 0, 17, 12
+	vadduwm 8, 9, 8
+	stvewx 5, 17, 16
+	li 16, 52
+	stvewx 5, 17, 16
+	stvewx 5, 17, 11
+	vperm128 5, 8, 8, 0
+	vperm128 0, 11, 12, 2
+	vperm128 8, 19, 31, 3
+	lvsr 6, 17, 0
+	vadduwm 0, 8, 0
+	stvewx 5, 17, 15
+	stvewx 5, 17, 14
+	stvewx 5, 17, 31
+	stvewx 5, 17, 12
+	vperm128 5, 0, 0, 6
+	vperm128 0, 12, 13, 2
+	vperm128 6, 31, 30, 3
+	vperm128 2, 13, 14, 2
+	vperm128 3, 30, 29, 3
+	lvsr 7, 17, 30
+	vadduwm 0, 6, 0
+	vadduwm 2, 3, 2
+	lvsr 1, 17, 29
+	vperm128 2, 2, 2, 1
+	stvewx 5, 17, 27
+	stvewx 5, 17, 26
+	stvewx 5, 17, 25
+	stvewx 5, 17, 0
+	vperm128 5, 0, 0, 7
+	stvewx 4, 3, 8
+	addi 8, 8, 128
+	stvewx 5, 17, 24
+	stvewx 5, 17, 23
+	stvewx 5, 17, 22
+	stvewx 5, 17, 30
+	stvewx 2, 17, 21
+	stvewx 2, 17, 20
+	stvewx 2, 17, 19
+	stvewx 2, 17, 29
+	bne	0, .Lrv_BB6_9
+	cmplw	6, 18
+	beq	0, .Lrv_BB6_4
+	andi. 7, 6, 28
+	beq	0, .Lrv_BB6_2
+.Lrv_BB6_12:
+	mr	11, 18
+	rlwinm 18, 6, 0, 1, 29
+	li 7, 15
+	li 8, 12
+	li 9, 8
+	sub	10, 11, 18
+	slwi 11, 11, 2
+	li 12, 4
+.Lrv_BB6_13:
+	add 30, 4, 11
+	lvx128 2, 4, 11
+	addi 10, 10, 4
+	lvx128 3, 30, 7
+	add 30, 5, 11
+	lvx128 4, 5, 11
+	cmplwi	10, 0
+	lvx128 5, 30, 7
+	add 30, 3, 11
+	lvsl 0, 4, 11
 	vperm128 2, 2, 3, 0
-	lvsl 1, 5, 8
+	lvsl 1, 5, 11
 	vperm128 3, 4, 5, 1
 	vadduwm 2, 3, 2
-	stvx128 2, 0, 10
-	ld 12, 16(1)
-	stdux 12, 30, 8
-	ld 12, 24(1)
-	addi 8, 8, 16
-	std 12, 8(30)
-	bne	0, .Lrv_BB6_8
-	cmplw	6, 7
+	lvsr 3, 3, 11
+	vperm128 2, 2, 2, 3
+	stvewx 2, 3, 11
+	addi 11, 11, 16
+	stvewx 2, 30, 8
+	stvewx 2, 30, 9
+	stvewx 2, 30, 12
+	bne	0, .Lrv_BB6_13
+	cmplw	6, 18
 	bne	0, .Lrv_BB6_2
 	b .Lrv_BB6_4
 .Lrv_func_end6:
@@ -463,9 +1195,20 @@ rv_k_add_u8_r:
 .Lrv_func_begin7:
 	cmpwi	6, 1
 	bltlr	0
-	stwu 1, -32(1)
-	cmplwi	6, 16
+	stwu 1, -160(1)
+	cmplwi	6, 8
 	li 7, 0
+	std 20, 56(1)
+	std 21, 64(1)
+	std 22, 72(1)
+	std 23, 80(1)
+	std 24, 88(1)
+	std 25, 96(1)
+	std 26, 104(1)
+	std 27, 112(1)
+	std 28, 120(1)
+	std 29, 128(1)
+	std 30, 136(1)
 	bge 0, .Lrv_BB7_5
 .Lrv_BB7_2:
 	addi 8, 7, -1
@@ -481,7 +1224,18 @@ rv_k_add_u8_r:
 	stbu 8, 1(3)
 	bne	0, .Lrv_BB7_3
 .Lrv_BB7_4:
-	addi 1, 1, 32
+	ld 30, 136(1)
+	ld 29, 128(1)
+	ld 28, 120(1)
+	ld 27, 112(1)
+	ld 26, 104(1)
+	ld 25, 96(1)
+	ld 24, 88(1)
+	ld 23, 80(1)
+	ld 22, 72(1)
+	ld 21, 64(1)
+	ld 20, 56(1)
+	addi 1, 1, 160
 	blr
 .Lrv_BB7_5:
 	sub	8, 3, 4
@@ -490,34 +1244,132 @@ rv_k_add_u8_r:
 	bc 12, 0, .Lrv_BB7_2
 	cmplwi	8, 16
 	bc 12, 0, .Lrv_BB7_2
+	cmplwi	6, 16
+	bge 0, .Lrv_BB7_11
+.Lrv_BB7_8:
+	mr	8, 7
+	rlwinm 7, 6, 0, 1, 28
+	addi 9, 1, 32
+	addi 10, 1, 16
+	li 11, 7
+	li 12, 6
+	li 0, 5
+	li 30, 4
+	li 29, 3
+	li 28, 2
+	li 27, 1
+.Lrv_BB7_9:
+	lbzx 26, 4, 8
+	stb 26, 32(1)
+	add 26, 4, 8
+	lbz 25, 1(26)
+	stb 25, 33(1)
+	lbz 25, 2(26)
+	stb 25, 34(1)
+	lbz 25, 3(26)
+	stb 25, 35(1)
+	lbz 25, 4(26)
+	stb 25, 36(1)
+	lbz 25, 5(26)
+	stb 25, 37(1)
+	lbz 25, 6(26)
+	stb 25, 38(1)
+	lbz 26, 7(26)
+	stb 26, 39(1)
+	lbzx 26, 5, 8
+	lvx128 2, 0, 9
+	stb 26, 16(1)
+	add 26, 5, 8
+	lbz 25, 1(26)
+	stb 25, 17(1)
+	lbz 25, 2(26)
+	stb 25, 18(1)
+	lbz 25, 3(26)
+	stb 25, 19(1)
+	lbz 25, 4(26)
+	stb 25, 20(1)
+	lbz 25, 5(26)
+	stb 25, 21(1)
+	lbz 25, 6(26)
+	stb 25, 22(1)
+	lbz 26, 7(26)
+	stb 26, 23(1)
+	add 26, 3, 8
+	lvx128 3, 0, 10
+	vaddubm 2, 3, 2
+	lvsr 3, 3, 8
+	vperm128 2, 2, 2, 3
+	stvebx 2, 3, 8
+	addi 8, 8, 8
+	cmplw	7, 8
+	stvebx 2, 26, 11
+	stvebx 2, 26, 12
+	stvebx 2, 26, 0
+	stvebx 2, 26, 30
+	stvebx 2, 26, 29
+	stvebx 2, 26, 28
+	stvebx 2, 26, 27
+	bne	0, .Lrv_BB7_9
+	cmplw	6, 7
+	bne	0, .Lrv_BB7_2
+	b .Lrv_BB7_4
+.Lrv_BB7_11:
 	rlwinm 7, 6, 0, 1, 27
 	li 8, 0
 	li 9, 15
-	addi 10, 1, 16
-.Lrv_BB7_8:
-	add 11, 4, 8
+	li 10, 14
+	li 11, 13
+	li 12, 12
+	li 0, 11
+	li 30, 10
+	li 29, 9
+	li 28, 8
+	li 27, 7
+	li 26, 6
+	li 25, 5
+	li 24, 4
+	li 23, 3
+	li 22, 2
+	li 21, 1
+.Lrv_BB7_12:
+	add 20, 4, 8
 	lvx128 2, 4, 8
-	mr	12, 3
-	lvx128 3, 11, 9
-	add 11, 5, 8
+	lvx128 3, 20, 9
+	add 20, 5, 8
 	lvx128 4, 5, 8
-	lvx128 5, 11, 9
+	lvx128 5, 20, 9
+	add 20, 3, 8
 	lvsl 0, 4, 8
 	vperm128 2, 2, 3, 0
 	lvsl 1, 5, 8
 	vperm128 3, 4, 5, 1
 	vaddubm 2, 3, 2
-	stvx128 2, 0, 10
-	ld 11, 16(1)
-	stdux 11, 12, 8
-	ld 11, 24(1)
+	lvsr 3, 3, 8
+	vperm128 2, 2, 2, 3
+	stvebx 2, 3, 8
 	addi 8, 8, 16
 	cmplw	7, 8
-	std 11, 8(12)
-	bne	0, .Lrv_BB7_8
+	stvebx 2, 20, 9
+	stvebx 2, 20, 10
+	stvebx 2, 20, 11
+	stvebx 2, 20, 12
+	stvebx 2, 20, 0
+	stvebx 2, 20, 30
+	stvebx 2, 20, 29
+	stvebx 2, 20, 28
+	stvebx 2, 20, 27
+	stvebx 2, 20, 26
+	stvebx 2, 20, 25
+	stvebx 2, 20, 24
+	stvebx 2, 20, 23
+	stvebx 2, 20, 22
+	stvebx 2, 20, 21
+	bne	0, .Lrv_BB7_12
 	cmplw	6, 7
-	bne	0, .Lrv_BB7_2
-	b .Lrv_BB7_4
+	beq	0, .Lrv_BB7_4
+	andi. 8, 6, 8
+	beq	0, .Lrv_BB7_2
+	b .Lrv_BB7_8
 .Lrv_func_end7:
 	.size	rv_k_add_u8_r, .Lrv_func_end7-.Lrv_func_begin7
 
@@ -529,9 +1381,20 @@ rv_k_addsat_u8_r:
 .Lrv_func_begin8:
 	cmpwi	6, 1
 	bltlr	0
-	stwu 1, -32(1)
-	cmplwi	6, 16
+	stwu 1, -160(1)
+	cmplwi	6, 8
 	li 7, 0
+	std 20, 56(1)
+	std 21, 64(1)
+	std 22, 72(1)
+	std 23, 80(1)
+	std 24, 88(1)
+	std 25, 96(1)
+	std 26, 104(1)
+	std 27, 112(1)
+	std 28, 120(1)
+	std 29, 128(1)
+	std 30, 136(1)
 	bge 0, .Lrv_BB8_6
 .Lrv_BB8_2:
 	addi 8, 7, -1
@@ -543,7 +1406,7 @@ rv_k_addsat_u8_r:
 	addi 7, 7, 1
 	cmplw	6, 7
 	stbu 8, 1(3)
-	beq	0, .Lrv_BB8_11
+	beq	0, .Lrv_BB8_15
 .Lrv_BB8_4:
 	lbzu 8, 1(4)
 	lbzu 9, 1(5)
@@ -559,36 +1422,147 @@ rv_k_addsat_u8_r:
 	bc 12, 0, .Lrv_BB8_2
 	cmplwi	8, 16
 	bc 12, 0, .Lrv_BB8_2
+	cmplwi	6, 16
+	bge 0, .Lrv_BB8_12
+.Lrv_BB8_9:
+	mr	8, 7
+	rlwinm 7, 6, 0, 1, 28
+	addi 9, 1, 32
+	addi 10, 1, 16
+	li 11, 7
+	li 12, 6
+	li 0, 5
+	li 30, 4
+	li 29, 3
+	li 28, 2
+	li 27, 1
+.Lrv_BB8_10:
+	lbzx 26, 4, 8
+	stb 26, 32(1)
+	add 26, 4, 8
+	lbz 25, 1(26)
+	stb 25, 33(1)
+	lbz 25, 2(26)
+	stb 25, 34(1)
+	lbz 25, 3(26)
+	stb 25, 35(1)
+	lbz 25, 4(26)
+	stb 25, 36(1)
+	lbz 25, 5(26)
+	stb 25, 37(1)
+	lbz 25, 6(26)
+	stb 25, 38(1)
+	lbz 26, 7(26)
+	stb 26, 39(1)
+	lbzx 26, 5, 8
+	lvx128 2, 0, 9
+	stb 26, 16(1)
+	add 26, 5, 8
+	lbz 25, 1(26)
+	stb 25, 17(1)
+	lbz 25, 2(26)
+	stb 25, 18(1)
+	lbz 25, 3(26)
+	stb 25, 19(1)
+	lbz 25, 4(26)
+	stb 25, 20(1)
+	lbz 25, 5(26)
+	stb 25, 21(1)
+	lbz 25, 6(26)
+	stb 25, 22(1)
+	lbz 26, 7(26)
+	stb 26, 23(1)
+	add 26, 3, 8
+	lvx128 3, 0, 10
+	vaddubs 2, 2, 3
+	lvsr 3, 3, 8
+	vperm128 2, 2, 2, 3
+	stvebx 2, 3, 8
+	addi 8, 8, 8
+	cmplw	7, 8
+	stvebx 2, 26, 11
+	stvebx 2, 26, 12
+	stvebx 2, 26, 0
+	stvebx 2, 26, 30
+	stvebx 2, 26, 29
+	stvebx 2, 26, 28
+	stvebx 2, 26, 27
+	bne	0, .Lrv_BB8_10
+	cmplw	6, 7
+	bne	0, .Lrv_BB8_2
+	b .Lrv_BB8_15
+.Lrv_BB8_12:
 	rlwinm 7, 6, 0, 1, 27
 	li 8, 0
 	li 9, 15
-	addi 10, 1, 16
-.Lrv_BB8_9:
-	add 11, 4, 8
+	li 10, 14
+	li 11, 13
+	li 12, 12
+	li 0, 11
+	li 30, 10
+	li 29, 9
+	li 28, 8
+	li 27, 7
+	li 26, 6
+	li 25, 5
+	li 24, 4
+	li 23, 3
+	li 22, 2
+	li 21, 1
+.Lrv_BB8_13:
+	add 20, 4, 8
 	lvx128 2, 4, 8
-	mr	12, 3
-	lvx128 3, 11, 9
-	add 11, 5, 8
+	lvx128 3, 20, 9
+	add 20, 5, 8
 	lvx128 4, 5, 8
-	lvx128 5, 11, 9
+	lvx128 5, 20, 9
+	add 20, 3, 8
 	lvsl 0, 4, 8
 	vperm128 2, 2, 3, 0
 	lvsl 1, 5, 8
 	vperm128 3, 4, 5, 1
 	vaddubs 2, 2, 3
-	stvx128 2, 0, 10
-	ld 11, 16(1)
-	stdux 11, 12, 8
-	ld 11, 24(1)
+	lvsr 3, 3, 8
+	vperm128 2, 2, 2, 3
+	stvebx 2, 3, 8
 	addi 8, 8, 16
 	cmplw	7, 8
-	std 11, 8(12)
-	bne	0, .Lrv_BB8_9
+	stvebx 2, 20, 9
+	stvebx 2, 20, 10
+	stvebx 2, 20, 11
+	stvebx 2, 20, 12
+	stvebx 2, 20, 0
+	stvebx 2, 20, 30
+	stvebx 2, 20, 29
+	stvebx 2, 20, 28
+	stvebx 2, 20, 27
+	stvebx 2, 20, 26
+	stvebx 2, 20, 25
+	stvebx 2, 20, 24
+	stvebx 2, 20, 23
+	stvebx 2, 20, 22
+	stvebx 2, 20, 21
+	bne	0, .Lrv_BB8_13
 	cmplw	6, 7
-	bne	0, .Lrv_BB8_2
-.Lrv_BB8_11:
-	addi 1, 1, 32
+	bne	0, .Lrv_BB8_16
+.Lrv_BB8_15:
+	ld 30, 136(1)
+	ld 29, 128(1)
+	ld 28, 120(1)
+	ld 27, 112(1)
+	ld 26, 104(1)
+	ld 25, 96(1)
+	ld 24, 88(1)
+	ld 23, 80(1)
+	ld 22, 72(1)
+	ld 21, 64(1)
+	ld 20, 56(1)
+	addi 1, 1, 160
 	blr
+.Lrv_BB8_16:
+	andi. 8, 6, 8
+	beq	0, .Lrv_BB8_2
+	b .Lrv_BB8_9
 .Lrv_func_end8:
 	.size	rv_k_addsat_u8_r, .Lrv_func_end8-.Lrv_func_begin8
 
@@ -600,15 +1574,32 @@ rv_k_and_u32_r:
 .Lrv_func_begin9:
 	cmpwi	6, 1
 	bltlr	0
-	stwu 1, -64(1)
-	cmplwi	6, 20
-	li 7, 0
-	std 30, 40(1)
+	stwu 1, -176(1)
+	std 18, 56(1)
+	cmplwi	6, 4
+	li 18, 0
+	std 14, 24(1)
+	std 15, 32(1)
+	std 16, 40(1)
+	std 17, 48(1)
+	std 19, 64(1)
+	std 20, 72(1)
+	std 21, 80(1)
+	std 22, 88(1)
+	std 23, 96(1)
+	std 24, 104(1)
+	std 25, 112(1)
+	std 26, 120(1)
+	std 27, 128(1)
+	std 28, 136(1)
+	std 29, 144(1)
+	std 30, 152(1)
+	std 31, 160(1)
 	bge 0, .Lrv_BB9_5
 .Lrv_BB9_2:
-	sub	6, 6, 7
-	slwi 7, 7, 2
+	slwi 7, 18, 2
 	addi 7, 7, -4
+	sub	6, 6, 18
 	add 4, 4, 7
 	add 5, 5, 7
 	add 3, 3, 7
@@ -621,44 +1612,207 @@ rv_k_and_u32_r:
 	stwu 7, 4(3)
 	bne	0, .Lrv_BB9_3
 .Lrv_BB9_4:
-	ld 30, 40(1)
-	addi 1, 1, 64
+	ld 31, 160(1)
+	ld 30, 152(1)
+	ld 29, 144(1)
+	ld 28, 136(1)
+	ld 27, 128(1)
+	ld 26, 120(1)
+	ld 25, 112(1)
+	ld 24, 104(1)
+	ld 23, 96(1)
+	ld 22, 88(1)
+	ld 21, 80(1)
+	ld 20, 72(1)
+	ld 19, 64(1)
+	ld 18, 56(1)
+	ld 17, 48(1)
+	ld 16, 40(1)
+	ld 15, 32(1)
+	ld 14, 24(1)
+	addi 1, 1, 176
 	blr
 .Lrv_BB9_5:
-	sub	8, 3, 4
-	cmplwi	8, 16
-	sub	8, 3, 5
+	sub	7, 3, 4
+	cmplwi	7, 128
+	sub	7, 3, 5
 	bc 12, 0, .Lrv_BB9_2
-	cmplwi	8, 16
+	cmplwi	7, 128
 	bc 12, 0, .Lrv_BB9_2
-	rlwinm 7, 6, 0, 1, 29
+	cmplwi	6, 32
+	blt	0, .Lrv_BB9_12
+	rlwinm 18, 6, 0, 1, 26
 	li 8, 0
-	li 9, 15
-	addi 10, 1, 16
-	mr	11, 7
-.Lrv_BB9_8:
-	add 12, 4, 8
-	lvx128 2, 4, 8
-	mr	30, 3
-	lvx128 3, 12, 9
-	add 12, 5, 8
-	lvx128 4, 5, 8
-	addi 11, 11, -4
-	lvx128 5, 12, 9
-	cmplwi	11, 0
-	lvsl 0, 4, 8
-	vperm128 2, 2, 3, 0
-	lvsl 1, 5, 8
-	vperm128 3, 4, 5, 1
+	li 9, 16
+	li 10, 32
+	li 11, 48
+	li 12, 64
+	li 0, 80
+	li 30, 96
+	li 29, 112
+	li 28, 127
+	li 15, 76
+	li 14, 72
+	li 31, 68
+	li 27, 92
+	li 26, 88
+	li 25, 84
+	li 24, 108
+	li 23, 104
+	li 22, 100
+	li 21, 124
+	li 20, 120
+	li 19, 116
+	mr	7, 18
+.Lrv_BB9_9:
+	add 17, 4, 8
+	lvx128 29, 4, 8
+	li 16, 28
+	lvx128 5, 17, 9
+	addi 7, 7, -32
+	lvx128 0, 17, 10
+	cmplwi	7, 0
+	lvx128 1, 17, 11
+	lvx128 6, 17, 12
+	lvx128 7, 17, 0
+	lvx128 8, 17, 30
+	lvx128 9, 17, 29
+	lvx128 10, 17, 28
+	add 17, 5, 8
+	lvx128 11, 5, 8
+	lvx128 12, 17, 9
+	lvx128 13, 17, 10
+	lvsl 2, 4, 8
+	vperm128 31, 5, 0, 2
+	lvsl 3, 5, 8
+	vperm128 30, 12, 13, 3
+	lvx128 14, 17, 11
+	vand128 31, 30, 31
+	lvx128 15, 17, 12
+	lvx128 16, 17, 0
+	lvx128 17, 17, 30
+	lvx128 18, 17, 29
+	lvx128 19, 17, 28
+	add 17, 3, 8
+	lvsr 4, 17, 9
+	vperm128 4, 31, 31, 4
+	stvewx 4, 17, 16
+	li 16, 24
+	stvewx 4, 17, 16
+	li 16, 20
+	stvewx 4, 17, 16
+	li 16, 44
+	stvewx 4, 17, 9
+	vperm128 4, 0, 1, 2
+	vperm128 0, 13, 14, 3
+	vand128 4, 0, 4
+	lvsr 0, 17, 10
+	vperm128 4, 4, 4, 0
+	vperm128 0, 14, 15, 3
+	stvewx 4, 17, 16
+	li 16, 40
+	stvewx 4, 17, 16
+	li 16, 36
+	stvewx 4, 17, 16
+	li 16, 60
+	stvewx 4, 17, 10
+	vperm128 4, 1, 6, 2
+	vand128 4, 0, 4
+	lvsr 0, 17, 11
+	vperm128 4, 4, 4, 0
+	vperm128 0, 15, 16, 3
+	stvewx 4, 17, 16
+	li 16, 56
+	stvewx 4, 17, 16
+	li 16, 52
+	stvewx 4, 17, 16
+	li 16, 12
+	stvewx 4, 17, 11
+	vperm128 4, 6, 7, 2
+	lvsr 1, 17, 12
+	vand128 4, 0, 4
+	vperm128 0, 16, 17, 3
+	vperm128 4, 4, 4, 1
+	lvsr 1, 17, 0
+	stvewx 4, 17, 15
+	stvewx 4, 17, 14
+	stvewx 4, 17, 31
+	stvewx 4, 17, 12
+	vperm128 4, 7, 8, 2
+	vand128 4, 0, 4
+	vperm128 0, 17, 18, 3
+	vperm128 4, 4, 4, 1
+	lvsr 1, 17, 30
+	stvewx 4, 17, 27
+	stvewx 4, 17, 26
+	stvewx 4, 17, 25
+	stvewx 4, 17, 0
+	vperm128 4, 8, 9, 2
+	vand128 4, 0, 4
+	vperm128 0, 18, 19, 3
+	vperm128 3, 11, 12, 3
+	vperm128 4, 4, 4, 1
+	lvsr 1, 17, 29
+	stvewx 4, 17, 24
+	stvewx 4, 17, 23
+	stvewx 4, 17, 22
+	stvewx 4, 17, 30
+	vperm128 4, 9, 10, 2
+	vperm128 2, 29, 5, 2
+	vand128 4, 0, 4
 	vand128 2, 3, 2
-	stvx128 2, 0, 10
-	ld 12, 16(1)
-	stdux 12, 30, 8
-	ld 12, 24(1)
-	addi 8, 8, 16
-	std 12, 8(30)
-	bne	0, .Lrv_BB9_8
-	cmplw	6, 7
+	vperm128 4, 4, 4, 1
+	stvewx 4, 17, 21
+	stvewx 4, 17, 20
+	stvewx 4, 17, 19
+	stvewx 4, 17, 29
+	lvsr 4, 3, 8
+	vperm128 2, 2, 2, 4
+	stvewx 2, 17, 16
+	li 16, 8
+	stvewx 2, 17, 16
+	li 16, 4
+	stvewx 2, 3, 8
+	addi 8, 8, 128
+	stvewx 2, 17, 16
+	bne	0, .Lrv_BB9_9
+	cmplw	6, 18
+	beq	0, .Lrv_BB9_4
+	andi. 7, 6, 28
+	beq	0, .Lrv_BB9_2
+.Lrv_BB9_12:
+	mr	11, 18
+	rlwinm 18, 6, 0, 1, 29
+	li 7, 15
+	li 8, 12
+	li 9, 8
+	sub	10, 11, 18
+	slwi 11, 11, 2
+	li 12, 4
+.Lrv_BB9_13:
+	add 30, 4, 11
+	lvx128 2, 4, 11
+	addi 10, 10, 4
+	lvx128 3, 30, 7
+	add 30, 5, 11
+	lvx128 4, 5, 11
+	cmplwi	10, 0
+	lvx128 5, 30, 7
+	add 30, 3, 11
+	lvsl 0, 4, 11
+	vperm128 2, 2, 3, 0
+	lvsl 1, 5, 11
+	vperm128 3, 4, 5, 1
+	lvsr 4, 3, 11
+	vand128 2, 3, 2
+	vperm128 2, 2, 2, 4
+	stvewx 2, 3, 11
+	addi 11, 11, 16
+	stvewx 2, 30, 8
+	stvewx 2, 30, 9
+	stvewx 2, 30, 12
+	bne	0, .Lrv_BB9_13
+	cmplw	6, 18
 	bne	0, .Lrv_BB9_2
 	b .Lrv_BB9_4
 .Lrv_func_end9:
@@ -672,9 +1826,20 @@ rv_k_avg_u8_r:
 .Lrv_func_begin10:
 	cmpwi	6, 1
 	bltlr	0
-	stwu 1, -32(1)
-	cmplwi	6, 16
+	stwu 1, -160(1)
+	cmplwi	6, 8
 	li 7, 0
+	std 20, 56(1)
+	std 21, 64(1)
+	std 22, 72(1)
+	std 23, 80(1)
+	std 24, 88(1)
+	std 25, 96(1)
+	std 26, 104(1)
+	std 27, 112(1)
+	std 28, 120(1)
+	std 29, 128(1)
+	std 30, 136(1)
 	bge 0, .Lrv_BB10_5
 .Lrv_BB10_2:
 	addi 8, 7, -1
@@ -692,7 +1857,18 @@ rv_k_avg_u8_r:
 	stbu 8, 1(3)
 	bne	0, .Lrv_BB10_3
 .Lrv_BB10_4:
-	addi 1, 1, 32
+	ld 30, 136(1)
+	ld 29, 128(1)
+	ld 28, 120(1)
+	ld 27, 112(1)
+	ld 26, 104(1)
+	ld 25, 96(1)
+	ld 24, 88(1)
+	ld 23, 80(1)
+	ld 22, 72(1)
+	ld 21, 64(1)
+	ld 20, 56(1)
+	addi 1, 1, 160
 	blr
 .Lrv_BB10_5:
 	sub	8, 3, 4
@@ -701,19 +1877,121 @@ rv_k_avg_u8_r:
 	bc 12, 0, .Lrv_BB10_2
 	cmplwi	8, 16
 	bc 12, 0, .Lrv_BB10_2
+	cmplwi	6, 16
+	vspltisb 2, 1
+	bge 0, .Lrv_BB10_11
+.Lrv_BB10_8:
+	mr	8, 7
+	rlwinm 7, 6, 0, 1, 28
+	addi 9, 1, 32
+	addi 10, 1, 16
+	li 11, 7
+	li 12, 6
+	li 0, 5
+	li 30, 4
+	li 29, 3
+	li 28, 2
+	li 27, 1
+.Lrv_BB10_9:
+	stb 3, 47(1)
+	stb 3, 46(1)
+	stb 3, 45(1)
+	stb 3, 44(1)
+	stb 3, 43(1)
+	stb 3, 42(1)
+	stb 3, 41(1)
+	stb 3, 40(1)
+	lbzx 26, 4, 8
+	stb 26, 32(1)
+	add 26, 4, 8
+	lbz 25, 1(26)
+	stb 25, 33(1)
+	lbz 25, 2(26)
+	stb 25, 34(1)
+	lbz 25, 3(26)
+	stb 25, 35(1)
+	lbz 25, 4(26)
+	stb 25, 36(1)
+	lbz 25, 5(26)
+	stb 25, 37(1)
+	lbz 25, 6(26)
+	stb 25, 38(1)
+	lbz 26, 7(26)
+	stb 26, 39(1)
+	lvx128 3, 0, 9
+	stb 3, 31(1)
+	stb 3, 30(1)
+	stb 3, 29(1)
+	stb 3, 28(1)
+	stb 3, 27(1)
+	stb 3, 26(1)
+	stb 3, 25(1)
+	stb 3, 24(1)
+	lbzx 26, 5, 8
+	stb 26, 16(1)
+	add 26, 5, 8
+	lbz 25, 1(26)
+	stb 25, 17(1)
+	lbz 25, 2(26)
+	stb 25, 18(1)
+	lbz 25, 3(26)
+	stb 25, 19(1)
+	lbz 25, 4(26)
+	stb 25, 20(1)
+	lbz 25, 5(26)
+	stb 25, 21(1)
+	lbz 25, 6(26)
+	stb 25, 22(1)
+	lbz 26, 7(26)
+	stb 26, 23(1)
+	add 26, 3, 8
+	lvx128 4, 0, 10
+	vxor128 5, 3, 4
+	vor128 3, 3, 4
+	vsrb 4, 5, 2
+	vsububm 3, 3, 4
+	lvsr 4, 3, 8
+	vperm128 3, 3, 3, 4
+	stvebx 3, 3, 8
+	addi 8, 8, 8
+	cmplw	7, 8
+	stvebx 3, 26, 11
+	stvebx 3, 26, 12
+	stvebx 3, 26, 0
+	stvebx 3, 26, 30
+	stvebx 3, 26, 29
+	stvebx 3, 26, 28
+	stvebx 3, 26, 27
+	bne	0, .Lrv_BB10_9
+	cmplw	6, 7
+	bne	0, .Lrv_BB10_2
+	b .Lrv_BB10_4
+.Lrv_BB10_11:
 	rlwinm 7, 6, 0, 1, 27
 	li 8, 0
 	li 9, 15
-	vspltisb 2, 1
-	addi 10, 1, 16
-.Lrv_BB10_8:
-	add 11, 4, 8
+	li 10, 14
+	li 11, 13
+	li 12, 12
+	li 0, 11
+	li 30, 10
+	li 29, 9
+	li 28, 8
+	li 27, 7
+	li 26, 6
+	li 25, 5
+	li 24, 4
+	li 23, 3
+	li 22, 2
+	li 21, 1
+.Lrv_BB10_12:
+	add 20, 4, 8
 	lvx128 3, 4, 8
-	mr	12, 3
-	lvx128 4, 11, 9
-	add 11, 5, 8
+	lvx128 4, 20, 9
+	add 20, 5, 8
 	lvx128 5, 5, 8
-	lvx128 0, 11, 9
+	lvx128 0, 20, 9
+	add 20, 3, 8
 	lvsl 1, 4, 8
 	vperm128 3, 3, 4, 1
 	lvsl 6, 5, 8
@@ -722,17 +2000,32 @@ rv_k_avg_u8_r:
 	vor128 3, 3, 4
 	vsrb 4, 5, 2
 	vsububm 3, 3, 4
-	stvx128 3, 0, 10
-	ld 11, 16(1)
-	stdux 11, 12, 8
-	ld 11, 24(1)
+	lvsr 4, 3, 8
+	vperm128 3, 3, 3, 4
+	stvebx 3, 3, 8
 	addi 8, 8, 16
 	cmplw	7, 8
-	std 11, 8(12)
-	bne	0, .Lrv_BB10_8
+	stvebx 3, 20, 9
+	stvebx 3, 20, 10
+	stvebx 3, 20, 11
+	stvebx 3, 20, 12
+	stvebx 3, 20, 0
+	stvebx 3, 20, 30
+	stvebx 3, 20, 29
+	stvebx 3, 20, 28
+	stvebx 3, 20, 27
+	stvebx 3, 20, 26
+	stvebx 3, 20, 25
+	stvebx 3, 20, 24
+	stvebx 3, 20, 23
+	stvebx 3, 20, 22
+	stvebx 3, 20, 21
+	bne	0, .Lrv_BB10_12
 	cmplw	6, 7
-	bne	0, .Lrv_BB10_2
-	b .Lrv_BB10_4
+	beq	0, .Lrv_BB10_4
+	andi. 8, 6, 8
+	beq	0, .Lrv_BB10_2
+	b .Lrv_BB10_8
 .Lrv_func_end10:
 	.size	rv_k_avg_u8_r, .Lrv_func_end10-.Lrv_func_begin10
 
@@ -744,80 +2037,276 @@ rv_k_clamp_f32_r:
 .Lrv_func_begin11:
 	cmpwi	7, 1
 	bltlr	0
-	stwu 1, -64(1)
+	stwu 1, -256(1)
 	cmplwi	7, 4
-	sub	6, 3, 4
-	li 5, 0
-	bc 12, 0, .Lrv_BB11_7
-	cmplwi	6, 16
-	bc 12, 0, .Lrv_BB11_7
+	sub	5, 3, 4
+	li 0, 0
+	std 14, 104(1)
+	std 15, 112(1)
+	std 16, 120(1)
+	std 17, 128(1)
+	std 18, 136(1)
+	std 19, 144(1)
+	std 20, 152(1)
+	std 21, 160(1)
+	std 22, 168(1)
+	std 23, 176(1)
+	std 24, 184(1)
+	std 25, 192(1)
+	std 26, 200(1)
+	std 27, 208(1)
+	std 28, 216(1)
+	std 29, 224(1)
+	std 30, 232(1)
+	std 31, 240(1)
+	bc 12, 0, .Lrv_BB11_12
+	cmplwi	5, 128
+	bc 12, 0, .Lrv_BB11_12
+	cmplwi	7, 32
+	blt	0, .Lrv_BB11_8
+	stfs 1, 80(1)
+	addi 5, 1, 80
+	addi 29, 1, 64
+	lvx128 2, 0, 5
+	rlwinm 22, 7, 0, 1, 26
+	stfs 2, 64(1)
+	li 6, 0
+	lvx128 3, 0, 29
+	li 8, 16
+	li 9, 32
+	li 10, 48
+	li 11, 64
+	li 12, 80
+	li 0, 96
+	li 30, 112
+	li 19, 60
+	li 18, 56
+	li 17, 52
+	li 16, 76
+	li 15, 72
+	li 14, 68
+	li 31, 92
+	li 5, 88
+	li 29, 84
+	li 28, 108
+	li 27, 104
+	vspltw128 2, 2, 0
+	vspltw128 3, 3, 0
+	li 26, 100
+	li 25, 124
+	li 24, 120
+	li 23, 116
+	stw 22, 28(1)
+.Lrv_BB11_5:
+	add 21, 4, 6
+	lvx128 14, 4, 6
+	li 20, 127
+	lvx128 0, 21, 8
+	addi 22, 22, -32
+	lvx128 1, 21, 9
+	cmplwi	22, 0
+	lvsl 4, 4, 6
+	vperm128 11, 0, 1, 4
+	lvx128 6, 21, 10
+	vcmpgtfp128 12, 2, 11
+	vsel128 12, 11, 2, 12
+	lvx128 7, 21, 11
+	vcmpgtfp128 11, 12, 3
+	lvx128 8, 21, 12
+	vsel128 11, 12, 3, 11
+	vperm128 1, 1, 6, 4
+	lvx128 9, 21, 0
+	lvx128 10, 21, 30
+	lvx128 13, 21, 20
+	add 21, 3, 6
+	lvsr 5, 21, 8
+	vperm128 5, 11, 11, 5
+	li 20, 28
+	stvewx 5, 21, 20
+	li 20, 24
+	vcmpgtfp128 11, 2, 1
+	stvewx 5, 21, 20
+	li 20, 20
+	vsel128 11, 1, 2, 11
+	stvewx 5, 21, 20
+	li 20, 44
+	stvewx 5, 21, 8
+	vcmpgtfp128 5, 11, 3
+	lvsr 1, 21, 9
+	vsel128 5, 11, 3, 5
+	vperm128 5, 5, 5, 1
+	vperm128 1, 6, 7, 4
+	stvewx 5, 21, 20
+	li 20, 40
+	vcmpgtfp128 6, 2, 1
+	stvewx 5, 21, 20
+	li 20, 36
+	vsel128 6, 1, 2, 6
+	stvewx 5, 21, 20
+	li 20, 12
+	stvewx 5, 21, 9
+	vcmpgtfp128 5, 6, 3
+	lvsr 1, 21, 10
+	vsel128 5, 6, 3, 5
+	vperm128 5, 5, 5, 1
+	vperm128 1, 7, 8, 4
+	vcmpgtfp128 6, 2, 1
+	stvewx 5, 21, 19
+	vsel128 6, 1, 2, 6
+	stvewx 5, 21, 18
+	stvewx 5, 21, 17
+	stvewx 5, 21, 10
+	vcmpgtfp128 5, 6, 3
+	lvsr 1, 21, 11
+	vsel128 5, 6, 3, 5
+	vperm128 5, 5, 5, 1
+	vperm128 1, 8, 9, 4
+	vcmpgtfp128 6, 2, 1
+	stvewx 5, 21, 16
+	vsel128 6, 1, 2, 6
+	stvewx 5, 21, 15
+	stvewx 5, 21, 14
+	stvewx 5, 21, 11
+	vcmpgtfp128 5, 6, 3
+	lvsr 1, 21, 12
+	vsel128 5, 6, 3, 5
+	vperm128 5, 5, 5, 1
+	vperm128 1, 9, 10, 4
+	vcmpgtfp128 6, 2, 1
+	stvewx 5, 21, 31
+	vsel128 6, 1, 2, 6
+	stvewx 5, 21, 5
+	stvewx 5, 21, 29
+	stvewx 5, 21, 12
+	vcmpgtfp128 5, 6, 3
+	lvsr 1, 21, 0
+	vsel128 5, 6, 3, 5
+	vperm128 5, 5, 5, 1
+	vperm128 1, 10, 13, 4
+	vperm128 4, 14, 0, 4
+	vcmpgtfp128 6, 2, 1
+	stvewx 5, 21, 28
+	vsel128 6, 1, 2, 6
+	vcmpgtfp128 0, 2, 4
+	stvewx 5, 21, 27
+	vsel128 0, 4, 2, 0
+	stvewx 5, 21, 26
+	vcmpgtfp128 4, 0, 3
+	stvewx 5, 21, 0
+	vcmpgtfp128 5, 6, 3
+	vsel128 4, 0, 3, 4
+	lvsr 1, 21, 30
+	vsel128 5, 6, 3, 5
+	vperm128 5, 5, 5, 1
+	stvewx 5, 21, 25
+	stvewx 5, 21, 24
+	stvewx 5, 21, 23
+	stvewx 5, 21, 30
+	lvsr 5, 3, 6
+	vperm128 4, 4, 4, 5
+	stvewx 4, 21, 20
+	li 20, 8
+	stvewx 4, 21, 20
+	li 20, 4
+	stvewx 4, 3, 6
+	addi 6, 6, 128
+	stvewx 4, 21, 20
+	bne	0, .Lrv_BB11_5
+	lwz 0, 28(1)
+	cmplw	7, 0
+	beq	0, .Lrv_BB11_11
+	andi. 5, 7, 28
+	beq	0, .Lrv_BB11_12
+.Lrv_BB11_8:
 	stfs 1, 48(1)
 	addi 5, 1, 48
 	lvx128 2, 0, 5
-	addi 5, 1, 32
+	addi 6, 1, 32
 	stfs 2, 32(1)
-	li 6, 0
-	lvx128 3, 0, 5
-	rlwinm 5, 7, 0, 1, 29
-	li 8, 15
+	mr	10, 0
+	lvx128 3, 0, 6
+	rlwinm 0, 7, 0, 1, 29
+	li 5, 15
+	li 6, 12
+	li 8, 8
+	sub	9, 10, 0
+	slwi 10, 10, 2
 	vspltw128 2, 2, 0
-	addi 9, 1, 16
 	vspltw128 3, 3, 0
-	mr	10, 5
-.Lrv_BB11_4:
-	add 11, 4, 6
-	lvx128 4, 4, 6
-	mr	12, 3
-	lvx128 5, 11, 8
-	addi 10, 10, -4
-	lvsl 0, 4, 6
-	cmplwi	10, 0
+	li 11, 4
+.Lrv_BB11_9:
+	add 12, 4, 10
+	lvx128 4, 4, 10
+	addi 9, 9, 4
+	lvx128 5, 12, 5
+	add 12, 3, 10
+	lvsl 0, 4, 10
+	cmplwi	9, 0
 	vperm128 4, 4, 5, 0
+	lvsr 0, 3, 10
 	vcmpgtfp128 5, 2, 4
 	vsel128 5, 4, 2, 5
 	vcmpgtfp128 4, 5, 3
 	vsel128 4, 5, 3, 4
-	stvx128 4, 0, 9
-	ld 11, 16(1)
-	stdux 11, 12, 6
-	ld 11, 24(1)
-	addi 6, 6, 16
-	std 11, 8(12)
-	bne	0, .Lrv_BB11_4
-	cmplw	7, 5
-	bne	0, .Lrv_BB11_7
-.Lrv_BB11_6:
-	addi 1, 1, 64
+	vperm128 4, 4, 4, 0
+	stvewx 4, 3, 10
+	addi 10, 10, 16
+	stvewx 4, 12, 6
+	stvewx 4, 12, 8
+	stvewx 4, 12, 11
+	bne	0, .Lrv_BB11_9
+	cmplw	7, 0
+	bne	0, .Lrv_BB11_12
+.Lrv_BB11_11:
+	ld 31, 240(1)
+	ld 30, 232(1)
+	ld 29, 224(1)
+	ld 28, 216(1)
+	ld 27, 208(1)
+	ld 26, 200(1)
+	ld 25, 192(1)
+	ld 24, 184(1)
+	ld 23, 176(1)
+	ld 22, 168(1)
+	ld 21, 160(1)
+	ld 20, 152(1)
+	ld 19, 144(1)
+	ld 18, 136(1)
+	ld 17, 128(1)
+	ld 16, 120(1)
+	ld 15, 112(1)
+	ld 14, 104(1)
+	addi 1, 1, 256
 	blr
-.Lrv_BB11_7:
-	sub	6, 7, 5
-	slwi 5, 5, 2
-	addi 5, 5, -4
-	add 4, 4, 5
-	add 3, 3, 5
-	b .Lrv_BB11_9
-.Lrv_BB11_8:
-	addi 6, 6, -1
-	cmplwi	6, 0
+.Lrv_BB11_12:
+	slwi 6, 0, 2
+	addi 6, 6, -4
+	sub	5, 7, 0
+	add 4, 4, 6
+	add 3, 3, 6
+	b .Lrv_BB11_14
+.Lrv_BB11_13:
+	addi 5, 5, -1
+	cmplwi	5, 0
 	stfsu 0, 4(3)
-	beq	0, .Lrv_BB11_6
-.Lrv_BB11_9:
+	beq	0, .Lrv_BB11_11
+.Lrv_BB11_14:
 	lfsu 0, 4(4)
 	fmr 3, 1
 	fcmpu 0, 0, 1
-	bge 0, .Lrv_BB11_11
+	bge 0, .Lrv_BB11_16
 	fcmpu 0, 3, 2
 	fmr 0, 2
-	bgt	0, .Lrv_BB11_8
-	b .Lrv_BB11_12
-.Lrv_BB11_11:
+	bgt	0, .Lrv_BB11_13
+	b .Lrv_BB11_17
+.Lrv_BB11_16:
 	fmr 3, 0
 	fcmpu 0, 3, 2
 	fmr 0, 2
-	bgt	0, .Lrv_BB11_8
-.Lrv_BB11_12:
+	bgt	0, .Lrv_BB11_13
+.Lrv_BB11_17:
 	fmr 0, 3
-	b .Lrv_BB11_8
+	b .Lrv_BB11_13
 .Lrv_func_end11:
 	.size	rv_k_clamp_f32_r, .Lrv_func_end11-.Lrv_func_begin11
 
@@ -849,73 +2338,326 @@ rv_k_clamp_i16_r:
 .Lrv_func_begin12:
 	cmpwi	5, 1
 	bltlr	0
-	stwu 1, -32(1)
+	stwu 1, -176(1)
+	std 27, 128(1)
 	cmplwi	5, 8
-	sub	7, 3, 4
-	li 6, 0
-	bc 12, 0, .Lrv_BB12_7
-	cmplwi	7, 16
-	bc 12, 0, .Lrv_BB12_7
-	li 9, .Lrv_CPI12_0@l
-	lis 10, .Lrv_CPI12_0@ha
-	lvx128 2, 10, 9
-	li 9, .Lrv_CPI12_1@l
-	lis 10, .Lrv_CPI12_1@ha
-	lvx128 3, 10, 9
-	rlwinm 6, 5, 0, 1, 28
+	sub	6, 3, 4
+	li 27, 0
+	std 14, 24(1)
+	std 15, 32(1)
+	std 16, 40(1)
+	std 17, 48(1)
+	std 18, 56(1)
+	std 19, 64(1)
+	std 20, 72(1)
+	std 21, 80(1)
+	std 22, 88(1)
+	std 23, 96(1)
+	std 24, 104(1)
+	std 25, 112(1)
+	std 26, 120(1)
+	std 28, 136(1)
+	std 29, 144(1)
+	std 30, 152(1)
+	std 31, 160(1)
+	bc 12, 0, .Lrv_BB12_12
+	cmplwi	6, 128
+	bc 12, 0, .Lrv_BB12_12
+	cmplwi	5, 64
+	blt	0, .Lrv_BB12_8
+	stw 5, 20(1)
+	rlwinm 27, 5, 0, 1, 25
+	li 5, .Lrv_CPI12_0@l
+	lis 6, .Lrv_CPI12_0@ha
+	li 29, .Lrv_CPI12_1@l
+	lis 28, .Lrv_CPI12_1@ha
+	lvx128 2, 6, 5
 	li 7, 0
-	li 8, 15
-	addi 9, 1, 16
-	mr	10, 6
-.Lrv_BB12_4:
-	add 11, 4, 7
-	lvx128 4, 4, 7
-	mr	12, 3
-	lvx128 5, 11, 8
-	addi 10, 10, -8
-	lvsl 0, 4, 7
-	cmplwi	10, 0
+	lvx128 3, 28, 29
+	li 8, 16
+	li 9, 32
+	li 10, 48
+	li 11, 64
+	li 12, 80
+	li 0, 96
+	li 30, 112
+	li 24, 84
+	li 23, 82
+	li 5, 110
+	li 22, 108
+	li 21, 106
+	li 20, 104
+	li 19, 102
+	li 18, 100
+	li 17, 98
+	li 16, 126
+	li 15, 124
+	li 14, 122
+	li 31, 120
+	li 6, 118
+	li 29, 116
+	li 28, 114
+	stw 27, 16(1)
+.Lrv_BB12_5:
+	add 26, 4, 7
+	lvx128 14, 4, 7
+	li 25, 127
+	lvx128 1, 26, 8
+	addi 27, 27, -64
+	lvx128 6, 26, 9
+	cmplwi	27, 0
+	lvsl 4, 4, 7
+	vperm128 13, 1, 6, 4
+	lvx128 7, 26, 10
+	vmaxsh 13, 13, 2
+	vperm128 1, 14, 1, 4
+	lvx128 8, 26, 11
+	vminsh 13, 13, 3
+	lvx128 9, 26, 12
+	vperm128 6, 6, 7, 4
+	lvx128 10, 26, 0
+	lvx128 11, 26, 30
+	lvx128 12, 26, 25
+	add 26, 3, 7
+	lvsr 0, 26, 8
+	vperm128 0, 13, 13, 0
+	li 25, 30
+	stvehx 0, 26, 25
+	li 25, 28
+	stvehx 0, 26, 25
+	li 25, 26
+	stvehx 0, 26, 25
+	li 25, 24
+	stvehx 0, 26, 25
+	li 25, 22
+	stvehx 0, 26, 25
+	li 25, 20
+	stvehx 0, 26, 25
+	li 25, 18
+	stvehx 0, 26, 25
+	li 25, 46
+	stvehx 0, 26, 8
+	vmaxsh 0, 6, 2
+	lvsr 6, 26, 9
+	vminsh 0, 0, 3
+	vperm128 0, 0, 0, 6
+	vperm128 6, 7, 8, 4
+	lvsr 5, 3, 7
+	stvehx 0, 26, 25
+	li 25, 44
+	stvehx 0, 26, 25
+	li 25, 42
+	stvehx 0, 26, 25
+	li 25, 40
+	stvehx 0, 26, 25
+	li 25, 38
+	stvehx 0, 26, 25
+	li 25, 36
+	stvehx 0, 26, 25
+	li 25, 34
+	stvehx 0, 26, 25
+	li 25, 62
+	stvehx 0, 26, 9
+	vmaxsh 0, 6, 2
+	lvsr 6, 26, 10
+	vminsh 0, 0, 3
+	vperm128 0, 0, 0, 6
+	vperm128 6, 8, 9, 4
+	stvehx 0, 26, 25
+	li 25, 60
+	stvehx 0, 26, 25
+	li 25, 58
+	stvehx 0, 26, 25
+	li 25, 56
+	stvehx 0, 26, 25
+	li 25, 54
+	stvehx 0, 26, 25
+	li 25, 52
+	stvehx 0, 26, 25
+	li 25, 50
+	stvehx 0, 26, 25
+	li 25, 78
+	stvehx 0, 26, 10
+	vmaxsh 0, 6, 2
+	lvsr 6, 26, 11
+	vminsh 0, 0, 3
+	vperm128 0, 0, 0, 6
+	vperm128 6, 9, 10, 4
+	stvehx 0, 26, 25
+	li 25, 76
+	stvehx 0, 26, 25
+	li 25, 74
+	stvehx 0, 26, 25
+	li 25, 72
+	stvehx 0, 26, 25
+	li 25, 70
+	stvehx 0, 26, 25
+	li 25, 68
+	stvehx 0, 26, 25
+	li 25, 66
+	stvehx 0, 26, 25
+	li 25, 94
+	stvehx 0, 26, 11
+	vmaxsh 0, 6, 2
+	lvsr 6, 26, 12
+	vminsh 0, 0, 3
+	vperm128 0, 0, 0, 6
+	vperm128 6, 10, 11, 4
+	vperm128 4, 11, 12, 4
+	stvehx 0, 26, 25
+	li 25, 92
+	stvehx 0, 26, 25
+	li 25, 90
+	stvehx 0, 26, 25
+	li 25, 88
+	stvehx 0, 26, 25
+	li 25, 86
+	stvehx 0, 26, 25
+	li 25, 14
+	stvehx 0, 26, 24
+	vmaxsh 4, 4, 2
+	stvehx 0, 26, 23
+	vminsh 4, 4, 3
+	stvehx 0, 26, 12
+	vmaxsh 0, 6, 2
+	lvsr 6, 26, 0
+	vminsh 0, 0, 3
+	vperm128 0, 0, 0, 6
+	stvehx 0, 26, 5
+	stvehx 0, 26, 22
+	stvehx 0, 26, 21
+	stvehx 0, 26, 20
+	stvehx 0, 26, 19
+	stvehx 0, 26, 18
+	stvehx 0, 26, 17
+	stvehx 0, 26, 0
+	vmaxsh 0, 1, 2
+	vminsh 0, 0, 3
+	lvsr 1, 26, 30
+	vperm128 5, 0, 0, 5
+	vperm128 4, 4, 4, 1
+	stvehx 5, 26, 25
+	li 25, 12
+	stvehx 5, 26, 25
+	li 25, 10
+	stvehx 5, 26, 25
+	li 25, 8
+	stvehx 5, 26, 25
+	li 25, 6
+	stvehx 5, 26, 25
+	li 25, 4
+	stvehx 5, 26, 25
+	li 25, 2
+	stvehx 5, 3, 7
+	addi 7, 7, 128
+	stvehx 5, 26, 25
+	stvehx 4, 26, 16
+	stvehx 4, 26, 15
+	stvehx 4, 26, 14
+	stvehx 4, 26, 31
+	stvehx 4, 26, 6
+	stvehx 4, 26, 29
+	stvehx 4, 26, 28
+	stvehx 4, 26, 30
+	bne	0, .Lrv_BB12_5
+	lwz 5, 20(1)
+	lwz 27, 16(1)
+	cmplw	5, 27
+	beq	0, .Lrv_BB12_11
+	andi. 6, 5, 56
+	beq	0, .Lrv_BB12_12
+.Lrv_BB12_8:
+	li 10, .Lrv_CPI12_0@l
+	lis 11, .Lrv_CPI12_0@ha
+	li 12, .Lrv_CPI12_1@l
+	lis 30, .Lrv_CPI12_1@ha
+	lvx128 2, 11, 10
+	mr	0, 27
+	lvx128 3, 30, 12
+	rlwinm 27, 5, 0, 1, 28
+	li 28, 15
+	li 6, 14
+	li 7, 12
+	li 8, 10
+	li 9, 8
+	li 10, 6
+	li 11, 4
+	sub	12, 0, 27
+	slwi 30, 0, 1
+	li 0, 2
+.Lrv_BB12_9:
+	add 29, 4, 30
+	lvx128 4, 4, 30
+	addi 12, 12, 8
+	lvx128 5, 29, 28
+	add 29, 3, 30
+	lvsl 0, 4, 30
+	cmplwi	12, 0
 	vperm128 4, 4, 5, 0
+	lvsr 5, 3, 30
 	vmaxsh 4, 4, 2
 	vminsh 4, 4, 3
-	stvx128 4, 0, 9
-	ld 11, 16(1)
-	stdux 11, 12, 7
-	ld 11, 24(1)
-	addi 7, 7, 16
-	std 11, 8(12)
-	bne	0, .Lrv_BB12_4
-	cmplw	5, 6
-	bne	0, .Lrv_BB12_7
-.Lrv_BB12_6:
-	addi 1, 1, 32
+	vperm128 4, 4, 4, 5
+	stvehx 4, 3, 30
+	addi 30, 30, 16
+	stvehx 4, 29, 6
+	stvehx 4, 29, 7
+	stvehx 4, 29, 8
+	stvehx 4, 29, 9
+	stvehx 4, 29, 10
+	stvehx 4, 29, 11
+	stvehx 4, 29, 0
+	bne	0, .Lrv_BB12_9
+	cmplw	5, 27
+	bne	0, .Lrv_BB12_12
+.Lrv_BB12_11:
+	ld 31, 160(1)
+	ld 30, 152(1)
+	ld 29, 144(1)
+	ld 28, 136(1)
+	ld 27, 128(1)
+	ld 26, 120(1)
+	ld 25, 112(1)
+	ld 24, 104(1)
+	ld 23, 96(1)
+	ld 22, 88(1)
+	ld 21, 80(1)
+	ld 20, 72(1)
+	ld 19, 64(1)
+	ld 18, 56(1)
+	ld 17, 48(1)
+	ld 16, 40(1)
+	ld 15, 32(1)
+	ld 14, 24(1)
+	addi 1, 1, 176
 	blr
-.Lrv_BB12_7:
-	sub	5, 5, 6
-	slwi 6, 6, 1
+.Lrv_BB12_12:
+	slwi 6, 27, 1
 	addi 6, 6, -2
+	sub	5, 5, 27
 	add 4, 4, 6
 	add 3, 3, 6
-	b .Lrv_BB12_9
-.Lrv_BB12_8:
+	b .Lrv_BB12_14
+.Lrv_BB12_13:
 	addi 5, 5, -1
 	cmplwi	5, 0
 	sthu 6, 2(3)
-	beq	0, .Lrv_BB12_6
-.Lrv_BB12_9:
-	lhau 6, 2(4)
+	beq	0, .Lrv_BB12_11
+.Lrv_BB12_14:
+	lhzu 6, 2(4)
+	extsh 6, 6
 	cmpwi	6, -1000
-	ble 0, .Lrv_BB12_11
+	ble 0, .Lrv_BB12_16
 	cmpwi	6, 1000
-	blt	0, .Lrv_BB12_8
-	b .Lrv_BB12_12
-.Lrv_BB12_11:
+	blt	0, .Lrv_BB12_13
+	b .Lrv_BB12_17
+.Lrv_BB12_16:
 	li 6, -1000
 	cmpwi	6, 1000
-	blt	0, .Lrv_BB12_8
-.Lrv_BB12_12:
+	blt	0, .Lrv_BB12_13
+.Lrv_BB12_17:
 	li 6, 1000
-	b .Lrv_BB12_8
+	b .Lrv_BB12_13
 .Lrv_func_end12:
 	.size	rv_k_clamp_i16_r, .Lrv_func_end12-.Lrv_func_begin12
 
@@ -927,14 +2669,208 @@ rv_k_copy_u32_r:
 .Lrv_func_begin13:
 	cmpwi	5, 1
 	bltlr	0
-	addi 4, 4, -4
-	addi 3, 3, -4
-.Lrv_BB13_2:
+	stwu 1, -176(1)
+	cmplwi	5, 4
+	sub	6, 3, 4
+	li 0, 0
+	std 14, 24(1)
+	std 15, 32(1)
+	std 16, 40(1)
+	std 17, 48(1)
+	std 18, 56(1)
+	std 19, 64(1)
+	std 20, 72(1)
+	std 21, 80(1)
+	std 22, 88(1)
+	std 23, 96(1)
+	std 24, 104(1)
+	std 25, 112(1)
+	std 26, 120(1)
+	std 27, 128(1)
+	std 28, 136(1)
+	std 29, 144(1)
+	std 30, 152(1)
+	std 31, 160(1)
+	bc 12, 0, .Lrv_BB13_11
+	cmplwi	6, 128
+	bc 12, 0, .Lrv_BB13_11
+	cmplwi	5, 32
+	blt	0, .Lrv_BB13_8
+	stw 5, 20(1)
+	rlwinm 23, 5, 0, 1, 26
+	li 7, 0
+	li 8, 16
+	li 9, 32
+	li 10, 48
+	li 11, 64
+	li 12, 80
+	li 0, 96
+	li 30, 112
+	li 20, 36
+	li 19, 60
+	li 18, 56
+	li 17, 52
+	li 16, 76
+	li 15, 72
+	li 14, 68
+	li 31, 92
+	li 6, 88
+	li 29, 84
+	li 5, 108
+	li 28, 104
+	li 27, 100
+	li 26, 124
+	li 25, 120
+	li 24, 116
+	stw 23, 16(1)
+.Lrv_BB13_5:
+	add 22, 4, 7
+	lvx128 10, 4, 7
+	li 21, 127
+	lvx128 4, 22, 8
+	addi 23, 23, -32
+	lvx128 5, 22, 9
+	cmplwi	23, 0
+	lvsl 2, 4, 7
+	lvx128 0, 22, 10
+	vperm128 11, 4, 5, 2
+	lvx128 1, 22, 11
+	lvx128 6, 22, 12
+	vperm128 5, 5, 0, 2
+	lvx128 7, 22, 0
+	lvx128 8, 22, 30
+	lvx128 9, 22, 21
+	add 22, 3, 7
+	lvsr 3, 22, 8
+	vperm128 3, 11, 11, 3
+	li 21, 28
+	stvewx 3, 22, 21
+	li 21, 24
+	stvewx 3, 22, 21
+	li 21, 20
+	stvewx 3, 22, 21
+	li 21, 44
+	stvewx 3, 22, 8
+	lvsr 3, 22, 9
+	vperm128 3, 5, 5, 3
+	vperm128 5, 0, 1, 2
+	stvewx 3, 22, 21
+	li 21, 40
+	stvewx 3, 22, 21
+	li 21, 12
+	stvewx 3, 22, 20
+	stvewx 3, 22, 9
+	lvsr 3, 22, 10
+	vperm128 3, 5, 5, 3
+	vperm128 5, 1, 6, 2
+	stvewx 3, 22, 19
+	stvewx 3, 22, 18
+	stvewx 3, 22, 17
+	stvewx 3, 22, 10
+	lvsr 3, 22, 11
+	vperm128 3, 5, 5, 3
+	vperm128 5, 6, 7, 2
+	stvewx 3, 22, 16
+	stvewx 3, 22, 15
+	stvewx 3, 22, 14
+	stvewx 3, 22, 11
+	lvsr 3, 22, 12
+	vperm128 3, 5, 5, 3
+	vperm128 5, 7, 8, 2
+	stvewx 3, 22, 31
+	stvewx 3, 22, 6
+	stvewx 3, 22, 29
+	stvewx 3, 22, 12
+	lvsr 3, 22, 0
+	vperm128 3, 5, 5, 3
+	vperm128 5, 8, 9, 2
+	vperm128 2, 10, 4, 2
+	stvewx 3, 22, 5
+	stvewx 3, 22, 28
+	stvewx 3, 22, 27
+	stvewx 3, 22, 0
+	lvsr 3, 22, 30
+	vperm128 3, 5, 5, 3
+	stvewx 3, 22, 26
+	stvewx 3, 22, 25
+	stvewx 3, 22, 24
+	stvewx 3, 22, 30
+	lvsr 3, 3, 7
+	vperm128 2, 2, 2, 3
+	stvewx 2, 22, 21
+	li 21, 8
+	stvewx 2, 22, 21
+	li 21, 4
+	stvewx 2, 3, 7
+	addi 7, 7, 128
+	stvewx 2, 22, 21
+	bne	0, .Lrv_BB13_5
+	lwz 5, 20(1)
+	lwz 0, 16(1)
+	cmplw	5, 0
+	beq	0, .Lrv_BB13_13
+	andi. 6, 5, 28
+	beq	0, .Lrv_BB13_11
+.Lrv_BB13_8:
+	mr	9, 0
+	rlwinm 0, 5, 0, 1, 29
+	li 12, 15
+	li 6, 12
+	li 7, 8
+	sub	8, 9, 0
+	slwi 9, 9, 2
+	li 10, 4
+.Lrv_BB13_9:
+	add 11, 4, 9
+	lvx128 2, 4, 9
+	addi 8, 8, 4
+	lvx128 3, 11, 12
+	add 11, 3, 9
+	lvsl 4, 4, 9
+	cmplwi	8, 0
+	vperm128 2, 2, 3, 4
+	lvsr 3, 3, 9
+	vperm128 2, 2, 2, 3
+	stvewx 2, 3, 9
+	addi 9, 9, 16
+	stvewx 2, 11, 6
+	stvewx 2, 11, 7
+	stvewx 2, 11, 10
+	bne	0, .Lrv_BB13_9
+	cmplw	5, 0
+	beq	0, .Lrv_BB13_13
+.Lrv_BB13_11:
+	slwi 6, 0, 2
+	addi 6, 6, -4
+	sub	5, 5, 0
+	add 4, 4, 6
+	add 3, 3, 6
+.Lrv_BB13_12:
 	lwzu 6, 4(4)
 	addi 5, 5, -1
 	cmplwi	5, 0
 	stwu 6, 4(3)
-	bne	0, .Lrv_BB13_2
+	bne	0, .Lrv_BB13_12
+.Lrv_BB13_13:
+	ld 31, 160(1)
+	ld 30, 152(1)
+	ld 29, 144(1)
+	ld 28, 136(1)
+	ld 27, 128(1)
+	ld 26, 120(1)
+	ld 25, 112(1)
+	ld 24, 104(1)
+	ld 23, 96(1)
+	ld 22, 88(1)
+	ld 21, 80(1)
+	ld 20, 72(1)
+	ld 19, 64(1)
+	ld 18, 56(1)
+	ld 17, 48(1)
+	ld 16, 40(1)
+	ld 15, 32(1)
+	ld 14, 24(1)
+	addi 1, 1, 176
 	blr
 .Lrv_func_end13:
 	.size	rv_k_copy_u32_r, .Lrv_func_end13-.Lrv_func_begin13
@@ -947,15 +2883,144 @@ rv_k_copy_u8:
 .Lrv_func_begin14:
 	cmpwi	5, 1
 	bltlr	0
-	addi 4, 4, -1
-	addi 3, 3, -1
+	stwu 1, -128(1)
+	cmplwi	5, 8
+	sub	7, 3, 4
 	li 6, 0
-.Lrv_BB14_2:
+	std 21, 32(1)
+	std 22, 40(1)
+	std 23, 48(1)
+	std 24, 56(1)
+	std 25, 64(1)
+	std 26, 72(1)
+	std 27, 80(1)
+	std 28, 88(1)
+	std 29, 96(1)
+	std 30, 104(1)
+	bc 12, 0, .Lrv_BB14_11
+	cmplwi	7, 16
+	bc 12, 0, .Lrv_BB14_11
+	cmplwi	5, 16
+	bge 0, .Lrv_BB14_7
+.Lrv_BB14_4:
+	mr	7, 6
+	rlwinm 6, 5, 0, 1, 28
+	addi 8, 1, 16
+	li 9, 7
+	li 10, 6
+	li 11, 5
+	li 12, 4
+	li 0, 3
+	li 30, 2
+	li 29, 1
+.Lrv_BB14_5:
+	lbzx 28, 4, 7
+	lvsr 3, 3, 7
+	stb 28, 16(1)
+	add 28, 4, 7
+	lbz 27, 1(28)
+	stb 27, 17(1)
+	lbz 27, 2(28)
+	stb 27, 18(1)
+	lbz 27, 3(28)
+	stb 27, 19(1)
+	lbz 27, 4(28)
+	stb 27, 20(1)
+	lbz 27, 5(28)
+	stb 27, 21(1)
+	lbz 27, 6(28)
+	stb 27, 22(1)
+	lbz 28, 7(28)
+	stb 28, 23(1)
+	add 28, 3, 7
+	lvx128 2, 0, 8
+	vperm128 2, 2, 2, 3
+	stvebx 2, 3, 7
+	addi 7, 7, 8
+	cmplw	6, 7
+	stvebx 2, 28, 9
+	stvebx 2, 28, 10
+	stvebx 2, 28, 11
+	stvebx 2, 28, 12
+	stvebx 2, 28, 0
+	stvebx 2, 28, 30
+	stvebx 2, 28, 29
+	bne	0, .Lrv_BB14_5
+	cmplw	5, 6
+	bne	0, .Lrv_BB14_11
+	b .Lrv_BB14_13
+.Lrv_BB14_7:
+	rlwinm 6, 5, 0, 1, 27
+	li 7, 0
+	li 8, 15
+	li 9, 14
+	li 10, 13
+	li 11, 12
+	li 12, 11
+	li 0, 10
+	li 30, 9
+	li 29, 8
+	li 28, 7
+	li 27, 6
+	li 26, 5
+	li 25, 4
+	li 24, 3
+	li 23, 2
+	li 22, 1
+.Lrv_BB14_8:
+	add 21, 4, 7
+	lvx128 2, 4, 7
+	lvx128 3, 21, 8
+	add 21, 3, 7
+	lvsl 4, 4, 7
+	vperm128 2, 2, 3, 4
+	lvsr 3, 3, 7
+	vperm128 2, 2, 2, 3
+	stvebx 2, 3, 7
+	addi 7, 7, 16
+	cmplw	6, 7
+	stvebx 2, 21, 8
+	stvebx 2, 21, 9
+	stvebx 2, 21, 10
+	stvebx 2, 21, 11
+	stvebx 2, 21, 12
+	stvebx 2, 21, 0
+	stvebx 2, 21, 30
+	stvebx 2, 21, 29
+	stvebx 2, 21, 28
+	stvebx 2, 21, 27
+	stvebx 2, 21, 26
+	stvebx 2, 21, 25
+	stvebx 2, 21, 24
+	stvebx 2, 21, 23
+	stvebx 2, 21, 22
+	bne	0, .Lrv_BB14_8
+	cmplw	5, 6
+	beq	0, .Lrv_BB14_13
+	andi. 7, 5, 8
+	bne	0, .Lrv_BB14_4
+.Lrv_BB14_11:
+	addi 7, 6, -1
+	add 4, 4, 7
+	add 3, 3, 7
+.Lrv_BB14_12:
 	lbzu 7, 1(4)
 	addi 6, 6, 1
 	cmplw	5, 6
 	stbu 7, 1(3)
-	bne	0, .Lrv_BB14_2
+	bne	0, .Lrv_BB14_12
+.Lrv_BB14_13:
+	ld 30, 104(1)
+	ld 29, 96(1)
+	ld 28, 88(1)
+	ld 27, 80(1)
+	ld 26, 72(1)
+	ld 25, 64(1)
+	ld 24, 56(1)
+	ld 23, 48(1)
+	ld 22, 40(1)
+	ld 21, 32(1)
+	addi 1, 1, 128
 	blr
 .Lrv_func_end14:
 	.size	rv_k_copy_u8, .Lrv_func_end14-.Lrv_func_begin14
@@ -1003,12 +3068,13 @@ rv_k_dot_i16:
 	andc 7, 5, 6
 	cmplwi	7, 0
 	beq	0, .Lrv_BB16_8
-	stwu 1, -48(1)
+	stwu 1, -64(1)
 	li 6, 0
 	cmpwi	5, 2
 	li 8, 0
-	std 29, 16(1)
-	std 30, 24(1)
+	std 28, 24(1)
+	std 29, 32(1)
+	std 30, 40(1)
 	blt	0, .Lrv_BB16_5
 	rlwinm 8, 7, 0, 1, 30
 	addi 9, 3, -4
@@ -1016,15 +3082,19 @@ rv_k_dot_i16:
 	mr	12, 8
 	li 11, 0
 .Lrv_BB16_3:
-	lhau 0, 4(9)
+	lhzu 0, 4(9)
 	addi 12, 12, -2
-	lhau 30, 4(10)
+	lhzu 30, 4(10)
 	cmplwi	12, 0
-	lha 29, 2(9)
+	lhz 29, 2(9)
+	extsh 0, 0
+	lhz 28, 2(10)
+	extsh 30, 30
 	mullw 0, 30, 0
-	lha 30, 2(10)
 	add 6, 0, 6
-	mullw 0, 30, 29
+	extsh 0, 29
+	extsh 30, 28
+	mullw 0, 30, 0
 	add 11, 0, 11
 	bne	0, .Lrv_BB16_3
 	cmplw	5, 8
@@ -1037,17 +3107,20 @@ rv_k_dot_i16:
 	add 3, 3, 7
 	add 4, 4, 7
 .Lrv_BB16_6:
-	lhau 7, 2(4)
+	lhzu 7, 2(3)
 	addi 5, 5, -1
-	lhau 8, 2(3)
+	lhzu 8, 2(4)
 	cmplwi	5, 0
-	mullw 7, 7, 8
+	extsh 7, 7
+	extsh 8, 8
+	mullw 7, 8, 7
 	add 6, 7, 6
 	bne	0, .Lrv_BB16_6
 .Lrv_BB16_7:
-	ld 30, 24(1)
-	ld 29, 16(1)
-	addi 1, 1, 48
+	ld 30, 40(1)
+	ld 29, 32(1)
+	ld 28, 24(1)
+	addi 1, 1, 64
 	mr	3, 6
 	blr
 .Lrv_BB16_8:
@@ -1151,10 +3224,11 @@ rv_k_fir3_f32_r:
 	cmpwi 1, 5, 1
 	cror 20, 4, 2
 	bclr 12, 20, 0
-	stwu 1, -64(1)
+	stwu 1, -48(1)
 	cmplwi	6, 4
 	li 5, 0
-	std 30, 40(1)
+	std 29, 16(1)
+	std 30, 24(1)
 	blt	0, .Lrv_BB18_7
 	slwi 8, 7, 2
 	add 9, 4, 8
@@ -1167,30 +3241,32 @@ rv_k_fir3_f32_r:
 .Lrv_BB18_4:
 	li 11, .Lrv_CPI18_0@l
 	lis 12, .Lrv_CPI18_0@ha
+	li 0, .Lrv_CPI18_1@l
+	lis 30, .Lrv_CPI18_1@ha
 	lvx128 2, 12, 11
-	li 11, .Lrv_CPI18_1@l
-	lis 12, .Lrv_CPI18_1@ha
-	lvx128 9, 12, 11
 	rlwinm 5, 7, 0, 2, 29
+	lvx128 9, 30, 0
 	addi 7, 4, 8
 	addi 8, 4, 4
 	li 9, 0
 	li 10, 15
-	addi 11, 1, 16
-	mr	12, 5
+	li 11, 12
+	li 12, 8
+	li 0, 4
+	mr	30, 5
 .Lrv_BB18_5:
-	add 30, 4, 9
+	add 29, 4, 9
 	lvx128 5, 4, 9
-	addi 12, 12, -4
-	lvx128 0, 30, 10
-	add 30, 8, 9
+	addi 30, 30, -4
+	lvx128 0, 29, 10
+	add 29, 8, 9
 	lvx128 1, 8, 9
-	cmplwi	12, 0
-	lvx128 6, 30, 10
-	add 30, 7, 9
+	cmplwi	30, 0
+	lvx128 6, 29, 10
+	add 29, 7, 9
 	lvx128 7, 7, 9
-	lvx128 8, 30, 10
-	mr	30, 3
+	lvx128 8, 29, 10
+	add 29, 3, 9
 	lvsl 4, 4, 9
 	vperm128 4, 5, 0, 4
 	lvsl 3, 8, 9
@@ -1201,13 +3277,14 @@ rv_k_fir3_f32_r:
 	vmulfp128 3, 3, 9
 	vmulfp128 5, 5, 2
 	vaddfp128 3, 4, 3
+	lvsr 4, 3, 9
 	vaddfp128 3, 3, 5
-	stvx128 3, 0, 11
-	ld 0, 16(1)
-	stdux 0, 30, 9
-	ld 0, 24(1)
+	vperm128 3, 3, 3, 4
+	stvewx 3, 3, 9
 	addi 9, 9, 16
-	std 0, 8(30)
+	stvewx 3, 29, 11
+	stvewx 3, 29, 12
+	stvewx 3, 29, 0
 	bne	0, .Lrv_BB18_5
 	cmplw	6, 5
 	beq	0, .Lrv_BB18_9
@@ -1235,8 +3312,9 @@ rv_k_fir3_f32_r:
 	stfsu 2, 4(3)
 	bne	0, .Lrv_BB18_8
 .Lrv_BB18_9:
-	ld 30, 40(1)
-	addi 1, 1, 64
+	ld 30, 24(1)
+	ld 29, 16(1)
+	addi 1, 1, 48
 	blr
 .Lrv_func_end18:
 	.size	rv_k_fir3_f32_r, .Lrv_func_end18-.Lrv_func_begin18
@@ -1247,21 +3325,65 @@ rv_k_fir3_f32_r:
 	.type	rv_k_g_add_f32,@function
 rv_k_g_add_f32:
 .Lrv_func_begin19:
-	lis 4, rv_g_a@ha
-	lis 5, rv_g_b@ha
-	lis 6, rv_g_c@ha
+	stwu 1, -48(1)
+	std 30, 24(1)
+	lis 11, rv_g_a@ha
+	lis 12, rv_g_b@ha
+	lis 30, rv_g_c@ha
 	li 3, 0
-	la 4, rv_g_a@l(4)
-	la 5, rv_g_b@l(5)
-	la 6, rv_g_c@l(6)
+	li 4, 16
+	li 5, 32
+	li 6, 48
+	li 7, 64
+	li 8, 80
+	li 9, 96
+	li 10, 112
+	la 11, rv_g_a@l(11)
+	la 12, rv_g_b@l(12)
+	la 30, rv_g_c@l(30)
+	std 29, 16(1)
 .Lrv_BB19_1:
-	lvx128 2, 4, 3
-	lvx128 3, 5, 3
+	add 29, 11, 3
+	lvx128 2, 11, 3
+	lvx128 3, 12, 3
+	lvx128 4, 29, 4
+	lvx128 5, 29, 5
 	vaddfp128 2, 2, 3
-	stvx128 2, 6, 3
-	addi 3, 3, 16
+	lvx128 0, 29, 6
+	lvx128 1, 29, 7
+	lvx128 6, 29, 8
+	lvx128 7, 29, 9
+	lvx128 8, 29, 10
+	add 29, 12, 3
+	lvx128 9, 29, 4
+	lvx128 10, 29, 5
+	lvx128 11, 29, 6
+	lvx128 12, 29, 7
+	lvx128 13, 29, 8
+	lvx128 14, 29, 9
+	lvx128 15, 29, 10
+	add 29, 30, 3
+	stvx128 2, 30, 3
+	vaddfp128 2, 4, 9
+	addi 3, 3, 128
+	stvx128 2, 29, 4
+	vaddfp128 2, 5, 10
+	vaddfp128 3, 7, 14
+	vaddfp128 4, 8, 15
 	cmplwi	3, 4096
+	stvx128 2, 29, 5
+	vaddfp128 2, 0, 11
+	stvx128 2, 29, 6
+	vaddfp128 2, 1, 12
+	stvx128 2, 29, 7
+	vaddfp128 2, 6, 13
+	stvx128 2, 29, 8
+	stvx128 3, 29, 9
+	stvx128 4, 29, 10
 	bne	0, .Lrv_BB19_1
+	ld 30, 24(1)
+	ld 29, 16(1)
+	addi 1, 1, 48
 	blr
 .Lrv_func_end19:
 	.size	rv_k_g_add_f32, .Lrv_func_end19-.Lrv_func_begin19
@@ -1272,21 +3394,65 @@ rv_k_g_add_f32:
 	.type	rv_k_g_add_i32,@function
 rv_k_g_add_i32:
 .Lrv_func_begin20:
-	lis 4, rv_g_ia@ha
-	lis 5, rv_g_ib@ha
-	lis 6, rv_g_ic@ha
+	stwu 1, -48(1)
+	std 30, 24(1)
+	lis 11, rv_g_ia@ha
+	lis 12, rv_g_ib@ha
+	lis 30, rv_g_ic@ha
 	li 3, 0
-	la 4, rv_g_ia@l(4)
-	la 5, rv_g_ib@l(5)
-	la 6, rv_g_ic@l(6)
+	li 4, 16
+	li 5, 32
+	li 6, 48
+	li 7, 64
+	li 8, 80
+	li 9, 96
+	li 10, 112
+	la 11, rv_g_ia@l(11)
+	la 12, rv_g_ib@l(12)
+	la 30, rv_g_ic@l(30)
+	std 29, 16(1)
 .Lrv_BB20_1:
-	lvx128 2, 4, 3
-	lvx128 3, 5, 3
+	add 29, 11, 3
+	lvx128 2, 11, 3
+	lvx128 3, 12, 3
+	lvx128 4, 29, 4
+	lvx128 5, 29, 5
 	vadduwm 2, 3, 2
-	stvx128 2, 6, 3
-	addi 3, 3, 16
+	lvx128 0, 29, 6
+	lvx128 1, 29, 7
+	lvx128 6, 29, 8
+	lvx128 7, 29, 9
+	lvx128 8, 29, 10
+	add 29, 12, 3
+	lvx128 9, 29, 4
+	lvx128 10, 29, 5
+	lvx128 11, 29, 6
+	lvx128 12, 29, 7
+	lvx128 13, 29, 8
+	lvx128 14, 29, 9
+	lvx128 15, 29, 10
+	add 29, 30, 3
+	stvx128 2, 30, 3
+	vadduwm 2, 9, 4
+	addi 3, 3, 128
+	stvx128 2, 29, 4
+	vadduwm 2, 10, 5
+	vadduwm 3, 14, 7
+	vadduwm 4, 15, 8
 	cmplwi	3, 4096
+	stvx128 2, 29, 5
+	vadduwm 2, 11, 0
+	stvx128 2, 29, 6
+	vadduwm 2, 12, 1
+	stvx128 2, 29, 7
+	vadduwm 2, 13, 6
+	stvx128 2, 29, 8
+	stvx128 3, 29, 9
+	stvx128 4, 29, 10
 	bne	0, .Lrv_BB20_1
+	ld 30, 24(1)
+	ld 29, 16(1)
+	addi 1, 1, 48
 	blr
 .Lrv_func_end20:
 	.size	rv_k_g_add_i32, .Lrv_func_end20-.Lrv_func_begin20
@@ -1384,21 +3550,222 @@ rv_k_i2f_r:
 .Lrv_func_begin24:
 	cmpwi	5, 1
 	bltlr	0
-	stwu 1, -32(1)
-	addi 4, 4, -4
-	addi 3, 3, -4
-.Lrv_BB24_2:
+	stwu 1, -192(1)
+	cmplwi	5, 4
+	sub	6, 3, 4
+	li 0, 0
+	std 14, 40(1)
+	std 15, 48(1)
+	std 16, 56(1)
+	std 17, 64(1)
+	std 18, 72(1)
+	std 19, 80(1)
+	std 20, 88(1)
+	std 21, 96(1)
+	std 22, 104(1)
+	std 23, 112(1)
+	std 24, 120(1)
+	std 25, 128(1)
+	std 26, 136(1)
+	std 27, 144(1)
+	std 28, 152(1)
+	std 29, 160(1)
+	std 30, 168(1)
+	std 31, 176(1)
+	bc 12, 0, .Lrv_BB24_11
+	cmplwi	6, 128
+	bc 12, 0, .Lrv_BB24_11
+	cmplwi	5, 32
+	blt	0, .Lrv_BB24_8
+	stw 5, 28(1)
+	rlwinm 23, 5, 0, 1, 26
+	li 7, 0
+	li 8, 16
+	li 9, 32
+	li 10, 48
+	li 11, 64
+	li 12, 80
+	li 0, 96
+	li 30, 112
+	li 20, 36
+	li 19, 60
+	li 18, 56
+	li 17, 52
+	li 16, 76
+	li 15, 72
+	li 14, 68
+	li 31, 92
+	li 6, 88
+	li 29, 84
+	li 28, 108
+	li 27, 104
+	li 26, 100
+	li 5, 124
+	li 25, 120
+	li 24, 116
+	stw 23, 24(1)
+.Lrv_BB24_5:
+	add 22, 4, 7
+	lvx128 11, 4, 7
+	li 21, 127
+	lvx128 4, 22, 8
+	addi 23, 23, -32
+	lvx128 5, 22, 9
+	cmplwi	23, 0
+	lvsl 2, 4, 7
+	lvx128 0, 22, 10
+	vperm128 10, 4, 5, 2
+	lvx128 1, 22, 11
+	vcsxwfp128 10, 10, 0
+	lvx128 6, 22, 12
+	lvx128 7, 22, 0
+	lvx128 8, 22, 30
+	lvx128 9, 22, 21
+	add 22, 3, 7
+	lvsr 3, 22, 8
+	vperm128 3, 10, 10, 3
+	li 21, 28
+	stvewx 3, 22, 21
+	li 21, 24
+	stvewx 3, 22, 21
+	li 21, 20
+	stvewx 3, 22, 21
+	li 21, 44
+	stvewx 3, 22, 8
+	vperm128 3, 5, 0, 2
+	lvsr 5, 22, 9
+	vcsxwfp128 3, 3, 0
+	vperm128 3, 3, 3, 5
+	lvsr 5, 22, 10
+	stvewx 3, 22, 21
+	li 21, 40
+	stvewx 3, 22, 21
+	li 21, 12
+	stvewx 3, 22, 20
+	stvewx 3, 22, 9
+	vperm128 3, 0, 1, 2
+	vcsxwfp128 3, 3, 0
+	vperm128 3, 3, 3, 5
+	lvsr 5, 22, 11
+	stvewx 3, 22, 19
+	stvewx 3, 22, 18
+	stvewx 3, 22, 17
+	stvewx 3, 22, 10
+	vperm128 3, 1, 6, 2
+	vcsxwfp128 3, 3, 0
+	vperm128 3, 3, 3, 5
+	lvsr 5, 22, 12
+	stvewx 3, 22, 16
+	stvewx 3, 22, 15
+	stvewx 3, 22, 14
+	stvewx 3, 22, 11
+	vperm128 3, 6, 7, 2
+	vcsxwfp128 3, 3, 0
+	vperm128 3, 3, 3, 5
+	lvsr 5, 22, 0
+	stvewx 3, 22, 31
+	stvewx 3, 22, 6
+	stvewx 3, 22, 29
+	stvewx 3, 22, 12
+	vperm128 3, 7, 8, 2
+	vcsxwfp128 3, 3, 0
+	vperm128 3, 3, 3, 5
+	lvsr 5, 22, 30
+	stvewx 3, 22, 28
+	stvewx 3, 22, 27
+	stvewx 3, 22, 26
+	stvewx 3, 22, 0
+	vperm128 3, 8, 9, 2
+	vperm128 2, 11, 4, 2
+	vcsxwfp128 3, 3, 0
+	vcsxwfp128 2, 2, 0
+	vperm128 3, 3, 3, 5
+	stvewx 3, 22, 5
+	stvewx 3, 22, 25
+	stvewx 3, 22, 24
+	stvewx 3, 22, 30
+	lvsr 3, 3, 7
+	vperm128 2, 2, 2, 3
+	stvewx 2, 22, 21
+	li 21, 8
+	stvewx 2, 22, 21
+	li 21, 4
+	stvewx 2, 3, 7
+	addi 7, 7, 128
+	stvewx 2, 22, 21
+	bne	0, .Lrv_BB24_5
+	lwz 5, 28(1)
+	lwz 0, 24(1)
+	cmplw	5, 0
+	beq	0, .Lrv_BB24_13
+	andi. 6, 5, 28
+	beq	0, .Lrv_BB24_11
+.Lrv_BB24_8:
+	mr	9, 0
+	rlwinm 0, 5, 0, 1, 29
+	li 12, 15
+	li 6, 12
+	li 7, 8
+	sub	8, 9, 0
+	slwi 9, 9, 2
+	li 10, 4
+.Lrv_BB24_9:
+	add 11, 4, 9
+	lvx128 2, 4, 9
+	addi 8, 8, 4
+	lvx128 3, 11, 12
+	add 11, 3, 9
+	lvsl 4, 4, 9
+	cmplwi	8, 0
+	vperm128 2, 2, 3, 4
+	lvsr 3, 3, 9
+	vcsxwfp128 2, 2, 0
+	vperm128 2, 2, 2, 3
+	stvewx 2, 3, 9
+	addi 9, 9, 16
+	stvewx 2, 11, 6
+	stvewx 2, 11, 7
+	stvewx 2, 11, 10
+	bne	0, .Lrv_BB24_9
+	cmplw	5, 0
+	beq	0, .Lrv_BB24_13
+.Lrv_BB24_11:
+	slwi 6, 0, 2
+	addi 6, 6, -4
+	sub	5, 5, 0
+	add 4, 4, 6
+	add 3, 3, 6
+.Lrv_BB24_12:
 	lwa 6, 4(4)
 	addi 5, 5, -1
 	cmplwi	5, 0
 	addi 4, 4, 4
-	std 6, 24(1)
-	lfd 0, 24(1)
+	std 6, 32(1)
+	lfd 0, 32(1)
 	fcfid 0, 0
 	frsp 0, 0
 	stfsu 0, 4(3)
-	bne	0, .Lrv_BB24_2
-	addi 1, 1, 32
+	bne	0, .Lrv_BB24_12
+.Lrv_BB24_13:
+	ld 31, 176(1)
+	ld 30, 168(1)
+	ld 29, 160(1)
+	ld 28, 152(1)
+	ld 27, 144(1)
+	ld 26, 136(1)
+	ld 25, 128(1)
+	ld 24, 120(1)
+	ld 23, 112(1)
+	ld 22, 104(1)
+	ld 21, 96(1)
+	ld 20, 88(1)
+	ld 19, 80(1)
+	ld 18, 72(1)
+	ld 17, 64(1)
+	ld 16, 56(1)
+	ld 15, 48(1)
+	ld 14, 40(1)
+	addi 1, 1, 192
 	blr
 .Lrv_func_end24:
 	.size	rv_k_i2f_r, .Lrv_func_end24-.Lrv_func_begin24
@@ -1498,18 +3865,25 @@ rv_k_mat4_vec4_r:
 .Lrv_func_begin25:
 	cmpwi	6, 1
 	bltlr	0
-	stwu 1, -432(1)
+	stwu 1, -416(1)
 	cmplwi	6, 4
 	li 7, 0
-	std 25, 368(1)
-	std 26, 376(1)
-	std 27, 384(1)
-	std 28, 392(1)
-	std 29, 400(1)
-	std 30, 408(1)
-	stfd 29, 344(1)
-	stfd 30, 352(1)
-	stfd 31, 360(1)
+	std 18, 296(1)
+	std 19, 304(1)
+	std 20, 312(1)
+	std 21, 320(1)
+	std 22, 328(1)
+	std 23, 336(1)
+	std 24, 344(1)
+	std 25, 352(1)
+	std 26, 360(1)
+	std 27, 368(1)
+	std 28, 376(1)
+	std 29, 384(1)
+	std 30, 392(1)
+	stfd 29, 272(1)
+	stfd 30, 280(1)
+	stfd 31, 288(1)
 	bge 0, .Lrv_BB25_5
 .Lrv_BB25_2:
 	sub	6, 6, 7
@@ -1574,16 +3948,23 @@ rv_k_mat4_vec4_r:
 	stfs 0, 12(3)
 	bne	0, .Lrv_BB25_3
 .Lrv_BB25_4:
-	lfd 31, 360(1)
-	ld 30, 408(1)
-	ld 29, 400(1)
-	ld 28, 392(1)
-	ld 27, 384(1)
-	ld 26, 376(1)
-	ld 25, 368(1)
-	lfd 30, 352(1)
-	lfd 29, 344(1)
-	addi 1, 1, 432
+	lfd 31, 288(1)
+	ld 30, 392(1)
+	ld 29, 384(1)
+	ld 28, 376(1)
+	ld 27, 368(1)
+	ld 26, 360(1)
+	ld 25, 352(1)
+	ld 24, 344(1)
+	ld 23, 336(1)
+	ld 22, 328(1)
+	ld 21, 320(1)
+	ld 20, 312(1)
+	ld 19, 304(1)
+	ld 18, 296(1)
+	lfd 30, 280(1)
+	lfd 29, 272(1)
+	addi 1, 1, 416
 	blr
 .Lrv_BB25_5:
 	slwi 9, 6, 4
@@ -1602,129 +3983,140 @@ rv_k_mat4_vec4_r:
 	lwz 7, 60(4)
 	li 8, .Lrv_CPI25_0@l
 	lis 9, .Lrv_CPI25_0@ha
-	lvx128 2, 9, 8
+	lvx128 34, 9, 8
 	li 8, .Lrv_CPI25_2@l
-	stw 7, 80(1)
+	stw 7, 16(1)
 	lis 9, .Lrv_CPI25_2@ha
 	lwz 7, 44(4)
 	li 10, .Lrv_CPI25_1@l
-	lvx128 4, 9, 8
-	addi 8, 1, 80
+	lvx128 35, 9, 8
+	addi 8, 1, 16
 	lvx128 1, 0, 8
-	addi 8, 1, 96
-	stw 7, 96(1)
-	addi 9, 1, 240
+	addi 8, 1, 32
+	stw 7, 32(1)
+	addi 9, 1, 112
 	lwz 7, 28(4)
 	lis 11, .Lrv_CPI25_1@ha
 	lvx128 6, 0, 8
-	addi 8, 1, 112
-	stw 7, 112(1)
-	addi 12, 1, 288
+	addi 8, 1, 48
+	stw 7, 48(1)
+	addi 12, 1, 176
 	lwz 7, 12(4)
-	addi 0, 1, 304
+	addi 0, 1, 192
 	lvx128 7, 0, 8
-	addi 8, 1, 128
-	stw 7, 128(1)
-	addi 30, 1, 320
+	addi 8, 1, 64
+	stw 7, 64(1)
+	addi 30, 1, 208
 	lwz 7, 56(4)
-	lis 27, .Lrv_CPI25_3@ha
+	addi 28, 1, 224
 	lvx128 8, 0, 8
-	addi 8, 1, 144
-	stw 7, 144(1)
-	li 26, .Lrv_CPI25_4@l
+	addi 8, 1, 80
+	stw 7, 80(1)
+	addi 25, 1, 240
 	lwz 7, 40(4)
-	vspltw128 25, 1, 0
-	vspltw128 6, 6, 0
-	vspltw128 7, 7, 0
-	vspltw128 8, 8, 0
+	addi 23, 1, 256
 	lvx128 9, 0, 8
-	addi 8, 1, 160
-	stw 7, 160(1)
+	addi 8, 1, 96
+	stw 7, 96(1)
+	li 22, .Lrv_CPI25_3@l
 	lwz 7, 24(4)
-	vspltw128 9, 9, 0
+	lis 21, .Lrv_CPI25_3@ha
 	lvx128 10, 0, 8
-	addi 8, 1, 176
-	stw 7, 176(1)
-	lwz 7, 8(4)
+	li 20, .Lrv_CPI25_4@l
+	stw 7, 112(1)
+	lis 19, .Lrv_CPI25_4@ha
+	lwz 8, 8(4)
+	rlwinm 7, 6, 0, 1, 29
+	lvx128 11, 0, 9
+	addi 9, 1, 128
+	stw 8, 128(1)
+	addi 8, 1, 144
+	lvx128 3, 11, 10
+	addi 11, 1, 160
+	lwz 10, 52(4)
+	li 26, 36
+	lvx128 12, 0, 9
+	vspltw128 25, 1, 0
+	vspltw128 32, 6, 0
+	vspltw128 33, 7, 0
+	vspltw128 8, 8, 0
+	vspltw128 9, 9, 0
 	vspltw128 10, 10, 0
-	lvx128 11, 0, 8
-	addi 8, 1, 192
-	stw 7, 192(1)
-	lwz 7, 52(4)
 	vspltw128 11, 11, 0
-	lvx128 12, 0, 8
-	addi 8, 1, 208
-	stw 7, 208(1)
-	lwz 7, 36(4)
+	stw 10, 144(1)
+	li 10, 16
+	lwz 9, 36(4)
 	vspltw128 12, 12, 0
 	lvx128 13, 0, 8
-	addi 8, 1, 224
-	stw 7, 224(1)
-	lwz 7, 20(4)
-	vspltw128 13, 13, 0
-	lvx128 14, 0, 8
-	stw 7, 240(1)
-	rlwinm 7, 6, 0, 1, 29
-	lwz 8, 4(4)
-	vspltw128 14, 14, 0
-	lvx128 15, 0, 9
-	addi 9, 1, 256
-	stw 8, 256(1)
-	lwz 8, 48(4)
-	vspltw128 15, 15, 0
-	lvx128 16, 0, 9
-	li 9, 32
-	stw 8, 272(1)
 	li 8, 0
-	lvx128 3, 11, 10
-	addi 10, 1, 272
-	lwz 11, 32(4)
-	vspltw128 16, 16, 0
-	lvx128 17, 0, 10
-	li 10, 16
-	stw 11, 288(1)
+	stw 9, 160(1)
+	lwz 9, 20(4)
+	vspltw128 13, 13, 0
+	lvx128 14, 0, 11
 	li 11, 63
-	lwz 29, 16(4)
-	vspltw128 17, 17, 0
-	lvx128 18, 0, 12
+	stw 9, 176(1)
+	li 9, 32
+	lwz 29, 4(4)
+	vspltw128 14, 14, 0
+	lvx128 15, 0, 12
 	li 12, 48
-	stw 29, 304(1)
-	li 29, .Lrv_CPI25_3@l
-	lwz 28, 0(4)
+	stw 29, 192(1)
+	lwz 29, 48(4)
+	vspltw128 15, 15, 0
+	lvx128 16, 0, 0
+	li 0, 60
+	stw 29, 208(1)
+	lwz 29, 32(4)
+	vspltw128 16, 16, 0
+	lvx128 17, 0, 30
+	li 30, 56
+	stw 29, 224(1)
+	li 29, 52
+	lwz 27, 16(4)
+	vspltw128 17, 17, 0
+	lvx128 18, 0, 28
+	li 28, 44
+	stw 27, 240(1)
+	li 27, 40
+	lwz 24, 0(4)
 	vspltw128 18, 18, 0
-	lvx128 19, 0, 0
-	addi 0, 1, 16
-	stw 28, 320(1)
-	lis 28, .Lrv_CPI25_4@ha
-	lvx128 31, 0, 30
-	addi 30, 1, 64
-	lvx128 5, 27, 29
-	addi 29, 1, 48
-	lvx128 0, 28, 26
+	lvx128 19, 0, 25
+	li 25, 28
+	stw 24, 256(1)
+	li 24, 24
+	lvx128 31, 0, 23
+	li 23, 20
+	lvx128 5, 21, 22
+	li 22, 12
+	lvx128 0, 19, 20
+	li 21, 8
 	vspltw128 19, 19, 0
 	vspltw128 31, 31, 0
-	addi 28, 1, 32
-	mr	27, 7
+	li 20, 4
+	mr	19, 7
 .Lrv_BB25_9:
-	add 26, 5, 8
-	lvx128 30, 26, 9
-	mr	25, 3
-	lvx128 29, 26, 10
-	addi 27, 27, -4
+	add 18, 5, 8
+	lvx128 30, 18, 9
+	vor128 4, 34, 34
+	vor128 2, 35, 35
+	addi 19, 19, -4
+	lvx128 29, 18, 10
+	cmplwi	19, 0
 	lvx128 28, 5, 8
-	cmplwi	27, 0
-	lvx128 27, 26, 11
-	lvx128 26, 26, 12
+	lvx128 27, 18, 11
+	lvx128 26, 18, 12
+	add 18, 3, 8
 	lvsl 1, 5, 8
 	vperm128 24, 29, 30, 1
 	vperm128 29, 28, 29, 1
 	vperm128 28, 26, 27, 1
 	vperm128 1, 30, 26, 1
 	vmrghw128 27, 29, 24
-	vperm128 26, 29, 24, 4
+	vperm128 26, 29, 24, 2
 	vmrglw128 21, 29, 24
 	vperm128 29, 29, 24, 0
-	vperm128 30, 1, 28, 2
+	lvsr 6, 18, 12
+	vperm128 30, 1, 28, 4
 	vmrghw128 23, 1, 28
 	vperm128 22, 1, 28, 5
 	vmrglw128 1, 1, 28
@@ -1732,6 +4124,7 @@ rv_k_mat4_vec4_r:
 	vperm128 27, 26, 23, 3
 	vperm128 28, 21, 22, 3
 	vperm128 1, 29, 1, 3
+	lvsr 7, 18, 9
 	vmulfp128 26, 30, 31
 	vmulfp128 24, 27, 19
 	vmulfp128 23, 30, 16
@@ -1739,7 +4132,7 @@ rv_k_mat4_vec4_r:
 	vmulfp128 21, 30, 12
 	vmulfp128 20, 27, 11
 	vmulfp128 30, 30, 8
-	vmulfp128 27, 27, 7
+	vmulfp128 27, 27, 33
 	vaddfp128 29, 26, 24
 	vaddfp128 26, 23, 22
 	vmulfp128 24, 28, 18
@@ -1747,7 +4140,7 @@ rv_k_mat4_vec4_r:
 	vmulfp128 22, 28, 14
 	vaddfp128 30, 30, 27
 	vmulfp128 27, 28, 10
-	vmulfp128 28, 28, 6
+	vmulfp128 28, 28, 32
 	vaddfp128 29, 29, 24
 	vaddfp128 26, 26, 22
 	vmulfp128 24, 1, 17
@@ -1760,39 +4153,41 @@ rv_k_mat4_vec4_r:
 	vaddfp128 26, 26, 23
 	vaddfp128 28, 27, 28
 	vaddfp128 1, 30, 1
-	vperm128 30, 28, 1, 2
-	vmrghw128 27, 29, 26
-	vperm128 24, 29, 26, 0
-	vmrglw128 23, 28, 1
-	vperm128 30, 27, 30, 3
-	vmrglw128 27, 29, 26
-	vperm128 29, 29, 26, 4
-	vperm128 24, 24, 23, 3
-	stvx128 30, 0, 0
-	vperm128 30, 28, 1, 5
-	vmrghw128 1, 28, 1
-	vperm128 30, 27, 30, 3
-	vperm128 1, 29, 1, 3
-	stvx128 24, 0, 30
-	stvx128 30, 0, 29
-	stvx128 1, 0, 28
-	ld 26, 16(1)
-	stdux 26, 25, 8
-	ld 26, 72(1)
+	vperm128 30, 29, 26, 0
+	vmrglw128 27, 28, 1
+	vperm128 30, 30, 27, 3
+	vperm128 6, 30, 30, 6
+	vmrglw128 30, 29, 26
+	stvewx 6, 18, 0
+	stvewx 6, 18, 30
+	stvewx 6, 18, 29
+	stvewx 6, 18, 12
+	vperm128 6, 28, 1, 5
+	vperm128 6, 30, 6, 3
+	vperm128 6, 6, 6, 7
+	vmrghw128 7, 28, 1
+	stvewx 6, 18, 28
+	stvewx 6, 18, 27
+	stvewx 6, 18, 26
+	stvewx 6, 18, 9
+	vperm128 6, 29, 26, 2
+	lvsr 2, 18, 10
+	vperm128 6, 6, 7, 3
+	vperm128 2, 6, 6, 2
+	lvsr 6, 3, 8
+	stvewx 2, 18, 25
+	stvewx 2, 18, 24
+	stvewx 2, 18, 23
+	stvewx 2, 18, 10
+	vperm128 2, 28, 1, 4
+	vmrghw128 1, 29, 26
+	vperm128 2, 1, 2, 3
+	vperm128 2, 2, 2, 6
+	stvewx 2, 3, 8
 	addi 8, 8, 64
-	std 26, 56(25)
-	ld 26, 64(1)
-	std 26, 48(25)
-	ld 26, 56(1)
-	std 26, 40(25)
-	ld 26, 48(1)
-	std 26, 32(25)
-	ld 26, 40(1)
-	std 26, 24(25)
-	ld 26, 32(1)
-	std 26, 16(25)
-	ld 26, 24(1)
-	std 26, 8(25)
+	stvewx 2, 18, 22
+	stvewx 2, 18, 21
+	stvewx 2, 18, 20
 	bne	0, .Lrv_BB25_9
 	cmplw	6, 7
 	bne	0, .Lrv_BB25_2
@@ -1852,15 +4247,32 @@ rv_k_max_i32_r:
 .Lrv_func_begin27:
 	cmpwi	6, 1
 	bltlr	0
-	stwu 1, -64(1)
-	cmplwi	6, 8
-	li 7, 0
-	std 30, 40(1)
+	stwu 1, -176(1)
+	std 18, 56(1)
+	cmplwi	6, 4
+	li 18, 0
+	std 14, 24(1)
+	std 15, 32(1)
+	std 16, 40(1)
+	std 17, 48(1)
+	std 19, 64(1)
+	std 20, 72(1)
+	std 21, 80(1)
+	std 22, 88(1)
+	std 23, 96(1)
+	std 24, 104(1)
+	std 25, 112(1)
+	std 26, 120(1)
+	std 27, 128(1)
+	std 28, 136(1)
+	std 29, 144(1)
+	std 30, 152(1)
+	std 31, 160(1)
 	bge 0, .Lrv_BB27_6
 .Lrv_BB27_2:
-	sub	6, 6, 7
-	slwi 7, 7, 2
+	slwi 7, 18, 2
 	addi 7, 7, -4
+	sub	6, 6, 18
 	add 4, 4, 7
 	add 5, 5, 7
 	add 3, 3, 7
@@ -1869,7 +4281,7 @@ rv_k_max_i32_r:
 	addi 6, 6, -1
 	cmplwi	6, 0
 	stwu 7, 4(3)
-	beq	0, .Lrv_BB27_11
+	beq	0, .Lrv_BB27_16
 .Lrv_BB27_4:
 	lwzu 7, 4(4)
 	lwzu 8, 4(5)
@@ -1878,44 +4290,207 @@ rv_k_max_i32_r:
 	mr	7, 8
 	b .Lrv_BB27_3
 .Lrv_BB27_6:
-	sub	8, 3, 4
-	cmplwi	8, 16
-	sub	8, 3, 5
+	sub	7, 3, 4
+	cmplwi	7, 128
+	sub	7, 3, 5
 	bc 12, 0, .Lrv_BB27_2
-	cmplwi	8, 16
+	cmplwi	7, 128
 	bc 12, 0, .Lrv_BB27_2
-	rlwinm 7, 6, 0, 1, 29
+	cmplwi	6, 32
+	blt	0, .Lrv_BB27_13
+	rlwinm 18, 6, 0, 1, 26
 	li 8, 0
-	li 9, 15
-	addi 10, 1, 16
-	mr	11, 7
-.Lrv_BB27_9:
-	add 12, 4, 8
-	lvx128 2, 4, 8
-	mr	30, 3
-	lvx128 3, 12, 9
-	add 12, 5, 8
-	lvx128 4, 5, 8
-	addi 11, 11, -4
-	lvx128 5, 12, 9
-	cmplwi	11, 0
-	lvsl 0, 4, 8
+	li 9, 16
+	li 10, 32
+	li 11, 48
+	li 12, 64
+	li 0, 80
+	li 30, 96
+	li 29, 112
+	li 28, 127
+	li 15, 76
+	li 14, 72
+	li 31, 68
+	li 27, 92
+	li 26, 88
+	li 25, 84
+	li 24, 108
+	li 23, 104
+	li 22, 100
+	li 21, 124
+	li 20, 120
+	li 19, 116
+	mr	7, 18
+.Lrv_BB27_10:
+	add 17, 4, 8
+	lvx128 7, 4, 8
+	li 16, 28
+	lvx128 8, 17, 9
+	addi 7, 7, -32
+	lvx128 0, 17, 10
+	cmplwi	7, 0
+	lvx128 9, 17, 11
+	lvx128 10, 17, 12
+	lvx128 11, 17, 0
+	lvx128 12, 17, 30
+	lvx128 13, 17, 29
+	lvx128 14, 17, 28
+	add 17, 5, 8
+	lvx128 15, 5, 8
+	lvx128 16, 17, 9
+	lvx128 6, 17, 10
+	lvsl 2, 4, 8
+	vperm128 1, 8, 0, 2
+	vperm128 0, 0, 9, 2
+	lvsl 3, 5, 8
+	vperm128 28, 16, 6, 3
+	lvx128 17, 17, 11
+	vmaxsw 28, 1, 28
+	lvx128 18, 17, 12
+	lvx128 19, 17, 0
+	vperm128 6, 6, 17, 3
+	lvx128 31, 17, 30
+	vmaxsw 6, 0, 6
+	lvx128 30, 17, 29
+	lvx128 29, 17, 28
+	add 17, 3, 8
+	lvsr 5, 17, 9
+	vperm128 5, 28, 28, 5
+	stvewx 5, 17, 16
+	li 16, 24
+	lvsr 1, 17, 10
+	vperm128 1, 6, 6, 1
+	stvewx 5, 17, 16
+	li 16, 20
+	stvewx 5, 17, 16
+	li 16, 44
+	stvewx 1, 17, 16
+	li 16, 40
+	stvewx 1, 17, 16
+	li 16, 36
+	stvewx 1, 17, 16
+	li 16, 12
+	stvewx 1, 17, 10
+	vperm128 1, 7, 8, 2
+	vperm128 8, 15, 16, 3
+	lvsr 4, 3, 8
+	vmaxsw 8, 1, 8
+	vperm128 4, 8, 8, 4
+	vperm128 8, 9, 10, 2
+	vperm128 9, 17, 18, 3
+	stvewx 5, 17, 9
+	vmaxsw 8, 8, 9
+	vperm128 9, 18, 19, 3
+	stvewx 4, 17, 16
+	li 16, 8
+	lvsr 5, 17, 11
+	vperm128 5, 8, 8, 5
+	vperm128 8, 10, 11, 2
+	stvewx 4, 17, 16
+	li 16, 4
+	stvewx 4, 17, 16
+	li 16, 60
+	stvewx 5, 17, 16
+	li 16, 56
+	lvsr 0, 17, 12
+	vmaxsw 8, 8, 9
+	stvewx 5, 17, 16
+	li 16, 52
+	stvewx 5, 17, 16
+	stvewx 5, 17, 11
+	vperm128 5, 8, 8, 0
+	vperm128 0, 11, 12, 2
+	vperm128 8, 19, 31, 3
+	lvsr 6, 17, 0
+	vmaxsw 0, 0, 8
+	stvewx 5, 17, 15
+	stvewx 5, 17, 14
+	stvewx 5, 17, 31
+	stvewx 5, 17, 12
+	vperm128 5, 0, 0, 6
+	vperm128 0, 12, 13, 2
+	vperm128 6, 31, 30, 3
+	vperm128 2, 13, 14, 2
+	vperm128 3, 30, 29, 3
+	lvsr 7, 17, 30
+	vmaxsw 0, 0, 6
+	vmaxsw 2, 2, 3
+	lvsr 1, 17, 29
+	vperm128 2, 2, 2, 1
+	stvewx 5, 17, 27
+	stvewx 5, 17, 26
+	stvewx 5, 17, 25
+	stvewx 5, 17, 0
+	vperm128 5, 0, 0, 7
+	stvewx 4, 3, 8
+	addi 8, 8, 128
+	stvewx 5, 17, 24
+	stvewx 5, 17, 23
+	stvewx 5, 17, 22
+	stvewx 5, 17, 30
+	stvewx 2, 17, 21
+	stvewx 2, 17, 20
+	stvewx 2, 17, 19
+	stvewx 2, 17, 29
+	bne	0, .Lrv_BB27_10
+	cmplw	6, 18
+	beq	0, .Lrv_BB27_16
+	andi. 7, 6, 28
+	beq	0, .Lrv_BB27_2
+.Lrv_BB27_13:
+	mr	11, 18
+	rlwinm 18, 6, 0, 1, 29
+	li 7, 15
+	li 8, 12
+	li 9, 8
+	sub	10, 11, 18
+	slwi 11, 11, 2
+	li 12, 4
+.Lrv_BB27_14:
+	add 30, 4, 11
+	lvx128 2, 4, 11
+	addi 10, 10, 4
+	lvx128 3, 30, 7
+	add 30, 5, 11
+	lvx128 4, 5, 11
+	cmplwi	10, 0
+	lvx128 5, 30, 7
+	add 30, 3, 11
+	lvsl 0, 4, 11
 	vperm128 2, 2, 3, 0
-	lvsl 1, 5, 8
+	lvsl 1, 5, 11
 	vperm128 3, 4, 5, 1
 	vmaxsw 2, 2, 3
-	stvx128 2, 0, 10
-	ld 12, 16(1)
-	stdux 12, 30, 8
-	ld 12, 24(1)
-	addi 8, 8, 16
-	std 12, 8(30)
-	bne	0, .Lrv_BB27_9
-	cmplw	6, 7
+	lvsr 3, 3, 11
+	vperm128 2, 2, 2, 3
+	stvewx 2, 3, 11
+	addi 11, 11, 16
+	stvewx 2, 30, 8
+	stvewx 2, 30, 9
+	stvewx 2, 30, 12
+	bne	0, .Lrv_BB27_14
+	cmplw	6, 18
 	bne	0, .Lrv_BB27_2
-.Lrv_BB27_11:
-	ld 30, 40(1)
-	addi 1, 1, 64
+.Lrv_BB27_16:
+	ld 31, 160(1)
+	ld 30, 152(1)
+	ld 29, 144(1)
+	ld 28, 136(1)
+	ld 27, 128(1)
+	ld 26, 120(1)
+	ld 25, 112(1)
+	ld 24, 104(1)
+	ld 23, 96(1)
+	ld 22, 88(1)
+	ld 21, 80(1)
+	ld 20, 72(1)
+	ld 19, 64(1)
+	ld 18, 56(1)
+	ld 17, 48(1)
+	ld 16, 40(1)
+	ld 15, 32(1)
+	ld 14, 24(1)
+	addi 1, 1, 176
 	blr
 .Lrv_func_end27:
 	.size	rv_k_max_i32_r, .Lrv_func_end27-.Lrv_func_begin27
@@ -1928,15 +4503,32 @@ rv_k_min_f32_r:
 .Lrv_func_begin28:
 	cmpwi	6, 1
 	bltlr	0
-	stwu 1, -64(1)
-	cmplwi	6, 8
-	li 7, 0
-	std 30, 40(1)
+	stwu 1, -176(1)
+	std 18, 56(1)
+	cmplwi	6, 4
+	li 18, 0
+	std 14, 24(1)
+	std 15, 32(1)
+	std 16, 40(1)
+	std 17, 48(1)
+	std 19, 64(1)
+	std 20, 72(1)
+	std 21, 80(1)
+	std 22, 88(1)
+	std 23, 96(1)
+	std 24, 104(1)
+	std 25, 112(1)
+	std 26, 120(1)
+	std 27, 128(1)
+	std 28, 136(1)
+	std 29, 144(1)
+	std 30, 152(1)
+	std 31, 160(1)
 	bge 0, .Lrv_BB28_6
 .Lrv_BB28_2:
-	sub	6, 6, 7
-	slwi 7, 7, 2
+	slwi 7, 18, 2
 	addi 7, 7, -4
+	sub	6, 6, 18
 	add 4, 4, 7
 	add 5, 5, 7
 	add 3, 3, 7
@@ -1945,7 +4537,7 @@ rv_k_min_f32_r:
 	addi 6, 6, -1
 	cmplwi	6, 0
 	stfsu 0, 4(3)
-	beq	0, .Lrv_BB28_11
+	beq	0, .Lrv_BB28_16
 .Lrv_BB28_4:
 	lfsu 0, 4(4)
 	lfsu 1, 4(5)
@@ -1954,45 +4546,216 @@ rv_k_min_f32_r:
 	fmr 0, 1
 	b .Lrv_BB28_3
 .Lrv_BB28_6:
-	sub	8, 3, 4
-	cmplwi	8, 16
-	sub	8, 3, 5
+	sub	7, 3, 4
+	cmplwi	7, 128
+	sub	7, 3, 5
 	bc 12, 0, .Lrv_BB28_2
-	cmplwi	8, 16
+	cmplwi	7, 128
 	bc 12, 0, .Lrv_BB28_2
-	rlwinm 7, 6, 0, 1, 29
+	cmplwi	6, 32
+	blt	0, .Lrv_BB28_13
+	rlwinm 18, 6, 0, 1, 26
 	li 8, 0
-	li 9, 15
-	addi 10, 1, 16
-	mr	11, 7
-.Lrv_BB28_9:
-	add 12, 4, 8
-	lvx128 2, 4, 8
-	mr	30, 3
-	lvx128 3, 12, 9
-	add 12, 5, 8
-	lvx128 4, 5, 8
-	addi 11, 11, -4
-	lvx128 5, 12, 9
-	cmplwi	11, 0
-	lvsl 0, 4, 8
-	vperm128 2, 2, 3, 0
-	lvsl 1, 5, 8
-	vperm128 3, 4, 5, 1
+	li 9, 16
+	li 10, 32
+	li 11, 48
+	li 12, 64
+	li 0, 80
+	li 30, 96
+	li 29, 112
+	li 28, 127
+	li 15, 76
+	li 14, 72
+	li 31, 68
+	li 27, 92
+	li 26, 88
+	li 25, 84
+	li 24, 108
+	li 23, 104
+	li 22, 100
+	li 21, 124
+	li 20, 120
+	li 19, 116
+	mr	7, 18
+.Lrv_BB28_10:
+	add 17, 4, 8
+	lvx128 28, 4, 8
+	li 16, 28
+	lvx128 27, 17, 9
+	addi 7, 7, -32
+	lvx128 0, 17, 10
+	cmplwi	7, 0
+	lvx128 1, 17, 11
+	lvx128 6, 17, 12
+	lvx128 7, 17, 0
+	lvx128 8, 17, 30
+	lvx128 9, 17, 29
+	lvx128 10, 17, 28
+	add 17, 5, 8
+	lvx128 11, 5, 8
+	lvx128 12, 17, 9
+	lvx128 13, 17, 10
+	lvsl 2, 4, 8
+	vperm128 31, 27, 0, 2
+	vperm128 0, 0, 1, 2
+	lvsl 3, 5, 8
+	vperm128 30, 12, 13, 3
+	lvx128 14, 17, 11
+	vcmpgtfp128 29, 30, 31
+	lvx128 15, 17, 12
+	vsel128 29, 30, 31, 29
+	lvx128 16, 17, 0
+	vperm128 13, 13, 14, 3
+	lvx128 17, 17, 30
+	lvx128 18, 17, 29
+	lvx128 19, 17, 28
+	add 17, 3, 8
+	lvsr 4, 17, 9
+	vperm128 4, 29, 29, 4
+	stvewx 4, 17, 16
+	li 16, 24
+	stvewx 4, 17, 16
+	li 16, 20
+	stvewx 4, 17, 16
+	li 16, 44
+	stvewx 4, 17, 9
+	vcmpgtfp128 4, 13, 0
+	lvsr 5, 17, 10
+	vsel128 4, 13, 0, 4
+	vperm128 0, 14, 15, 3
+	vperm128 4, 4, 4, 5
+	vperm128 5, 1, 6, 2
+	lvsr 1, 17, 11
+	stvewx 4, 17, 16
+	li 16, 40
+	stvewx 4, 17, 16
+	li 16, 36
+	stvewx 4, 17, 16
+	li 16, 60
+	stvewx 4, 17, 10
+	vcmpgtfp128 4, 0, 5
+	vsel128 4, 0, 5, 4
+	vperm128 5, 6, 7, 2
+	vperm128 0, 15, 16, 3
+	vperm128 4, 4, 4, 1
+	lvsr 1, 17, 12
+	stvewx 4, 17, 16
+	li 16, 56
+	stvewx 4, 17, 16
+	li 16, 52
+	stvewx 4, 17, 16
+	li 16, 12
+	stvewx 4, 17, 11
+	vcmpgtfp128 4, 0, 5
+	vsel128 4, 0, 5, 4
+	vperm128 5, 7, 8, 2
+	vperm128 0, 16, 17, 3
+	vperm128 4, 4, 4, 1
+	lvsr 1, 17, 0
+	stvewx 4, 17, 15
+	stvewx 4, 17, 14
+	stvewx 4, 17, 31
+	stvewx 4, 17, 12
+	vcmpgtfp128 4, 0, 5
+	vsel128 4, 0, 5, 4
+	vperm128 5, 8, 9, 2
+	vperm128 0, 17, 18, 3
+	vperm128 4, 4, 4, 1
+	lvsr 1, 17, 30
+	stvewx 4, 17, 27
+	stvewx 4, 17, 26
+	stvewx 4, 17, 25
+	stvewx 4, 17, 0
+	vcmpgtfp128 4, 0, 5
+	vsel128 4, 0, 5, 4
+	vperm128 5, 9, 10, 2
+	vperm128 0, 18, 19, 3
+	vperm128 2, 28, 27, 2
+	vperm128 3, 11, 12, 3
+	vperm128 4, 4, 4, 1
+	lvsr 1, 17, 29
+	stvewx 4, 17, 24
+	stvewx 4, 17, 23
+	stvewx 4, 17, 22
+	stvewx 4, 17, 30
+	vcmpgtfp128 4, 0, 5
+	vsel128 4, 0, 5, 4
+	lvsr 5, 3, 8
+	vperm128 4, 4, 4, 1
+	stvewx 4, 17, 21
+	stvewx 4, 17, 20
+	stvewx 4, 17, 19
+	stvewx 4, 17, 29
 	vcmpgtfp128 4, 3, 2
 	vsel128 4, 3, 2, 4
-	stvx128 4, 0, 10
-	ld 12, 16(1)
-	stdux 12, 30, 8
-	ld 12, 24(1)
-	addi 8, 8, 16
-	std 12, 8(30)
-	bne	0, .Lrv_BB28_9
-	cmplw	6, 7
+	vperm128 2, 4, 4, 5
+	stvewx 2, 17, 16
+	li 16, 8
+	stvewx 2, 17, 16
+	li 16, 4
+	stvewx 2, 3, 8
+	addi 8, 8, 128
+	stvewx 2, 17, 16
+	bne	0, .Lrv_BB28_10
+	cmplw	6, 18
+	beq	0, .Lrv_BB28_16
+	andi. 7, 6, 28
+	beq	0, .Lrv_BB28_2
+.Lrv_BB28_13:
+	mr	11, 18
+	rlwinm 18, 6, 0, 1, 29
+	li 7, 15
+	li 8, 12
+	li 9, 8
+	sub	10, 11, 18
+	slwi 11, 11, 2
+	li 12, 4
+.Lrv_BB28_14:
+	add 30, 4, 11
+	lvx128 2, 4, 11
+	addi 10, 10, 4
+	lvx128 3, 30, 7
+	add 30, 5, 11
+	lvx128 4, 5, 11
+	cmplwi	10, 0
+	lvx128 5, 30, 7
+	add 30, 3, 11
+	lvsl 0, 4, 11
+	vperm128 2, 2, 3, 0
+	lvsl 1, 5, 11
+	vperm128 3, 4, 5, 1
+	vcmpgtfp128 4, 3, 2
+	lvsr 5, 3, 11
+	vsel128 4, 3, 2, 4
+	vperm128 2, 4, 4, 5
+	stvewx 2, 3, 11
+	addi 11, 11, 16
+	stvewx 2, 30, 8
+	stvewx 2, 30, 9
+	stvewx 2, 30, 12
+	bne	0, .Lrv_BB28_14
+	cmplw	6, 18
 	bne	0, .Lrv_BB28_2
-.Lrv_BB28_11:
-	ld 30, 40(1)
-	addi 1, 1, 64
+.Lrv_BB28_16:
+	ld 31, 160(1)
+	ld 30, 152(1)
+	ld 29, 144(1)
+	ld 28, 136(1)
+	ld 27, 128(1)
+	ld 26, 120(1)
+	ld 25, 112(1)
+	ld 24, 104(1)
+	ld 23, 96(1)
+	ld 22, 88(1)
+	ld 21, 80(1)
+	ld 20, 72(1)
+	ld 19, 64(1)
+	ld 18, 56(1)
+	ld 17, 48(1)
+	ld 16, 40(1)
+	ld 15, 32(1)
+	ld 14, 24(1)
+	addi 1, 1, 176
 	blr
 .Lrv_func_end28:
 	.size	rv_k_min_f32_r, .Lrv_func_end28-.Lrv_func_begin28
@@ -2005,15 +4768,32 @@ rv_k_mul_f32_r:
 .Lrv_func_begin29:
 	cmpwi	6, 1
 	bltlr	0
-	stwu 1, -64(1)
-	cmplwi	6, 8
-	li 7, 0
-	std 30, 40(1)
+	stwu 1, -176(1)
+	std 18, 56(1)
+	cmplwi	6, 4
+	li 18, 0
+	std 14, 24(1)
+	std 15, 32(1)
+	std 16, 40(1)
+	std 17, 48(1)
+	std 19, 64(1)
+	std 20, 72(1)
+	std 21, 80(1)
+	std 22, 88(1)
+	std 23, 96(1)
+	std 24, 104(1)
+	std 25, 112(1)
+	std 26, 120(1)
+	std 27, 128(1)
+	std 28, 136(1)
+	std 29, 144(1)
+	std 30, 152(1)
+	std 31, 160(1)
 	bge 0, .Lrv_BB29_5
 .Lrv_BB29_2:
-	sub	6, 6, 7
-	slwi 7, 7, 2
+	slwi 7, 18, 2
 	addi 7, 7, -4
+	sub	6, 6, 18
 	add 4, 4, 7
 	add 5, 5, 7
 	add 3, 3, 7
@@ -2026,44 +4806,207 @@ rv_k_mul_f32_r:
 	stfsu 0, 4(3)
 	bne	0, .Lrv_BB29_3
 .Lrv_BB29_4:
-	ld 30, 40(1)
-	addi 1, 1, 64
+	ld 31, 160(1)
+	ld 30, 152(1)
+	ld 29, 144(1)
+	ld 28, 136(1)
+	ld 27, 128(1)
+	ld 26, 120(1)
+	ld 25, 112(1)
+	ld 24, 104(1)
+	ld 23, 96(1)
+	ld 22, 88(1)
+	ld 21, 80(1)
+	ld 20, 72(1)
+	ld 19, 64(1)
+	ld 18, 56(1)
+	ld 17, 48(1)
+	ld 16, 40(1)
+	ld 15, 32(1)
+	ld 14, 24(1)
+	addi 1, 1, 176
 	blr
 .Lrv_BB29_5:
-	sub	8, 3, 4
-	cmplwi	8, 16
-	sub	8, 3, 5
+	sub	7, 3, 4
+	cmplwi	7, 128
+	sub	7, 3, 5
 	bc 12, 0, .Lrv_BB29_2
-	cmplwi	8, 16
+	cmplwi	7, 128
 	bc 12, 0, .Lrv_BB29_2
-	rlwinm 7, 6, 0, 1, 29
+	cmplwi	6, 32
+	blt	0, .Lrv_BB29_12
+	rlwinm 18, 6, 0, 1, 26
 	li 8, 0
-	li 9, 15
-	addi 10, 1, 16
-	mr	11, 7
-.Lrv_BB29_8:
-	add 12, 4, 8
-	lvx128 2, 4, 8
-	mr	30, 3
-	lvx128 3, 12, 9
-	add 12, 5, 8
-	lvx128 4, 5, 8
-	addi 11, 11, -4
-	lvx128 5, 12, 9
-	cmplwi	11, 0
-	lvsl 0, 4, 8
-	vperm128 2, 2, 3, 0
-	lvsl 1, 5, 8
-	vperm128 3, 4, 5, 1
+	li 9, 16
+	li 10, 32
+	li 11, 48
+	li 12, 64
+	li 0, 80
+	li 30, 96
+	li 29, 112
+	li 28, 127
+	li 15, 76
+	li 14, 72
+	li 31, 68
+	li 27, 92
+	li 26, 88
+	li 25, 84
+	li 24, 108
+	li 23, 104
+	li 22, 100
+	li 21, 124
+	li 20, 120
+	li 19, 116
+	mr	7, 18
+.Lrv_BB29_9:
+	add 17, 4, 8
+	lvx128 29, 4, 8
+	li 16, 28
+	lvx128 5, 17, 9
+	addi 7, 7, -32
+	lvx128 0, 17, 10
+	cmplwi	7, 0
+	lvx128 1, 17, 11
+	lvx128 6, 17, 12
+	lvx128 7, 17, 0
+	lvx128 8, 17, 30
+	lvx128 9, 17, 29
+	lvx128 10, 17, 28
+	add 17, 5, 8
+	lvx128 11, 5, 8
+	lvx128 12, 17, 9
+	lvx128 13, 17, 10
+	lvsl 2, 4, 8
+	vperm128 31, 5, 0, 2
+	lvsl 3, 5, 8
+	vperm128 30, 12, 13, 3
+	lvx128 14, 17, 11
+	vmulfp128 31, 31, 30
+	lvx128 15, 17, 12
+	lvx128 16, 17, 0
+	lvx128 17, 17, 30
+	lvx128 18, 17, 29
+	lvx128 19, 17, 28
+	add 17, 3, 8
+	lvsr 4, 17, 9
+	vperm128 4, 31, 31, 4
+	stvewx 4, 17, 16
+	li 16, 24
+	stvewx 4, 17, 16
+	li 16, 20
+	stvewx 4, 17, 16
+	li 16, 44
+	stvewx 4, 17, 9
+	vperm128 4, 0, 1, 2
+	vperm128 0, 13, 14, 3
+	vmulfp128 4, 4, 0
+	lvsr 0, 17, 10
+	vperm128 4, 4, 4, 0
+	vperm128 0, 14, 15, 3
+	stvewx 4, 17, 16
+	li 16, 40
+	stvewx 4, 17, 16
+	li 16, 36
+	stvewx 4, 17, 16
+	li 16, 60
+	stvewx 4, 17, 10
+	vperm128 4, 1, 6, 2
+	vmulfp128 4, 4, 0
+	lvsr 0, 17, 11
+	vperm128 4, 4, 4, 0
+	vperm128 0, 15, 16, 3
+	stvewx 4, 17, 16
+	li 16, 56
+	stvewx 4, 17, 16
+	li 16, 52
+	stvewx 4, 17, 16
+	li 16, 12
+	stvewx 4, 17, 11
+	vperm128 4, 6, 7, 2
+	lvsr 1, 17, 12
+	vmulfp128 4, 4, 0
+	vperm128 0, 16, 17, 3
+	vperm128 4, 4, 4, 1
+	lvsr 1, 17, 0
+	stvewx 4, 17, 15
+	stvewx 4, 17, 14
+	stvewx 4, 17, 31
+	stvewx 4, 17, 12
+	vperm128 4, 7, 8, 2
+	vmulfp128 4, 4, 0
+	vperm128 0, 17, 18, 3
+	vperm128 4, 4, 4, 1
+	lvsr 1, 17, 30
+	stvewx 4, 17, 27
+	stvewx 4, 17, 26
+	stvewx 4, 17, 25
+	stvewx 4, 17, 0
+	vperm128 4, 8, 9, 2
+	vmulfp128 4, 4, 0
+	vperm128 0, 18, 19, 3
+	vperm128 3, 11, 12, 3
+	vperm128 4, 4, 4, 1
+	lvsr 1, 17, 29
+	stvewx 4, 17, 24
+	stvewx 4, 17, 23
+	stvewx 4, 17, 22
+	stvewx 4, 17, 30
+	vperm128 4, 9, 10, 2
+	vperm128 2, 29, 5, 2
+	vmulfp128 4, 4, 0
 	vmulfp128 2, 2, 3
-	stvx128 2, 0, 10
-	ld 12, 16(1)
-	stdux 12, 30, 8
-	ld 12, 24(1)
-	addi 8, 8, 16
-	std 12, 8(30)
-	bne	0, .Lrv_BB29_8
-	cmplw	6, 7
+	vperm128 4, 4, 4, 1
+	stvewx 4, 17, 21
+	stvewx 4, 17, 20
+	stvewx 4, 17, 19
+	stvewx 4, 17, 29
+	lvsr 4, 3, 8
+	vperm128 2, 2, 2, 4
+	stvewx 2, 17, 16
+	li 16, 8
+	stvewx 2, 17, 16
+	li 16, 4
+	stvewx 2, 3, 8
+	addi 8, 8, 128
+	stvewx 2, 17, 16
+	bne	0, .Lrv_BB29_9
+	cmplw	6, 18
+	beq	0, .Lrv_BB29_4
+	andi. 7, 6, 28
+	beq	0, .Lrv_BB29_2
+.Lrv_BB29_12:
+	mr	11, 18
+	rlwinm 18, 6, 0, 1, 29
+	li 7, 15
+	li 8, 12
+	li 9, 8
+	sub	10, 11, 18
+	slwi 11, 11, 2
+	li 12, 4
+.Lrv_BB29_13:
+	add 30, 4, 11
+	lvx128 2, 4, 11
+	addi 10, 10, 4
+	lvx128 3, 30, 7
+	add 30, 5, 11
+	lvx128 4, 5, 11
+	cmplwi	10, 0
+	lvx128 5, 30, 7
+	add 30, 3, 11
+	lvsl 0, 4, 11
+	vperm128 2, 2, 3, 0
+	lvsl 1, 5, 11
+	vperm128 3, 4, 5, 1
+	lvsr 4, 3, 11
+	vmulfp128 2, 2, 3
+	vperm128 2, 2, 2, 4
+	stvewx 2, 3, 11
+	addi 11, 11, 16
+	stvewx 2, 30, 8
+	stvewx 2, 30, 9
+	stvewx 2, 30, 12
+	bne	0, .Lrv_BB29_13
+	cmplw	6, 18
 	bne	0, .Lrv_BB29_2
 	b .Lrv_BB29_4
 .Lrv_func_end29:
@@ -2104,67 +5047,247 @@ rv_k_offset1_f32_r:
 	cmpwi 1, 5, 1
 	cror 20, 4, 2
 	bclr 12, 20, 0
-	stwu 1, -64(1)
-	cmplwi	6, 8
-	li 5, 0
-	std 30, 40(1)
-	blt	0, .Lrv_BB31_7
-	slwi 8, 7, 2
-	add 9, 4, 8
-	addi 9, 9, 4
-	cmplw	3, 9
-	add 8, 3, 8
+	stwu 1, -176(1)
+	std 18, 56(1)
+	cmplwi	6, 4
+	li 18, 0
+	std 14, 24(1)
+	std 15, 32(1)
+	std 16, 40(1)
+	std 17, 48(1)
+	std 19, 64(1)
+	std 20, 72(1)
+	std 21, 80(1)
+	std 22, 88(1)
+	std 23, 96(1)
+	std 24, 104(1)
+	std 25, 112(1)
+	std 26, 120(1)
+	std 27, 128(1)
+	std 28, 136(1)
+	std 29, 144(1)
+	std 30, 152(1)
+	std 31, 160(1)
+	blt	0, .Lrv_BB31_12
+	slwi 5, 7, 2
+	add 8, 4, 5
+	addi 8, 8, 4
+	cmplw	3, 8
+	add 5, 3, 5
 	bc 4, 0, .Lrv_BB31_4
-	cmplw	4, 8
-	bc 12, 0, .Lrv_BB31_7
+	cmplw	4, 5
+	bc 12, 0, .Lrv_BB31_12
 .Lrv_BB31_4:
-	rlwinm 5, 7, 0, 2, 29
-	addi 7, 4, 4
+	cmplwi	6, 32
+	blt	0, .Lrv_BB31_9
+	rlwinm 18, 7, 0, 2, 26
 	li 8, 0
-	li 9, 15
-	addi 10, 1, 16
-	mr	11, 5
-.Lrv_BB31_5:
-	add 12, 4, 8
-	lvx128 2, 4, 8
-	mr	30, 3
-	lvx128 3, 12, 9
-	add 12, 7, 8
-	lvx128 4, 7, 8
-	addi 11, 11, -4
-	lvx128 5, 12, 9
-	cmplwi	11, 0
-	lvsl 0, 4, 8
-	vperm128 2, 2, 3, 0
-	lvsl 1, 7, 8
-	vperm128 3, 4, 5, 1
+	li 9, 16
+	li 10, 32
+	li 11, 48
+	li 12, 64
+	li 0, 80
+	li 30, 96
+	li 29, 112
+	li 27, 4
+	li 26, 20
+	li 25, 116
+	li 24, 36
+	li 23, 52
+	li 22, 68
+	li 21, 84
+	li 20, 100
+	li 15, 88
+	li 14, 108
+	li 31, 104
+	li 28, 124
+	li 19, 120
+	mr	5, 18
+.Lrv_BB31_6:
+	add 17, 4, 8
+	li 16, 127
+	lvx128 29, 4, 8
+	addi 5, 5, -32
+	lvx128 5, 17, 9
+	cmplwi	5, 0
+	lvx128 0, 17, 10
+	lvx128 1, 17, 11
+	lvx128 6, 17, 12
+	lvx128 7, 17, 0
+	lvx128 8, 17, 30
+	lvx128 9, 17, 29
+	lvx128 10, 17, 16
+	li 16, 131
+	lvx128 11, 17, 27
+	lvx128 12, 17, 26
+	lvx128 13, 17, 24
+	lvsl 2, 4, 8
+	vperm128 31, 5, 0, 2
+	lvsl 3, 17, 25
+	vperm128 30, 12, 13, 3
+	lvx128 14, 17, 23
+	vaddfp128 31, 31, 30
+	lvx128 15, 17, 22
+	lvx128 16, 17, 21
+	lvx128 17, 17, 20
+	lvx128 18, 17, 25
+	lvx128 19, 17, 16
+	add 17, 3, 8
+	lvsr 4, 17, 9
+	vperm128 4, 31, 31, 4
+	li 16, 28
+	stvewx 4, 17, 16
+	li 16, 24
+	stvewx 4, 17, 16
+	li 16, 44
+	stvewx 4, 17, 26
+	stvewx 4, 17, 9
+	vperm128 4, 0, 1, 2
+	vperm128 0, 13, 14, 3
+	vaddfp128 4, 4, 0
+	lvsr 0, 17, 10
+	vperm128 4, 4, 4, 0
+	vperm128 0, 14, 15, 3
+	stvewx 4, 17, 16
+	li 16, 40
+	stvewx 4, 17, 16
+	li 16, 60
+	stvewx 4, 17, 24
+	stvewx 4, 17, 10
+	vperm128 4, 1, 6, 2
+	vaddfp128 4, 4, 0
+	lvsr 0, 17, 11
+	vperm128 4, 4, 4, 0
+	vperm128 0, 15, 16, 3
+	stvewx 4, 17, 16
+	li 16, 56
+	stvewx 4, 17, 16
+	li 16, 76
+	stvewx 4, 17, 23
+	stvewx 4, 17, 11
+	vperm128 4, 6, 7, 2
+	lvsr 1, 17, 12
+	vaddfp128 4, 4, 0
+	vperm128 0, 16, 17, 3
+	vperm128 4, 4, 4, 1
+	lvsr 1, 17, 0
+	stvewx 4, 17, 16
+	li 16, 72
+	stvewx 4, 17, 16
+	li 16, 92
+	stvewx 4, 17, 22
+	stvewx 4, 17, 12
+	vperm128 4, 7, 8, 2
+	vaddfp128 4, 4, 0
+	vperm128 0, 17, 18, 3
+	vperm128 4, 4, 4, 1
+	lvsr 1, 17, 30
+	stvewx 4, 17, 16
+	li 16, 12
+	stvewx 4, 17, 15
+	stvewx 4, 17, 21
+	stvewx 4, 17, 0
+	vperm128 4, 8, 9, 2
+	vaddfp128 4, 4, 0
+	vperm128 0, 18, 19, 3
+	vperm128 3, 11, 12, 3
+	vperm128 4, 4, 4, 1
+	lvsr 1, 17, 29
+	stvewx 4, 17, 14
+	stvewx 4, 17, 31
+	stvewx 4, 17, 20
+	stvewx 4, 17, 30
+	vperm128 4, 9, 10, 2
+	vperm128 2, 29, 5, 2
+	vaddfp128 4, 4, 0
 	vaddfp128 2, 2, 3
-	stvx128 2, 0, 10
-	ld 12, 16(1)
-	stdux 12, 30, 8
-	ld 12, 24(1)
-	addi 8, 8, 16
-	std 12, 8(30)
-	bne	0, .Lrv_BB31_5
-	cmplw	6, 5
-	beq	0, .Lrv_BB31_9
-.Lrv_BB31_7:
-	sub	6, 6, 5
-	slwi 5, 5, 2
-	addi 5, 5, -4
-	add 4, 4, 5
-	add 3, 3, 5
-.Lrv_BB31_8:
+	vperm128 4, 4, 4, 1
+	stvewx 4, 17, 28
+	stvewx 4, 17, 19
+	stvewx 4, 17, 25
+	stvewx 4, 17, 29
+	lvsr 4, 3, 8
+	vperm128 2, 2, 2, 4
+	stvewx 2, 17, 16
+	li 16, 8
+	stvewx 2, 3, 8
+	addi 8, 8, 128
+	stvewx 2, 17, 16
+	stvewx 2, 17, 27
+	bne	0, .Lrv_BB31_6
+	cmplw	6, 18
+	beq	0, .Lrv_BB31_14
+	andi. 5, 7, 28
+	beq	0, .Lrv_BB31_12
+.Lrv_BB31_9:
+	mr	11, 18
+	rlwinm 18, 7, 0, 2, 29
+	addi 5, 4, 4
+	li 7, 15
+	li 8, 12
+	li 9, 8
+	sub	10, 11, 18
+	slwi 11, 11, 2
+	li 12, 4
+.Lrv_BB31_10:
+	add 30, 4, 11
+	lvx128 2, 4, 11
+	addi 10, 10, 4
+	lvx128 3, 30, 7
+	add 30, 5, 11
+	lvx128 4, 5, 11
+	cmplwi	10, 0
+	lvx128 5, 30, 7
+	add 30, 3, 11
+	lvsl 0, 4, 11
+	vperm128 2, 2, 3, 0
+	lvsl 1, 5, 11
+	vperm128 3, 4, 5, 1
+	lvsr 4, 3, 11
+	vaddfp128 2, 2, 3
+	vperm128 2, 2, 2, 4
+	stvewx 2, 3, 11
+	addi 11, 11, 16
+	stvewx 2, 30, 8
+	stvewx 2, 30, 9
+	stvewx 2, 30, 12
+	bne	0, .Lrv_BB31_10
+	cmplw	6, 18
+	beq	0, .Lrv_BB31_14
+.Lrv_BB31_12:
+	sub	5, 6, 18
+	slwi 6, 18, 2
+	addi 6, 6, -4
+	add 4, 4, 6
+	add 3, 3, 6
+.Lrv_BB31_13:
 	lfsu 0, 4(4)
-	addi 6, 6, -1
-	cmplwi	6, 0
+	addi 5, 5, -1
+	cmplwi	5, 0
 	lfs 1, 4(4)
 	fadds 0, 0, 1
 	stfsu 0, 4(3)
-	bne	0, .Lrv_BB31_8
-.Lrv_BB31_9:
-	ld 30, 40(1)
-	addi 1, 1, 64
+	bne	0, .Lrv_BB31_13
+.Lrv_BB31_14:
+	ld 31, 160(1)
+	ld 30, 152(1)
+	ld 29, 144(1)
+	ld 28, 136(1)
+	ld 27, 128(1)
+	ld 26, 120(1)
+	ld 25, 112(1)
+	ld 24, 104(1)
+	ld 23, 96(1)
+	ld 22, 88(1)
+	ld 21, 80(1)
+	ld 20, 72(1)
+	ld 19, 64(1)
+	ld 18, 56(1)
+	ld 17, 48(1)
+	ld 16, 40(1)
+	ld 15, 32(1)
+	ld 14, 24(1)
+	addi 1, 1, 176
 	blr
 .Lrv_func_end31:
 	.size	rv_k_offset1_f32_r, .Lrv_func_end31-.Lrv_func_begin31
@@ -2198,9 +5321,10 @@ rv_k_saxpy:
 .Lrv_func_begin33:
 	cmpwi	6, 1
 	bltlr	0
-	stwu 1, -48(1)
+	stwu 1, -64(1)
 	cmplwi	6, 8
 	li 5, 0
+	std 30, 40(1)
 	blt	0, .Lrv_BB33_7
 	slwi 7, 6, 2
 	add 8, 4, 7
@@ -2210,36 +5334,39 @@ rv_k_saxpy:
 	cmplw	4, 7
 	bc 12, 0, .Lrv_BB33_7
 .Lrv_BB33_4:
-	stfs 1, 32(1)
-	addi 5, 1, 32
-	lvx128 2, 0, 5
+	stfs 1, 16(1)
+	addi 7, 1, 16
+	lvx128 2, 0, 7
 	rlwinm 5, 6, 0, 1, 29
 	li 7, 0
 	li 8, 15
+	li 9, 12
+	li 10, 8
 	vspltw128 2, 2, 0
-	addi 9, 1, 16
-	mr	10, 5
+	li 11, 4
+	mr	12, 5
 .Lrv_BB33_5:
-	add 11, 4, 7
+	add 30, 4, 7
 	lvx128 3, 4, 7
-	addi 10, 10, -4
-	lvx128 4, 11, 8
-	add 11, 3, 7
+	addi 12, 12, -4
+	lvx128 4, 30, 8
+	add 30, 3, 7
 	lvx128 5, 3, 7
-	cmplwi	10, 0
-	lvx128 0, 11, 8
+	cmplwi	12, 0
+	lvx128 0, 30, 8
 	lvsl 1, 4, 7
 	vperm128 3, 3, 4, 1
 	lvsl 4, 3, 7
 	vperm128 4, 5, 0, 4
 	vmulfp128 3, 2, 3
+	lvsr 5, 3, 7
 	vaddfp128 3, 3, 4
-	stvx128 3, 0, 9
-	ld 12, 16(1)
-	stdx 12, 3, 7
+	vperm128 3, 3, 3, 5
+	stvewx 3, 3, 7
 	addi 7, 7, 16
-	ld 12, 24(1)
-	std 12, 8(11)
+	stvewx 3, 30, 9
+	stvewx 3, 30, 10
+	stvewx 3, 30, 11
 	bne	0, .Lrv_BB33_5
 	cmplw	6, 5
 	beq	0, .Lrv_BB33_9
@@ -2259,7 +5386,8 @@ rv_k_saxpy:
 	stfs 0, 0(3)
 	bne	0, .Lrv_BB33_8
 .Lrv_BB33_9:
-	addi 1, 1, 48
+	ld 30, 40(1)
+	addi 1, 1, 64
 	blr
 .Lrv_func_end33:
 	.size	rv_k_saxpy, .Lrv_func_end33-.Lrv_func_begin33
@@ -2272,9 +5400,10 @@ rv_k_saxpy_r:
 .Lrv_func_begin34:
 	cmpwi	6, 1
 	bltlr	0
-	stwu 1, -48(1)
+	stwu 1, -64(1)
 	cmplwi	6, 8
 	li 5, 0
+	std 30, 40(1)
 	blt	0, .Lrv_BB34_7
 	slwi 7, 6, 2
 	add 8, 4, 7
@@ -2284,36 +5413,39 @@ rv_k_saxpy_r:
 	cmplw	4, 7
 	bc 12, 0, .Lrv_BB34_7
 .Lrv_BB34_4:
-	stfs 1, 32(1)
-	addi 5, 1, 32
-	lvx128 2, 0, 5
+	stfs 1, 16(1)
+	addi 7, 1, 16
+	lvx128 2, 0, 7
 	rlwinm 5, 6, 0, 1, 29
 	li 7, 0
 	li 8, 15
+	li 9, 12
+	li 10, 8
 	vspltw128 2, 2, 0
-	addi 9, 1, 16
-	mr	10, 5
+	li 11, 4
+	mr	12, 5
 .Lrv_BB34_5:
-	add 11, 4, 7
+	add 30, 4, 7
 	lvx128 3, 4, 7
-	addi 10, 10, -4
-	lvx128 4, 11, 8
-	add 11, 3, 7
+	addi 12, 12, -4
+	lvx128 4, 30, 8
+	add 30, 3, 7
 	lvx128 5, 3, 7
-	cmplwi	10, 0
-	lvx128 0, 11, 8
+	cmplwi	12, 0
+	lvx128 0, 30, 8
 	lvsl 1, 4, 7
 	vperm128 3, 3, 4, 1
 	lvsl 4, 3, 7
 	vperm128 4, 5, 0, 4
 	vmulfp128 3, 2, 3
+	lvsr 5, 3, 7
 	vaddfp128 3, 3, 4
-	stvx128 3, 0, 9
-	ld 12, 16(1)
-	stdx 12, 3, 7
+	vperm128 3, 3, 3, 5
+	stvewx 3, 3, 7
 	addi 7, 7, 16
-	ld 12, 24(1)
-	std 12, 8(11)
+	stvewx 3, 30, 9
+	stvewx 3, 30, 10
+	stvewx 3, 30, 11
 	bne	0, .Lrv_BB34_5
 	cmplw	6, 5
 	beq	0, .Lrv_BB34_9
@@ -2333,7 +5465,8 @@ rv_k_saxpy_r:
 	stfs 0, 0(3)
 	bne	0, .Lrv_BB34_8
 .Lrv_BB34_9:
-	addi 1, 1, 48
+	ld 30, 40(1)
+	addi 1, 1, 64
 	blr
 .Lrv_func_end34:
 	.size	rv_k_saxpy_r, .Lrv_func_end34-.Lrv_func_begin34
@@ -2346,43 +5479,234 @@ rv_k_scale_inplace:
 .Lrv_func_begin35:
 	cmpwi	5, 1
 	bltlr	0
+	stwu 1, -224(1)
 	srawi 4, 5, 31
 	andc 4, 5, 4
-	slwi 4, 4, 2
-	addi 6, 4, -4
-	cmplwi	6, 0
-	mr	5, 3
-	beq	0, .Lrv_BB35_5
-	srwi 5, 6, 2
-	addi 6, 5, 1
-	rlwinm 7, 6, 0, 1, 30
-	rlwinm 5, 6, 2, 0, 28
-	add 5, 3, 5
-	addi 8, 3, -8
-	mr	9, 7
-.Lrv_BB35_3:
-	lfsu 0, 8(8)
-	addi 9, 9, -2
+	slwi 12, 4, 2
+	addi 5, 12, -4
+	cmplwi	5, 12
+	mr	4, 3
+	std 14, 72(1)
+	std 15, 80(1)
+	std 16, 88(1)
+	std 17, 96(1)
+	std 18, 104(1)
+	std 19, 112(1)
+	std 20, 120(1)
+	std 21, 128(1)
+	std 22, 136(1)
+	std 23, 144(1)
+	std 24, 152(1)
+	std 25, 160(1)
+	std 26, 168(1)
+	std 27, 176(1)
+	std 28, 184(1)
+	std 29, 192(1)
+	std 30, 200(1)
+	std 31, 208(1)
+	blt	0, .Lrv_BB35_10
+	srwi 4, 5, 2
+	cmplwi	5, 124
+	addi 0, 4, 1
+	li 9, 0
+	blt	0, .Lrv_BB35_7
+	stw 12, 24(1)
+	addi 4, 1, 48
+	stw 0, 20(1)
+	rlwinm 25, 0, 0, 1, 26
+	stfs 1, 48(1)
+	addi 7, 3, 112
+	stw 3, 28(1)
+	li 8, -112
+	lvx128 2, 0, 4
+	li 9, -96
+	li 10, -80
+	li 11, -64
+	li 12, -48
+	li 0, -32
+	li 30, -16
+	li 23, -92
+	li 22, -68
+	li 21, -72
+	li 20, -76
+	li 19, -52
+	li 18, -56
+	li 17, -60
+	li 16, -36
+	li 15, -40
+	li 14, -44
+	li 31, -20
+	li 5, -24
+	li 6, -28
+	li 4, -4
+	li 29, -8
+	vspltw128 2, 2, 0
+	li 3, -12
+	li 28, 12
+	li 27, 8
+	li 26, 4
+	stw 25, 16(1)
+.Lrv_BB35_4:
+	lvx128 4, 7, 8
+	li 24, 15
+	lvx128 5, 7, 9
+	addi 25, 25, -32
+	lvsl 3, 0, 7
+	cmplwi	25, 0
+	vperm128 4, 4, 5, 3
+	lvx128 0, 7, 10
+	vmulfp128 4, 2, 4
+	lvsr 7, 7, 8
+	vperm128 4, 4, 4, 7
+	lvx128 1, 7, 11
+	lvx128 6, 7, 12
+	lvx128 11, 7, 0
+	lvx128 8, 7, 30
+	lvx128 9, 0, 7
+	lvx128 10, 7, 24
+	li 24, -100
+	stvewx 4, 7, 24
+	li 24, -104
+	stvewx 4, 7, 24
+	li 24, -108
+	stvewx 4, 7, 24
+	li 24, -84
+	stvewx 4, 7, 8
+	vperm128 4, 5, 0, 3
+	lvsr 5, 7, 9
+	vmulfp128 4, 2, 4
+	vperm128 4, 4, 4, 5
+	lvsr 5, 7, 10
+	stvewx 4, 7, 24
+	li 24, -88
+	stvewx 4, 7, 24
+	stvewx 4, 7, 23
+	stvewx 4, 7, 9
+	vperm128 4, 0, 1, 3
+	vmulfp128 4, 2, 4
+	vperm128 4, 4, 4, 5
+	lvsr 5, 7, 11
+	stvewx 4, 7, 22
+	stvewx 4, 7, 21
+	stvewx 4, 7, 20
+	stvewx 4, 7, 10
+	vperm128 4, 1, 6, 3
+	vmulfp128 4, 2, 4
+	vperm128 4, 4, 4, 5
+	lvsr 5, 7, 12
+	stvewx 4, 7, 19
+	stvewx 4, 7, 18
+	stvewx 4, 7, 17
+	stvewx 4, 7, 11
+	vperm128 4, 6, 11, 3
+	vmulfp128 4, 2, 4
+	vperm128 4, 4, 4, 5
+	lvsr 5, 7, 0
+	stvewx 4, 7, 16
+	stvewx 4, 7, 15
+	stvewx 4, 7, 14
+	stvewx 4, 7, 12
+	vperm128 4, 11, 8, 3
+	vmulfp128 4, 2, 4
+	vperm128 4, 4, 4, 5
+	lvsr 5, 7, 30
+	stvewx 4, 7, 31
+	stvewx 4, 7, 5
+	stvewx 4, 7, 6
+	stvewx 4, 7, 0
+	vperm128 4, 8, 9, 3
+	vperm128 3, 9, 10, 3
+	vmulfp128 4, 2, 4
+	vmulfp128 3, 2, 3
+	vperm128 4, 4, 4, 5
+	stvewx 4, 7, 4
+	stvewx 4, 7, 29
+	stvewx 4, 7, 3
+	stvewx 4, 7, 30
+	lvsr 4, 0, 7
+	vperm128 3, 3, 3, 4
+	stvewx 3, 7, 28
+	stvewx 3, 7, 27
+	stvewx 3, 7, 26
+	stvewx 3, 0, 7
+	addi 7, 7, 128
+	bne	0, .Lrv_BB35_4
+	lwz 0, 20(1)
+	lwz 9, 16(1)
+	lwz 3, 28(1)
+	lwz 12, 24(1)
+	cmplw	0, 9
+	beq	0, .Lrv_BB35_12
+	andi. 4, 0, 28
+	beq	0, .Lrv_BB35_13
+.Lrv_BB35_7:
+	stfs 1, 32(1)
+	addi 7, 1, 32
+	lvx128 2, 0, 7
+	rlwinm 11, 0, 0, 1, 29
+	rlwinm 4, 0, 2, 0, 27
+	slwi 8, 9, 2
+	li 5, 15
+	li 6, 12
+	li 7, 8
+	add 4, 3, 4
+	add 8, 3, 8
+	sub	9, 9, 11
+	vspltw128 2, 2, 0
+	li 10, 4
+.Lrv_BB35_8:
+	lvx128 3, 8, 5
+	addi 9, 9, 4
+	lvx128 4, 0, 8
 	cmplwi	9, 0
-	lfs 2, 4(8)
-	fmuls 0, 1, 0
-	stfs 0, 0(8)
-	fmuls 0, 1, 2
-	stfs 0, 4(8)
-	bne	0, .Lrv_BB35_3
-	cmplw	6, 7
-	beqlr	0
-.Lrv_BB35_5:
-	add 3, 3, 4
-	addi 4, 5, -4
-.Lrv_BB35_6:
+	lvsl 5, 0, 8
+	vperm128 3, 4, 3, 5
+	lvsr 4, 0, 8
+	vmulfp128 3, 2, 3
+	vperm128 3, 3, 3, 4
+	stvewx 3, 8, 6
+	stvewx 3, 8, 7
+	stvewx 3, 8, 10
+	stvewx 3, 0, 8
+	addi 8, 8, 16
+	bne	0, .Lrv_BB35_8
+	cmplw	0, 11
+	beq	0, .Lrv_BB35_12
+.Lrv_BB35_10:
+	add 3, 3, 12
+	addi 4, 4, -4
+.Lrv_BB35_11:
 	lfsu 0, 4(4)
 	addi 5, 4, 4
 	fmuls 0, 1, 0
 	cmplw	5, 3
 	stfs 0, 0(4)
-	bne	0, .Lrv_BB35_6
+	bne	0, .Lrv_BB35_11
+.Lrv_BB35_12:
+	ld 31, 208(1)
+	ld 30, 200(1)
+	ld 29, 192(1)
+	ld 28, 184(1)
+	ld 27, 176(1)
+	ld 26, 168(1)
+	ld 25, 160(1)
+	ld 24, 152(1)
+	ld 23, 144(1)
+	ld 22, 136(1)
+	ld 21, 128(1)
+	ld 20, 120(1)
+	ld 19, 112(1)
+	ld 18, 104(1)
+	ld 17, 96(1)
+	ld 16, 88(1)
+	ld 15, 80(1)
+	ld 14, 72(1)
+	addi 1, 1, 224
 	blr
+.Lrv_BB35_13:
+	rlwinm 4, 0, 2, 0, 24
+	add 4, 3, 4
+	b .Lrv_BB35_10
 .Lrv_func_end35:
 	.size	rv_k_scale_inplace, .Lrv_func_end35-.Lrv_func_begin35
 
@@ -2394,29 +5718,186 @@ rv_k_set_f32:
 .Lrv_func_begin36:
 	cmpwi	5, 1
 	bltlr	0
-	li 4, 0
-	ble 0, .Lrv_BB36_5
-	rlwinm 4, 5, 0, 1, 30
-	addi 6, 3, -8
-	mr	7, 4
-.Lrv_BB36_3:
-	addi 7, 7, -2
-	stfsu 1, 8(6)
-	cmplwi	7, 0
-	stfs 1, 4(6)
-	bne	0, .Lrv_BB36_3
-	cmplw	5, 4
-	beqlr	0
-.Lrv_BB36_5:
-	slwi 6, 4, 2
-	add 3, 6, 3
-	sub	4, 5, 4
-	addi 3, 3, -4
-.Lrv_BB36_6:
-	addi 4, 4, -1
-	cmplwi	4, 0
-	stfsu 1, 4(3)
-	bne	0, .Lrv_BB36_6
+	stwu 1, -224(1)
+	cmplwi	5, 4
+	li 10, 0
+	std 14, 72(1)
+	std 15, 80(1)
+	std 16, 88(1)
+	std 17, 96(1)
+	std 18, 104(1)
+	std 19, 112(1)
+	std 20, 120(1)
+	std 21, 128(1)
+	std 22, 136(1)
+	std 23, 144(1)
+	std 24, 152(1)
+	std 25, 160(1)
+	std 26, 168(1)
+	std 27, 176(1)
+	std 28, 184(1)
+	std 29, 192(1)
+	std 30, 200(1)
+	std 31, 208(1)
+	blt	0, .Lrv_BB36_10
+	cmplwi	5, 32
+	blt	0, .Lrv_BB36_7
+	stw 5, 28(1)
+	addi 4, 1, 48
+	stfs 1, 48(1)
+	rlwinm 12, 5, 0, 1, 26
+	stw 3, 24(1)
+	addi 6, 3, 112
+	lvx128 2, 0, 4
+	li 7, -112
+	li 11, -96
+	li 30, -92
+	li 29, -80
+	li 28, -68
+	li 27, -72
+	li 26, -76
+	li 25, -64
+	li 24, -52
+	li 23, -56
+	li 22, -60
+	li 21, -48
+	li 20, -36
+	li 19, -40
+	li 18, -44
+	li 17, -32
+	li 16, -20
+	li 15, -24
+	li 14, -28
+	li 31, -16
+	li 4, -4
+	li 3, -8
+	li 8, -12
+	vspltw128 2, 2, 0
+	li 5, 12
+	li 9, 8
+	li 10, 4
+	stw 12, 20(1)
+.Lrv_BB36_4:
+	lvsr 3, 6, 7
+	vperm128 3, 2, 2, 3
+	li 0, -100
+	stvewx 3, 6, 0
+	li 0, -104
+	stvewx 3, 6, 0
+	li 0, -108
+	stvewx 3, 6, 0
+	li 0, -84
+	stvewx 3, 6, 7
+	addi 12, 12, -32
+	lvsr 3, 6, 11
+	vperm128 3, 2, 2, 3
+	cmplwi	12, 0
+	stvewx 3, 6, 0
+	li 0, -88
+	stvewx 3, 6, 0
+	stvewx 3, 6, 30
+	stvewx 3, 6, 11
+	lvsr 3, 6, 29
+	vperm128 3, 2, 2, 3
+	stvewx 3, 6, 28
+	stvewx 3, 6, 27
+	stvewx 3, 6, 26
+	stvewx 3, 6, 29
+	lvsr 3, 6, 25
+	vperm128 3, 2, 2, 3
+	stvewx 3, 6, 24
+	stvewx 3, 6, 23
+	stvewx 3, 6, 22
+	stvewx 3, 6, 25
+	lvsr 3, 6, 21
+	vperm128 3, 2, 2, 3
+	stvewx 3, 6, 20
+	stvewx 3, 6, 19
+	stvewx 3, 6, 18
+	stvewx 3, 6, 21
+	lvsr 3, 6, 17
+	vperm128 3, 2, 2, 3
+	stvewx 3, 6, 16
+	stvewx 3, 6, 15
+	stvewx 3, 6, 14
+	stvewx 3, 6, 17
+	lvsr 3, 6, 31
+	vperm128 3, 2, 2, 3
+	stvewx 3, 6, 4
+	stvewx 3, 6, 3
+	stvewx 3, 6, 8
+	stvewx 3, 6, 31
+	lvsr 3, 0, 6
+	vperm128 3, 2, 2, 3
+	stvewx 3, 6, 5
+	stvewx 3, 6, 9
+	stvewx 3, 6, 10
+	stvewx 3, 0, 6
+	addi 6, 6, 128
+	bne	0, .Lrv_BB36_4
+	lwz 5, 28(1)
+	lwz 10, 20(1)
+	lwz 3, 24(1)
+	cmplw	5, 10
+	beq	0, .Lrv_BB36_12
+	andi. 4, 5, 28
+	beq	0, .Lrv_BB36_10
+.Lrv_BB36_7:
+	stfs 1, 32(1)
+	addi 4, 1, 32
+	lvx128 2, 0, 4
+	mr	6, 10
+	rlwinm 10, 5, 0, 1, 29
+	sub	8, 6, 10
+	slwi 6, 6, 2
+	li 9, 12
+	li 4, 8
+	add 6, 3, 6
+	vspltw128 2, 2, 0
+	li 7, 4
+.Lrv_BB36_8:
+	lvsr 3, 0, 6
+	vperm128 3, 2, 2, 3
+	addi 8, 8, 4
+	stvewx 3, 6, 9
+	cmplwi	8, 0
+	stvewx 3, 6, 4
+	stvewx 3, 6, 7
+	stvewx 3, 0, 6
+	addi 6, 6, 16
+	bne	0, .Lrv_BB36_8
+	cmplw	5, 10
+	beq	0, .Lrv_BB36_12
+.Lrv_BB36_10:
+	slwi 4, 10, 2
+	add 4, 4, 3
+	sub	5, 5, 10
+	addi 4, 4, -4
+.Lrv_BB36_11:
+	addi 5, 5, -1
+	cmplwi	5, 0
+	stfsu 1, 4(4)
+	bne	0, .Lrv_BB36_11
+.Lrv_BB36_12:
+	ld 31, 208(1)
+	ld 30, 200(1)
+	ld 29, 192(1)
+	ld 28, 184(1)
+	ld 27, 176(1)
+	ld 26, 168(1)
+	ld 25, 160(1)
+	ld 24, 152(1)
+	ld 23, 144(1)
+	ld 22, 136(1)
+	ld 21, 128(1)
+	ld 20, 120(1)
+	ld 19, 112(1)
+	ld 18, 104(1)
+	ld 17, 96(1)
+	ld 16, 88(1)
+	ld 15, 80(1)
+	ld 14, 72(1)
+	addi 1, 1, 224
 	blr
 .Lrv_func_end36:
 	.size	rv_k_set_f32, .Lrv_func_end36-.Lrv_func_begin36
@@ -2429,29 +5910,190 @@ rv_k_set_u32:
 .Lrv_func_begin37:
 	cmpwi	5, 1
 	bltlr	0
-	li 6, 0
-	ble 0, .Lrv_BB37_5
-	rlwinm 6, 5, 0, 1, 30
-	addi 7, 3, -8
-	mr	8, 6
-.Lrv_BB37_3:
-	addi 8, 8, -2
-	stwu 4, 8(7)
-	cmplwi	8, 0
-	stw 4, 4(7)
-	bne	0, .Lrv_BB37_3
-	cmplw	5, 6
-	beqlr	0
-.Lrv_BB37_5:
-	slwi 7, 6, 2
-	add 3, 7, 3
-	sub	5, 5, 6
-	addi 3, 3, -4
-.Lrv_BB37_6:
-	addi 5, 5, -1
-	cmplwi	5, 0
-	stwu 4, 4(3)
-	bne	0, .Lrv_BB37_6
+	stwu 1, -224(1)
+	cmplwi	5, 4
+	li 11, 0
+	std 14, 72(1)
+	std 15, 80(1)
+	std 16, 88(1)
+	std 17, 96(1)
+	std 18, 104(1)
+	std 19, 112(1)
+	std 20, 120(1)
+	std 21, 128(1)
+	std 22, 136(1)
+	std 23, 144(1)
+	std 24, 152(1)
+	std 25, 160(1)
+	std 26, 168(1)
+	std 27, 176(1)
+	std 28, 184(1)
+	std 29, 192(1)
+	std 30, 200(1)
+	std 31, 208(1)
+	blt	0, .Lrv_BB37_10
+	cmplwi	5, 32
+	blt	0, .Lrv_BB37_7
+	sldi 6, 4, 32
+	stw 5, 28(1)
+	rlwinm 30, 5, 0, 1, 26
+	addi 5, 1, 48
+	stw 3, 24(1)
+	std 6, 48(1)
+	std 6, 56(1)
+	addi 7, 3, 112
+	lvx128 2, 0, 5
+	li 8, -112
+	li 12, -96
+	li 28, -80
+	li 27, -68
+	li 26, -72
+	li 25, -76
+	li 24, -64
+	li 23, -52
+	li 22, -56
+	li 21, -60
+	li 20, -48
+	li 19, -36
+	li 18, -40
+	li 17, -44
+	li 16, -32
+	li 15, -20
+	li 14, -24
+	li 31, -28
+	li 6, -16
+	li 3, -4
+	li 9, -8
+	li 5, -12
+	vspltw128 2, 2, 0
+	li 10, 12
+	li 11, 8
+	li 0, 4
+	stw 30, 20(1)
+.Lrv_BB37_4:
+	lvsr 3, 7, 8
+	vperm128 3, 2, 2, 3
+	li 29, -100
+	stvewx 3, 7, 29
+	li 29, -104
+	stvewx 3, 7, 29
+	li 29, -108
+	stvewx 3, 7, 29
+	li 29, -84
+	stvewx 3, 7, 8
+	addi 30, 30, -32
+	lvsr 3, 7, 12
+	vperm128 3, 2, 2, 3
+	cmplwi	30, 0
+	stvewx 3, 7, 29
+	li 29, -88
+	stvewx 3, 7, 29
+	li 29, -92
+	stvewx 3, 7, 29
+	stvewx 3, 7, 12
+	lvsr 3, 7, 28
+	vperm128 3, 2, 2, 3
+	stvewx 3, 7, 27
+	stvewx 3, 7, 26
+	stvewx 3, 7, 25
+	stvewx 3, 7, 28
+	lvsr 3, 7, 24
+	vperm128 3, 2, 2, 3
+	stvewx 3, 7, 23
+	stvewx 3, 7, 22
+	stvewx 3, 7, 21
+	stvewx 3, 7, 24
+	lvsr 3, 7, 20
+	vperm128 3, 2, 2, 3
+	stvewx 3, 7, 19
+	stvewx 3, 7, 18
+	stvewx 3, 7, 17
+	stvewx 3, 7, 20
+	lvsr 3, 7, 16
+	vperm128 3, 2, 2, 3
+	stvewx 3, 7, 15
+	stvewx 3, 7, 14
+	stvewx 3, 7, 31
+	stvewx 3, 7, 16
+	lvsr 3, 7, 6
+	vperm128 3, 2, 2, 3
+	stvewx 3, 7, 3
+	stvewx 3, 7, 9
+	stvewx 3, 7, 5
+	stvewx 3, 7, 6
+	lvsr 3, 0, 7
+	vperm128 3, 2, 2, 3
+	stvewx 3, 7, 10
+	stvewx 3, 7, 11
+	stvewx 3, 7, 0
+	stvewx 3, 0, 7
+	addi 7, 7, 128
+	bne	0, .Lrv_BB37_4
+	lwz 5, 28(1)
+	lwz 11, 20(1)
+	lwz 3, 24(1)
+	cmplw	5, 11
+	beq	0, .Lrv_BB37_12
+	andi. 6, 5, 28
+	beq	0, .Lrv_BB37_10
+.Lrv_BB37_7:
+	sldi 8, 4, 32
+	addi 6, 1, 32
+	std 8, 32(1)
+	std 8, 40(1)
+	mr	7, 11
+	lvx128 2, 0, 6
+	rlwinm 11, 5, 0, 1, 29
+	sub	6, 7, 11
+	slwi 7, 7, 2
+	li 10, 12
+	li 9, 8
+	add 7, 3, 7
+	vspltw128 2, 2, 0
+	li 8, 4
+.Lrv_BB37_8:
+	lvsr 3, 0, 7
+	vperm128 3, 2, 2, 3
+	addi 6, 6, 4
+	stvewx 3, 7, 10
+	cmplwi	6, 0
+	stvewx 3, 7, 9
+	stvewx 3, 7, 8
+	stvewx 3, 0, 7
+	addi 7, 7, 16
+	bne	0, .Lrv_BB37_8
+	cmplw	5, 11
+	beq	0, .Lrv_BB37_12
+.Lrv_BB37_10:
+	slwi 6, 11, 2
+	sub	7, 5, 11
+	add 5, 6, 3
+	addi 5, 5, -4
+.Lrv_BB37_11:
+	addi 7, 7, -1
+	cmplwi	7, 0
+	stwu 4, 4(5)
+	bne	0, .Lrv_BB37_11
+.Lrv_BB37_12:
+	ld 31, 208(1)
+	ld 30, 200(1)
+	ld 29, 192(1)
+	ld 28, 184(1)
+	ld 27, 176(1)
+	ld 26, 168(1)
+	ld 25, 160(1)
+	ld 24, 152(1)
+	ld 23, 144(1)
+	ld 22, 136(1)
+	ld 21, 128(1)
+	ld 20, 120(1)
+	ld 19, 112(1)
+	ld 18, 104(1)
+	ld 17, 96(1)
+	ld 16, 88(1)
+	ld 15, 80(1)
+	ld 14, 72(1)
+	addi 1, 1, 224
 	blr
 .Lrv_func_end37:
 	.size	rv_k_set_u32, .Lrv_func_end37-.Lrv_func_begin37
@@ -2464,15 +6106,220 @@ rv_k_shl_i32_r:
 .Lrv_func_begin38:
 	cmpwi	5, 1
 	bltlr	0
-	addi 4, 4, -4
-	addi 3, 3, -4
-.Lrv_BB38_2:
+	stwu 1, -176(1)
+	cmplwi	5, 4
+	sub	6, 3, 4
+	li 0, 0
+	std 14, 24(1)
+	std 15, 32(1)
+	std 16, 40(1)
+	std 17, 48(1)
+	std 18, 56(1)
+	std 19, 64(1)
+	std 20, 72(1)
+	std 21, 80(1)
+	std 22, 88(1)
+	std 23, 96(1)
+	std 24, 104(1)
+	std 25, 112(1)
+	std 26, 120(1)
+	std 27, 128(1)
+	std 28, 136(1)
+	std 29, 144(1)
+	std 30, 152(1)
+	std 31, 160(1)
+	bc 12, 0, .Lrv_BB38_11
+	cmplwi	6, 128
+	bc 12, 0, .Lrv_BB38_11
+	cmplwi	5, 32
+	blt	0, .Lrv_BB38_8
+	stw 5, 20(1)
+	rlwinm 23, 5, 0, 1, 26
+	li 7, 0
+	li 8, 16
+	li 9, 32
+	li 10, 48
+	li 11, 64
+	li 12, 80
+	li 0, 96
+	li 30, 112
+	vspltisw128 2, 3
+	li 20, 36
+	li 19, 60
+	li 18, 56
+	li 17, 52
+	li 16, 76
+	li 15, 72
+	li 14, 68
+	li 31, 92
+	li 6, 88
+	li 29, 84
+	li 28, 108
+	li 27, 104
+	li 5, 100
+	li 26, 124
+	li 25, 120
+	li 24, 116
+	stw 23, 16(1)
+.Lrv_BB38_5:
+	add 22, 4, 7
+	lvx128 12, 4, 7
+	li 21, 127
+	lvx128 5, 22, 8
+	addi 23, 23, -32
+	lvx128 0, 22, 9
+	cmplwi	23, 0
+	lvsl 3, 4, 7
+	lvx128 1, 22, 10
+	vperm128 11, 5, 0, 3
+	lvx128 6, 22, 11
+	vslw128 11, 11, 2
+	lvx128 7, 22, 12
+	lvx128 8, 22, 0
+	lvx128 9, 22, 30
+	lvx128 10, 22, 21
+	add 22, 3, 7
+	lvsr 4, 22, 8
+	vperm128 4, 11, 11, 4
+	li 21, 28
+	stvewx 4, 22, 21
+	li 21, 24
+	stvewx 4, 22, 21
+	li 21, 20
+	stvewx 4, 22, 21
+	li 21, 44
+	stvewx 4, 22, 8
+	vperm128 4, 0, 1, 3
+	lvsr 0, 22, 9
+	vslw128 4, 4, 2
+	vperm128 4, 4, 4, 0
+	lvsr 0, 22, 10
+	stvewx 4, 22, 21
+	li 21, 40
+	stvewx 4, 22, 21
+	li 21, 12
+	stvewx 4, 22, 20
+	stvewx 4, 22, 9
+	vperm128 4, 1, 6, 3
+	vslw128 4, 4, 2
+	vperm128 4, 4, 4, 0
+	lvsr 0, 22, 11
+	stvewx 4, 22, 19
+	stvewx 4, 22, 18
+	stvewx 4, 22, 17
+	stvewx 4, 22, 10
+	vperm128 4, 6, 7, 3
+	vslw128 4, 4, 2
+	vperm128 4, 4, 4, 0
+	lvsr 0, 22, 12
+	stvewx 4, 22, 16
+	stvewx 4, 22, 15
+	stvewx 4, 22, 14
+	stvewx 4, 22, 11
+	vperm128 4, 7, 8, 3
+	vslw128 4, 4, 2
+	vperm128 4, 4, 4, 0
+	lvsr 0, 22, 0
+	stvewx 4, 22, 31
+	stvewx 4, 22, 6
+	stvewx 4, 22, 29
+	stvewx 4, 22, 12
+	vperm128 4, 8, 9, 3
+	vslw128 4, 4, 2
+	vperm128 4, 4, 4, 0
+	lvsr 0, 22, 30
+	stvewx 4, 22, 28
+	stvewx 4, 22, 27
+	stvewx 4, 22, 5
+	stvewx 4, 22, 0
+	vperm128 4, 9, 10, 3
+	vperm128 3, 12, 5, 3
+	vslw128 4, 4, 2
+	vslw128 3, 3, 2
+	vperm128 4, 4, 4, 0
+	stvewx 4, 22, 26
+	stvewx 4, 22, 25
+	stvewx 4, 22, 24
+	stvewx 4, 22, 30
+	lvsr 4, 3, 7
+	vperm128 3, 3, 3, 4
+	stvewx 3, 22, 21
+	li 21, 8
+	stvewx 3, 22, 21
+	li 21, 4
+	stvewx 3, 3, 7
+	addi 7, 7, 128
+	stvewx 3, 22, 21
+	bne	0, .Lrv_BB38_5
+	lwz 5, 20(1)
+	lwz 0, 16(1)
+	cmplw	5, 0
+	beq	0, .Lrv_BB38_13
+	andi. 6, 5, 28
+	beq	0, .Lrv_BB38_11
+.Lrv_BB38_8:
+	mr	9, 0
+	rlwinm 0, 5, 0, 1, 29
+	li 12, 15
+	vspltisw128 2, 3
+	li 6, 12
+	li 7, 8
+	sub	8, 9, 0
+	slwi 9, 9, 2
+	li 10, 4
+.Lrv_BB38_9:
+	add 11, 4, 9
+	lvx128 3, 4, 9
+	addi 8, 8, 4
+	lvx128 4, 11, 12
+	add 11, 3, 9
+	lvsl 5, 4, 9
+	cmplwi	8, 0
+	vperm128 3, 3, 4, 5
+	lvsr 4, 3, 9
+	vslw128 3, 3, 2
+	vperm128 3, 3, 3, 4
+	stvewx 3, 3, 9
+	addi 9, 9, 16
+	stvewx 3, 11, 6
+	stvewx 3, 11, 7
+	stvewx 3, 11, 10
+	bne	0, .Lrv_BB38_9
+	cmplw	5, 0
+	beq	0, .Lrv_BB38_13
+.Lrv_BB38_11:
+	slwi 6, 0, 2
+	addi 6, 6, -4
+	sub	5, 5, 0
+	add 4, 4, 6
+	add 3, 3, 6
+.Lrv_BB38_12:
 	lwzu 6, 4(4)
 	addi 5, 5, -1
 	cmplwi	5, 0
 	slwi 6, 6, 3
 	stwu 6, 4(3)
-	bne	0, .Lrv_BB38_2
+	bne	0, .Lrv_BB38_12
+.Lrv_BB38_13:
+	ld 31, 160(1)
+	ld 30, 152(1)
+	ld 29, 144(1)
+	ld 28, 136(1)
+	ld 27, 128(1)
+	ld 26, 120(1)
+	ld 25, 112(1)
+	ld 24, 104(1)
+	ld 23, 96(1)
+	ld 22, 88(1)
+	ld 21, 80(1)
+	ld 20, 72(1)
+	ld 19, 64(1)
+	ld 18, 56(1)
+	ld 17, 48(1)
+	ld 16, 40(1)
+	ld 15, 32(1)
+	ld 14, 24(1)
+	addi 1, 1, 176
 	blr
 .Lrv_func_end38:
 	.size	rv_k_shl_i32_r, .Lrv_func_end38-.Lrv_func_begin38
@@ -2523,9 +6370,11 @@ rv_k_stride2_f32_r:
 	andc 7, 5, 6
 	clrlwi.	5, 7, 2
 	beqlr	0
-	stwu 1, -32(1)
+	stwu 1, -48(1)
 	cmplwi	5, 8
 	li 6, 0
+	std 29, 16(1)
+	std 30, 24(1)
 	blt	0, .Lrv_BB39_7
 	slwi 9, 7, 3
 	slwi 8, 7, 2
@@ -2536,38 +6385,41 @@ rv_k_stride2_f32_r:
 	cmplw	4, 8
 	bc 12, 0, .Lrv_BB39_7
 .Lrv_BB39_4:
-	li 9, .Lrv_CPI39_0@l
-	lis 10, .Lrv_CPI39_0@ha
-	li 11, .Lrv_CPI39_1@l
-	lvx128 2, 10, 9
-	lis 9, .Lrv_CPI39_1@ha
-	lvx128 3, 9, 11
+	li 10, .Lrv_CPI39_0@l
+	lis 11, .Lrv_CPI39_0@ha
+	li 12, .Lrv_CPI39_1@l
+	lis 30, .Lrv_CPI39_1@ha
+	lvx128 2, 11, 10
 	rlwinm 6, 7, 0, 2, 29
+	lvx128 3, 30, 12
 	li 7, 31
 	li 8, 16
-	addi 9, 1, 16
-	mr	10, 3
-	mr	11, 4
-	mr	12, 6
+	li 9, 12
+	li 10, 8
+	li 11, 4
+	mr	12, 3
+	mr	30, 4
+	mr	29, 6
 .Lrv_BB39_5:
-	lvx128 4, 11, 7
-	addi 12, 12, -4
-	lvx128 5, 11, 8
-	cmplwi	12, 0
-	lvx128 0, 0, 11
-	lvsl 1, 0, 11
+	lvx128 4, 30, 7
+	addi 29, 29, -4
+	lvx128 5, 30, 8
+	cmplwi	29, 0
+	lvx128 0, 0, 30
+	lvsl 1, 0, 30
 	vperm128 4, 5, 4, 1
-	addi 11, 11, 32
+	addi 30, 30, 32
 	vperm128 5, 0, 5, 1
 	vperm128 0, 5, 4, 2
 	vperm128 4, 5, 4, 3
+	lvsr 5, 0, 12
 	vaddfp128 4, 0, 4
-	stvx128 4, 0, 9
-	ld 0, 24(1)
-	std 0, 8(10)
-	ld 0, 16(1)
-	std 0, 0(10)
-	addi 10, 10, 16
+	vperm128 4, 4, 4, 5
+	stvewx 4, 12, 9
+	stvewx 4, 12, 10
+	stvewx 4, 12, 11
+	stvewx 4, 0, 12
+	addi 12, 12, 16
 	bne	0, .Lrv_BB39_5
 	cmplw	5, 6
 	beq	0, .Lrv_BB39_9
@@ -2588,7 +6440,9 @@ rv_k_stride2_f32_r:
 	stfsu 0, 4(4)
 	bne	0, .Lrv_BB39_8
 .Lrv_BB39_9:
-	addi 1, 1, 32
+	ld 30, 24(1)
+	ld 29, 16(1)
+	addi 1, 1, 48
 	blr
 .Lrv_func_end39:
 	.size	rv_k_stride2_f32_r, .Lrv_func_end39-.Lrv_func_begin39
@@ -2624,6 +6478,25 @@ rv_k_sum_f32:
 .Lrv_func_end40:
 	.size	rv_k_sum_f32, .Lrv_func_end40-.Lrv_func_begin40
 
+	.section	.rodata.cst16,"aM",@progbits,16
+	.p2align	4, 0x0
+.Lrv_CPI41_0:
+	.byte	0
+	.byte	1
+	.byte	2
+	.byte	3
+	.byte	16
+	.byte	17
+	.byte	18
+	.byte	19
+	.byte	16
+	.byte	17
+	.byte	18
+	.byte	19
+	.byte	16
+	.byte	17
+	.byte	18
+	.byte	19
 	.section	.text.rv_k_sum_i32,"ax",@progbits
 	.globl	rv_k_sum_i32
 	.p2align	2
@@ -2631,76 +6504,167 @@ rv_k_sum_f32:
 rv_k_sum_i32:
 .Lrv_func_begin41:
 	cmpwi	4, 1
-	blt	0, .Lrv_BB41_8
-	stwu 1, -32(1)
+	blt	0, .Lrv_BB41_13
+	stwu 1, -112(1)
 	srawi 5, 4, 31
 	andc 4, 4, 5
 	slwi 5, 4, 2
-	addi 7, 5, -4
-	cmplwi	7, 28
+	addi 6, 5, -4
+	cmplwi	6, 12
 	li 4, 0
-	mr	6, 3
-	blt	0, .Lrv_BB41_5
-	srwi 4, 7, 2
-	addi 4, 4, 1
-	rlwinm 7, 4, 0, 1, 28
-	rlwinm 6, 4, 2, 0, 26
-	addi 8, 3, 16
-	vspltisw128 2, 0
-	li 9, 0
-	add 6, 3, 6
-	li 10, 15
-	mr	11, 7
+	mr	8, 3
+	std 28, 72(1)
+	std 29, 80(1)
+	std 30, 88(1)
+	blt	0, .Lrv_BB41_10
+	srwi 4, 6, 2
+	li 7, 0
+	cmplwi	6, 124
+	addi 6, 4, 1
+	li 4, 0
+	blt	0, .Lrv_BB41_7
+	rlwinm 7, 6, 0, 1, 26
+	addi 4, 3, 112
+	vspltisw128 8, 0
+	li 8, -112
+	li 9, -96
+	li 10, -80
+	li 11, -64
+	li 12, -48
+	li 0, -32
+	li 30, -16
+	li 29, 15
+	mr	28, 7
 	vspltisw128 3, 0
-.Lrv_BB41_3:
-	add 12, 3, 9
-	lvx128 4, 3, 9
-	addi 11, 11, -8
-	lvx128 5, 12, 10
-	add 12, 8, 9
-	lvx128 0, 8, 9
-	cmplwi	11, 0
-	lvx128 1, 12, 10
-	lvsl 6, 3, 9
-	vperm128 4, 4, 5, 6
-	lvsl 5, 8, 9
-	vperm128 5, 0, 1, 5
+	vspltisw128 4, 0
+	vspltisw128 5, 0
+	vspltisw128 0, 0
+	vspltisw128 1, 0
+	vspltisw128 6, 0
+	vspltisw128 7, 0
+.Lrv_BB41_4:
+	lvx128 9, 4, 8
+	addi 28, 28, -32
+	lvx128 10, 4, 9
+	cmplwi	28, 0
+	lvx128 11, 4, 10
+	lvx128 12, 4, 11
+	lvx128 13, 4, 12
+	lvx128 14, 4, 0
+	lvx128 15, 4, 30
+	lvx128 16, 0, 4
+	lvx128 17, 4, 29
+	lvsl 2, 0, 4
+	vperm128 9, 9, 10, 2
+	vperm128 10, 10, 11, 2
+	vperm128 11, 11, 12, 2
+	vperm128 12, 12, 13, 2
+	vperm128 13, 13, 14, 2
+	vperm128 14, 14, 15, 2
+	vperm128 15, 15, 16, 2
+	addi 4, 4, 128
+	vperm128 2, 16, 17, 2
+	vadduwm 8, 9, 8
+	vadduwm 3, 10, 3
+	vadduwm 4, 11, 4
+	vadduwm 5, 12, 5
+	vadduwm 0, 13, 0
+	vadduwm 1, 14, 1
+	vadduwm 6, 15, 6
+	vadduwm 7, 2, 7
+	bne	0, .Lrv_BB41_4
+	vadduwm 2, 3, 8
+	addi 4, 1, 48
 	vadduwm 2, 4, 2
-	addi 9, 9, 32
-	vadduwm 3, 5, 3
-	bne	0, .Lrv_BB41_3
-	vadduwm 2, 3, 2
-	addi 8, 1, 16
+	cmplw	6, 7
+	vadduwm 2, 5, 2
+	vadduwm 2, 0, 2
+	vadduwm 2, 1, 2
+	vadduwm 2, 6, 2
+	vadduwm 2, 7, 2
 	vsldoi128 3, 2, 2, 8
-	cmplw	4, 7
 	vadduwm 2, 2, 3
 	vsldoi128 3, 2, 2, 4
 	vadduwm 2, 2, 3
-	stvx128 2, 0, 8
+	stvx128 2, 0, 4
+	lwz 4, 48(1)
+	beq	0, .Lrv_BB41_12
+	andi. 8, 6, 28
+	beq	0, .Lrv_BB41_14
+.Lrv_BB41_7:
+	sldi 4, 4, 32
+	li 8, .Lrv_CPI41_0@l
+	lis 9, .Lrv_CPI41_0@ha
+	lvx128 2, 9, 8
+	addi 8, 1, 32
+	std 4, 32(1)
+	std 4, 40(1)
+	rlwinm 4, 6, 0, 1, 29
+	lvx128 3, 0, 8
+	vspltisw128 4, 0
+	rlwinm 8, 6, 2, 0, 27
+	slwi 9, 7, 2
+	add 8, 3, 8
+	vperm128 2, 3, 4, 2
+	add 9, 3, 9
+	sub	7, 7, 4
+	li 10, 15
+.Lrv_BB41_8:
+	lvx128 3, 9, 10
+	addi 7, 7, 4
+	lvx128 4, 0, 9
+	cmplwi	7, 0
+	lvsl 5, 0, 9
+	addi 9, 9, 16
+	vperm128 3, 4, 3, 5
+	vadduwm 2, 3, 2
+	bne	0, .Lrv_BB41_8
+	vsldoi128 3, 2, 2, 8
+	addi 7, 1, 16
+	vadduwm 2, 2, 3
+	cmplw	6, 4
+	vsldoi128 3, 2, 2, 4
+	vadduwm 2, 2, 3
+	stvx128 2, 0, 7
 	lwz 4, 16(1)
-	beq	0, .Lrv_BB41_7
-.Lrv_BB41_5:
+	beq	0, .Lrv_BB41_12
+.Lrv_BB41_10:
 	add 3, 3, 5
-	addi 5, 6, -4
-.Lrv_BB41_6:
+	addi 5, 8, -4
+.Lrv_BB41_11:
 	lwzu 6, 4(5)
 	addi 7, 5, 4
 	cmplw	7, 3
 	add 4, 6, 4
-	bne	0, .Lrv_BB41_6
-.Lrv_BB41_7:
-	addi 1, 1, 32
+	bne	0, .Lrv_BB41_11
+.Lrv_BB41_12:
+	ld 30, 88(1)
+	ld 29, 80(1)
+	ld 28, 72(1)
+	addi 1, 1, 112
 	mr	3, 4
 	blr
-.Lrv_BB41_8:
-	li 3, 0
+.Lrv_BB41_13:
+	li 4, 0
+	mr	3, 4
 	blr
+.Lrv_BB41_14:
+	rlwinm 6, 6, 2, 0, 24
+	add 8, 3, 6
+	b .Lrv_BB41_10
 .Lrv_func_end41:
 	.size	rv_k_sum_i32, .Lrv_func_end41-.Lrv_func_begin41
 
+	.section	.rodata.cst16,"aM",@progbits,16
+	.p2align	4, 0x0
+.Lrv_CPI42_0:
+	.long	0x3b808081
+	.long	0x3b808081
+	.long	0x3b808081
+	.long	0x3b808081
 	.section	.rodata.cst4,"aM",@progbits,4
 	.p2align	2, 0x0
-.Lrv_CPI42_0:
+.Lrv_CPI42_1:
 	.long	0x3b808081
 	.section	.text.rv_k_u8_to_f32_r,"ax",@progbits
 	.globl	rv_k_u8_to_f32_r
@@ -2710,12 +6674,87 @@ rv_k_u8_to_f32_r:
 .Lrv_func_begin42:
 	cmpwi	5, 1
 	bltlr	0
-	stwu 1, -32(1)
-	lis 6, .Lrv_CPI42_0@ha
-	lfs 0, .Lrv_CPI42_0@l(6)
+	stwu 1, -128(1)
+	cmplwi	5, 8
+	li 6, 0
+	std 27, 80(1)
+	std 28, 88(1)
+	std 29, 96(1)
+	std 30, 104(1)
+	blt	0, .Lrv_BB42_7
+	slwi 7, 5, 2
+	add 8, 4, 5
+	cmplw	3, 8
+	add 7, 3, 7
+	bc 4, 0, .Lrv_BB42_4
+	cmplw	4, 7
+	bc 12, 0, .Lrv_BB42_7
+.Lrv_BB42_4:
+	li 10, .Lrv_CPI42_0@l
+	lis 11, .Lrv_CPI42_0@ha
+	lvx128 2, 11, 10
+	rlwinm 6, 5, 0, 1, 29
+	addi 7, 1, 64
+	li 8, 12
+	li 9, 8
+	li 10, 4
+	mr	11, 3
+	mr	12, 4
+	mr	30, 6
+.Lrv_BB42_5:
+	lbz 0, 0(12)
+	addi 30, 30, -4
+	lbz 29, 1(12)
+	cmplwi	30, 0
+	clrlwi	0, 0, 24
+	lbz 28, 2(12)
+	clrlwi	29, 29, 24
+	lbz 27, 3(12)
+	std 0, 32(1)
+	std 29, 40(1)
+	addi 12, 12, 4
+	lfd 0, 32(1)
+	clrlwi	28, 28, 24
+	std 28, 48(1)
+	clrlwi	27, 27, 24
+	std 27, 56(1)
+	lvsr 4, 0, 11
+	fcfid 0, 0
+	frsp 0, 0
+	stfs 0, 64(1)
+	lfd 0, 40(1)
+	fcfid 0, 0
+	frsp 0, 0
+	stfs 0, 68(1)
+	lfd 0, 48(1)
+	fcfid 0, 0
+	frsp 0, 0
+	stfs 0, 72(1)
+	lfd 0, 56(1)
+	fcfid 0, 0
+	frsp 0, 0
+	stfs 0, 76(1)
+	lvx128 3, 0, 7
+	vmulfp128 3, 3, 2
+	vperm128 3, 3, 3, 4
+	stvewx 3, 11, 8
+	stvewx 3, 11, 9
+	stvewx 3, 11, 10
+	stvewx 3, 0, 11
+	addi 11, 11, 16
+	bne	0, .Lrv_BB42_5
+	cmplw	5, 6
+	beq	0, .Lrv_BB42_9
+.Lrv_BB42_7:
+	sub	5, 5, 6
+	slwi 7, 6, 2
+	add 4, 6, 4
+	lis 6, .Lrv_CPI42_1@ha
+	lfs 0, .Lrv_CPI42_1@l(6)
+	add 3, 7, 3
 	addi 4, 4, -1
 	addi 3, 3, -4
-.Lrv_BB42_2:
+.Lrv_BB42_8:
 	lbzu 6, 1(4)
 	addi 5, 5, -1
 	cmplwi	5, 0
@@ -2725,8 +6764,13 @@ rv_k_u8_to_f32_r:
 	frsp 1, 1
 	fmuls 1, 1, 0
 	stfsu 1, 4(3)
-	bne	0, .Lrv_BB42_2
-	addi 1, 1, 32
+	bne	0, .Lrv_BB42_8
+.Lrv_BB42_9:
+	ld 30, 104(1)
+	ld 29, 96(1)
+	ld 28, 88(1)
+	ld 27, 80(1)
+	addi 1, 1, 128
 	blr
 .Lrv_func_end42:
 	.size	rv_k_u8_to_f32_r, .Lrv_func_end42-.Lrv_func_begin42
@@ -2760,57 +6804,139 @@ rv_sp_bright_s:
 .Lrv_func_begin44:
 	cmpwi	5, 1
 	bltlr	0
-	stwu 1, -32(1)
-	cmplwi	5, 16
+	stwu 1, -128(1)
+	cmplwi	5, 4
 	sub	7, 3, 4
 	li 6, 0
-	bc 12, 0, .Lrv_BB44_7
+	std 21, 32(1)
+	std 22, 40(1)
+	std 23, 48(1)
+	std 24, 56(1)
+	std 25, 64(1)
+	std 26, 72(1)
+	std 27, 80(1)
+	std 28, 88(1)
+	std 29, 96(1)
+	std 30, 104(1)
+	bc 12, 0, .Lrv_BB44_12
 	cmplwi	7, 16
-	bc 12, 0, .Lrv_BB44_7
+	bc 12, 0, .Lrv_BB44_12
+	cmplwi	5, 16
 	vspltisb 2, 10
+	blt	0, .Lrv_BB44_8
 	rlwinm 6, 5, 0, 1, 27
 	li 7, 0
 	li 8, 15
-	vslb 2, 2, 2
-	addi 9, 1, 16
-.Lrv_BB44_4:
-	add 10, 4, 7
-	lvx128 3, 4, 7
-	mr	11, 3
-	lvx128 4, 10, 8
-	lvsl 5, 4, 7
-	vperm128 3, 3, 4, 5
-	vaddubs 3, 3, 2
-	stvx128 3, 0, 9
-	ld 10, 16(1)
-	stdux 10, 11, 7
-	ld 10, 24(1)
+	vslb 3, 2, 2
+	li 9, 14
+	li 10, 13
+	li 11, 12
+	li 12, 11
+	li 0, 10
+	li 30, 9
+	li 29, 8
+	li 28, 7
+	li 27, 6
+	li 26, 5
+	li 25, 4
+	li 24, 3
+	li 23, 2
+	li 22, 1
+.Lrv_BB44_5:
+	add 21, 4, 7
+	lvx128 4, 4, 7
+	lvx128 5, 21, 8
+	add 21, 3, 7
+	lvsl 0, 4, 7
+	vperm128 4, 4, 5, 0
+	lvsr 5, 3, 7
+	vaddubs 4, 4, 3
+	vperm128 4, 4, 4, 5
+	stvebx 4, 3, 7
 	addi 7, 7, 16
 	cmplw	6, 7
-	std 10, 8(11)
-	bne	0, .Lrv_BB44_4
+	stvebx 4, 21, 8
+	stvebx 4, 21, 9
+	stvebx 4, 21, 10
+	stvebx 4, 21, 11
+	stvebx 4, 21, 12
+	stvebx 4, 21, 0
+	stvebx 4, 21, 30
+	stvebx 4, 21, 29
+	stvebx 4, 21, 28
+	stvebx 4, 21, 27
+	stvebx 4, 21, 26
+	stvebx 4, 21, 25
+	stvebx 4, 21, 24
+	stvebx 4, 21, 23
+	stvebx 4, 21, 22
+	bne	0, .Lrv_BB44_5
 	cmplw	5, 6
-	bne	0, .Lrv_BB44_7
-.Lrv_BB44_6:
-	addi 1, 1, 32
+	beq	0, .Lrv_BB44_11
+	andi. 7, 5, 12
+	beq	0, .Lrv_BB44_12
+.Lrv_BB44_8:
+	mr	7, 6
+	rlwinm 6, 5, 0, 1, 29
+	addi 8, 1, 16
+	vslb 2, 2, 2
+	li 9, 3
+	li 10, 2
+	li 11, 1
+.Lrv_BB44_9:
+	lbzx 12, 4, 7
+	lvsr 4, 3, 7
+	stb 12, 16(1)
+	add 12, 4, 7
+	lbz 0, 1(12)
+	stb 0, 17(1)
+	lbz 0, 2(12)
+	stb 0, 18(1)
+	lbz 12, 3(12)
+	stb 12, 19(1)
+	add 12, 3, 7
+	lvx128 3, 0, 8
+	vaddubs 3, 3, 2
+	vperm128 3, 3, 3, 4
+	stvebx 3, 3, 7
+	addi 7, 7, 4
+	cmplw	6, 7
+	stvebx 3, 12, 9
+	stvebx 3, 12, 10
+	stvebx 3, 12, 11
+	bne	0, .Lrv_BB44_9
+	cmplw	5, 6
+	bne	0, .Lrv_BB44_12
+.Lrv_BB44_11:
+	ld 30, 104(1)
+	ld 29, 96(1)
+	ld 28, 88(1)
+	ld 27, 80(1)
+	ld 26, 72(1)
+	ld 25, 64(1)
+	ld 24, 56(1)
+	ld 23, 48(1)
+	ld 22, 40(1)
+	ld 21, 32(1)
+	addi 1, 1, 128
 	blr
-.Lrv_BB44_7:
+.Lrv_BB44_12:
 	addi 7, 6, -1
 	add 4, 4, 7
 	add 3, 3, 7
-	b .Lrv_BB44_9
-.Lrv_BB44_8:
+	b .Lrv_BB44_14
+.Lrv_BB44_13:
 	addi 6, 6, 1
 	cmplw	5, 6
 	stbu 7, 1(3)
-	beq	0, .Lrv_BB44_6
-.Lrv_BB44_9:
+	beq	0, .Lrv_BB44_11
+.Lrv_BB44_14:
 	lbzu 7, 1(4)
 	addi 7, 7, 40
 	cmplwi	7, 255
-	blt	0, .Lrv_BB44_8
+	blt	0, .Lrv_BB44_13
 	li 7, 255
-	b .Lrv_BB44_8
+	b .Lrv_BB44_13
 .Lrv_func_end44:
 	.size	rv_sp_bright_s, .Lrv_func_end44-.Lrv_func_begin44
 
@@ -3994,18 +8120,18 @@ rv_g_ic:
 	.asciz	"examples/vmx128bench/lib.rs"
 	.size	.Lrv__MergedGlobals, 44
 
-	.globl	rv_sp_mat4_s
-	.type	rv_sp_mat4_s,@function
-rv_sp_mat4_s = rv_k_mat4_vec4_r
 	.globl	rv_sp_u8f_s
 	.type	rv_sp_u8f_s,@function
 rv_sp_u8f_s = rv_k_u8_to_f32_r
-	.globl	rv_sp_saxpy_s
-	.type	rv_sp_saxpy_s,@function
-rv_sp_saxpy_s = rv_k_saxpy_r
 	.globl	rv_sp_copy_s
 	.type	rv_sp_copy_s,@function
 rv_sp_copy_s = rv_k_copy_u32_r
+	.globl	rv_sp_mat4_s
+	.type	rv_sp_mat4_s,@function
+rv_sp_mat4_s = rv_k_mat4_vec4_r
+	.globl	rv_sp_saxpy_s
+	.type	rv_sp_saxpy_s,@function
+rv_sp_saxpy_s = rv_k_saxpy_r
 .Lrv_anon.9f5168636304abd2b30fcfe364c41a8c.1 = .Lrv__MergedGlobals
 	.size	.Lrv_anon.9f5168636304abd2b30fcfe364c41a8c.1, 16
 .Lrv_anon.9f5168636304abd2b30fcfe364c41a8c.0 = .Lrv__MergedGlobals+16

@@ -29,7 +29,115 @@ fn random_words(rng: &mut Rng) -> [u32; 4] {
     core::array::from_fn(|_| rng.next_u32())
 }
 
+// Keep the operation and MFVSCR together to observe hardware state
+// independently of intrinsic attributes.
+// Classic VMX encodings use only v0-v6. VSCR's SAT bit is bit 0 of word 3.
+macro_rules! vscr_probe {
+    ($instruction:literal, $a:expr, $b:expr) => {{
+        let before: u32x4;
+        let after: u32x4;
+        let result: u32x4;
+        // SAFETY: all changed registers are declared, and the original VSCR
+        // (including NJ) is restored before leaving this indivisible block.
+        unsafe {
+            core::arch::asm!(
+                "mfvscr 0",
+                "vand 1, 0, 6",
+                "mtvscr 1",
+                "mfvscr 1",
+                $instruction,
+                "mfvscr 2",
+                "mtvscr 0",
+                out("v0") _,
+                out("v1") before,
+                out("v2") after,
+                out("v3") result,
+                in("v4") $a,
+                in("v5") $b,
+                in("v6") u32x4::from_array([u32::MAX, u32::MAX, u32::MAX, !1]),
+                options(nostack, preserves_flags),
+            );
+        }
+        (before.to_array(), after.to_array(), result.to_array())
+    }};
+}
+
+fn integer_vscr_result(name: &str, before: [u32; 4], after: [u32; 4], result: [u32; 4]) -> Outcome {
+    same(before[3] & 1, 0, || format!("{name} reset SAT: {before:08x?}"))?;
+    same(after[3] & 1, 1, || format!("{name} saturated VSCR: {after:08x?}"))?;
+    Ok(format!("reset={before:08x?}, saturated={after:08x?}, result={result:08x?}"))
+}
+
+fn vscr_vaddshs() -> Outcome {
+    let (before, after, result) = vscr_probe!(
+        "vaddshs 3, 4, 5", u32x4::splat(0x7FFF_8000), u32x4::splat(0x0001_FFFF)
+    );
+    integer_vscr_result("vaddshs", before, after, result)
+}
+
+fn vscr_vaddubs() -> Outcome {
+    let (before, after, result) = vscr_probe!(
+        "vaddubs 3, 4, 5", u32x4::splat(0xFFFF_FFFF), u32x4::splat(0x0101_0101)
+    );
+    integer_vscr_result("vaddubs", before, after, result)
+}
+
+fn vscr_vsubuhs() -> Outcome {
+    let (before, after, result) = vscr_probe!(
+        "vsubuhs 3, 4, 5", u32x4::splat(0), u32x4::splat(0x0001_0001)
+    );
+    integer_vscr_result("vsubuhs", before, after, result)
+}
+
+macro_rules! conversion_vscr_test {
+    ($name:ident, $instruction:literal, $control:expr, $saturating:expr, $control_words:expr, $saturated_words:expr) => {
+        fn $name() -> Outcome {
+            let mut observations = Vec::new();
+            for (label, input, expected, sat) in [
+                ("in-range", $control, $control_words, 0),
+                ("saturating", $saturating, $saturated_words, 1),
+            ] {
+                let (before, after, result) = vscr_probe!(
+                    $instruction, f32x4::from_array(input).to_bits(), u32x4::splat(0)
+                );
+                same(before[3] & 1, 0, || format!("{label} reset SAT: {before:08x?}"))?;
+                same(after[3] & 1, sat, || format!("{label} observed SAT: {after:08x?}"))?;
+                same(result, expected, || format!("{label} conversion result"))?;
+                observations.push(format!(
+                    "{label} reset={before:08x?}, observed={after:08x?}, result={result:08x?}"
+                ));
+            }
+            Ok(observations.join("; "))
+        }
+    };
+}
+
+conversion_vscr_test!(
+    vscr_vctsxs, "vctsxs 3, 4, 0",
+    [-2.0, -1.0, 0.0, 42.0], [-1.0e30, 1.0e30, -2147483648.0, 2147483648.0],
+    [0xFFFF_FFFE, 0xFFFF_FFFF, 0, 42],
+    [0x8000_0000, 0x7FFF_FFFF, 0x8000_0000, 0x7FFF_FFFF]
+);
+conversion_vscr_test!(
+    vscr_vctuxs, "vctuxs 3, 4, 0",
+    [0.0, 1.0, 42.0, 65536.0], [-1.0e30, 1.0e30, -1.0, 4294967296.0],
+    [0, 1, 42, 65536], [0, u32::MAX, 0, u32::MAX]
+);
+
 pub fn run(report: &mut Report) {
+    // These are explicit assembly probes, independent of LLVM's lowering.
+    report.run("vmx128.vscr.vaddshs", vscr_vaddshs);
+    report.run("vmx128.vscr.vaddubs", vscr_vaddubs);
+    report.run("vmx128.vscr.vsubuhs", vscr_vsubuhs);
+    report.run("vmx128.vscr.vctsxs", vscr_vctsxs);
+    report.run("vmx128.vscr.vctuxs", vscr_vctuxs);
+    // Do not risk generic WC lowering unless every explicit store probe passed.
+    let mut element_stores_valid = false;
+    report.run("vmx128.write_combined.element_stores", || {
+        let result = write_combined_page(check_element_stores);
+        element_stores_valid = result.is_ok();
+        result
+    });
     report.run("vmx128.dot3.exact", || dot_exact(false));
     report.run("vmx128.dot4.exact", || dot_exact(true));
     report.run("vmx128.dot4.cancellation", dot_cancellation);
@@ -43,6 +151,19 @@ pub fn run(report: &mut Report) {
     report.run("vmx128.load_left_right", loads);
     report.run("vmx128.store_left_right", stores);
     report.run("vmx128.load_store_unaligned", unaligned);
+    report.run("vmx128.unaligned.guard_pages", guarded_unaligned);
+    report.run("llvm.vector.unaligned.guard_pages", || {
+        guarded_page(xbox360::sys::xboxkrnl::PageProtection::READWRITE, check_generic_page)
+    });
+    report.run("llvm.vector.unaligned.write_combined", || {
+        if !element_stores_valid {
+            return Err("not run: explicit WC element-store probes failed".into());
+        }
+        write_combined_page(check_generic_page)
+    });
+    report.run("llvm.conversion.write_combined", || {
+        write_combined_page(check_conversion_page)
+    });
     report.run("vmx128.mul_add", mul_add);
     report.run("vmx128.max_min", max_min);
     report.run("vmx128.round", rounding);
@@ -430,6 +551,305 @@ fn unaligned() -> Outcome {
         unsafe { vmx::store_unaligned(black_box(value), black_box(target.0.as_mut_ptr().add(offset))) };
         expected[offset..offset + 16].copy_from_slice(&value.to_array());
         same(target.0, expected, || format!("store offset {offset}"))?;
+    }
+    Ok(String::new())
+}
+
+fn guarded_unaligned() -> Outcome {
+    guarded_page(xbox360::sys::xboxkrnl::PageProtection::READWRITE, check_partial_page)
+}
+
+fn guarded_page(
+    protection: xbox360::sys::xboxkrnl::PageProtection,
+    check: fn(&mut [u8], xbox360::sys::xboxkrnl::PageProtection) -> Outcome,
+) -> Outcome {
+    use xbox360::sys::xboxkrnl::{self, AllocationType, MemoryBasicInformation, MemoryRegion, PageProtection};
+
+    const PAGE: usize = 4096;
+    let mut reservation = 0;
+    let mut reservation_size = (3 * PAGE) as u32;
+    // SAFETY: the kernel chooses the base and updates both output fields.
+    let status = unsafe {
+        xboxkrnl::NtAllocateVirtualMemory(
+            &mut reservation, &mut reservation_size, AllocationType::RESERVE,
+            PageProtection::NOACCESS, MemoryRegion::Title,
+        )
+    };
+    if !status.is_success() {
+        return Err(format!("reserve guard pages: {status:?}"));
+    }
+    let result = (|| {
+        let mut address = reservation + PAGE as u32;
+        let mut size = PAGE as u32;
+        // SAFETY: only the middle page of the reservation is committed.
+        let status = unsafe {
+            xboxkrnl::NtAllocateVirtualMemory(
+                &mut address, &mut size, AllocationType::COMMIT, protection, MemoryRegion::Title,
+            )
+        };
+        if !status.is_success() || address != reservation + PAGE as u32 || size != PAGE as u32 {
+            return Err(format!("commit middle page: {status:?}, address {address:08x}, size {size}"));
+        }
+        for guard in [reservation, reservation + 2 * PAGE as u32] {
+            let mut info = MemoryBasicInformation::default();
+            // SAFETY: info has the complete memory information layout.
+            let status = unsafe {
+                xboxkrnl::NtQueryVirtualMemory(guard, (&mut info as *mut MemoryBasicInformation).cast(), 0)
+            };
+            if !status.is_success() || info.state != AllocationType::RESERVE {
+                return Err(format!("guard {guard:08x}: {status:?}, state {:?}", info.state));
+            }
+        }
+        // SAFETY: the middle page is committed read/write for this test.
+        let page = unsafe { core::slice::from_raw_parts_mut(address as usize as *mut u8, PAGE) };
+        check(page, protection)
+    })();
+    // RELEASE uses size zero to release the complete reservation.
+    let mut release_size = 0;
+    // SAFETY: reservation is the base returned by the reserve call.
+    let status = unsafe {
+        xboxkrnl::NtFreeVirtualMemory(&mut reservation, &mut release_size, AllocationType::RELEASE, 0)
+    };
+    if !status.is_success() {
+        return Err(format!("release guard pages: {status:?}"));
+    }
+    result
+}
+
+fn write_combined_page(check: fn(&mut [u8], xbox360::sys::xboxkrnl::PageProtection) -> Outcome) -> Outcome {
+    use xbox360::sys::xboxkrnl::{self, MemoryRegion, PageProtection};
+
+    let protection = PageProtection::READWRITE | PageProtection::WRITECOMBINE;
+    // Write-combined storage is provided by the physical allocator.
+    // SAFETY: a null return is checked before the mapping is used.
+    let address = unsafe {
+        xboxkrnl::MmAllocatePhysicalMemoryEx(MemoryRegion::Title, 4096, protection, 0, u32::MAX, 4096)
+    };
+    if address == 0 {
+        return Err("allocate write-combined page".into());
+    }
+    // SAFETY: the allocator returned a complete read/write page.
+    let page = unsafe { core::slice::from_raw_parts_mut(address as usize as *mut u8, 4096) };
+    let result = check(page, protection);
+    // Complete all physical WC accesses before returning the mapping.
+    memory_sync();
+    // SAFETY: this is the original physical allocation base.
+    unsafe { xboxkrnl::MmFreePhysicalMemory(MemoryRegion::Title, address) };
+    result
+}
+
+fn memory_sync() {
+    // SAFETY: SYNC only orders memory; the implicit memory clobber also
+    // prevents the compiler from moving validation before WC stores.
+    unsafe { core::arch::asm!("sync", options(nostack, preserves_flags)) };
+}
+
+fn page_pattern(i: usize) -> u8 {
+    ((i * 13 + (i >> 3)) & 255) as u8
+}
+
+fn reset_page(page: &mut [u8]) {
+    for (i, byte) in page.iter_mut().enumerate() {
+        // Scalar volatile accesses keep test setup independent of generic
+        // vector lowering, including when built with the old compiler.
+        unsafe { core::ptr::write_volatile(byte, page_pattern(i)) };
+    }
+    memory_sync();
+}
+
+fn check_page_bytes(
+    page: &[u8], offset: usize, written: &[u8],
+    name: &str, protection: xbox360::sys::xboxkrnl::PageProtection,
+) -> Result<(), String> {
+    memory_sync();
+    for (i, byte) in page.iter().enumerate() {
+        let expected = if (offset..offset + written.len()).contains(&i) {
+            written[i - offset]
+        } else {
+            page_pattern(i)
+        };
+        // SAFETY: each byte is within the live mapping. Volatile byte reads
+        // cannot accidentally retest the vector load/store lowering.
+        let got = unsafe { core::ptr::read_volatile(byte) };
+        if got != expected {
+            return Err(format!("{name} byte {i}, offset {offset}, {protection:?}: got {got:02x}, want {expected:02x}"));
+        }
+    }
+    Ok(())
+}
+
+fn check_element_stores(page: &mut [u8], protection: xbox360::sys::xboxkrnl::PageProtection) -> Outcome {
+    let bytes: [u8; 16] = core::array::from_fn(|i| 0xA0 + i as u8);
+    let value = u8x16::from_array(bytes);
+    for width in [1, 2, 4] {
+        for lane in (0..16).step_by(width) {
+            reset_page(page);
+            let offset = 32 + lane;
+            // Classic STVEBX/HX/WX choose the vector element using EA's low
+            // four bits. HX/WX are naturally aligned here; no rotation is
+            // needed because the target lane equals the source byte offset.
+            // SAFETY: each store writes width bytes in the mapped page; v0
+            // is an explicitly constrained low vector register.
+            unsafe {
+                let address = page.as_mut_ptr().add(offset);
+                match width {
+                    1 => core::arch::asm!(
+                        "stvebx 0, 0, {address}", address = in(reg) address,
+                        in("v0") value, options(nostack, preserves_flags),
+                    ),
+                    2 => core::arch::asm!(
+                        "stvehx 0, 0, {address}", address = in(reg) address,
+                        in("v0") value, options(nostack, preserves_flags),
+                    ),
+                    4 => core::arch::asm!(
+                        "stvewx 0, 0, {address}", address = in(reg) address,
+                        in("v0") value, options(nostack, preserves_flags),
+                    ),
+                    _ => unreachable!(),
+                }
+            }
+            check_page_bytes(page, offset, &bytes[lane..lane + width], "classic element store", protection)?;
+        }
+    }
+    Ok("STVEBX all 16 lanes; STVEHX all 8 aligned lanes; STVEWX all 4 aligned lanes; full-page canaries".into())
+}
+
+// These wrappers deliberately use ordinary Rust memory operations, not the
+// native partial-vector intrinsics. The packed structs carry precisely the
+// align-2/align-4 guarantees needed to exercise element-store lowering.
+#[repr(C, packed(2))]
+struct VectorAlign2(u8x16);
+
+#[repr(C, packed(4))]
+struct VectorAlign4(u8x16);
+
+#[inline(never)]
+unsafe fn llvm_read_unaligned(p: *const u8) -> u8x16 {
+    // SAFETY: the caller provides exactly sixteen readable bytes.
+    unsafe { p.cast::<u8x16>().read_unaligned() }
+}
+
+#[inline(never)]
+unsafe fn llvm_write_unaligned(value: u8x16, p: *mut u8) {
+    // SAFETY: the caller provides exactly sixteen writable bytes.
+    unsafe { p.cast::<u8x16>().write_unaligned(value) };
+}
+
+#[inline(never)]
+unsafe fn llvm_read_align2(p: *const u8) -> u8x16 {
+    // SAFETY: the caller provides sixteen readable bytes aligned to two.
+    unsafe { p.cast::<VectorAlign2>().read().0 }
+}
+
+#[inline(never)]
+unsafe fn llvm_write_align2(value: u8x16, p: *mut u8) {
+    // SAFETY: the caller provides sixteen writable bytes aligned to two.
+    unsafe { p.cast::<VectorAlign2>().write(VectorAlign2(value)) };
+}
+
+#[inline(never)]
+unsafe fn llvm_read_align4(p: *const u8) -> u8x16 {
+    // SAFETY: the caller provides sixteen readable bytes aligned to four.
+    unsafe { p.cast::<VectorAlign4>().read().0 }
+}
+
+#[inline(never)]
+unsafe fn llvm_write_align4(value: u8x16, p: *mut u8) {
+    // SAFETY: the caller provides sixteen writable bytes aligned to four.
+    unsafe { p.cast::<VectorAlign4>().write(VectorAlign4(value)) };
+}
+
+fn check_generic_page(page: &mut [u8], protection: xbox360::sys::xboxkrnl::PageProtection) -> Outcome {
+    let bytes: [u8; 16] = core::array::from_fn(|i| 0xC0 + i as u8);
+    let value = u8x16::from_array(bytes);
+    let variants: [(&str, usize, LoadFn, StoreFn); 3] = [
+        ("align1", 1, llvm_read_unaligned, llvm_write_unaligned),
+        ("align2", 2, llvm_read_align2, llvm_write_align2),
+        ("align4", 4, llvm_read_align4, llvm_write_align4),
+    ];
+    for (name, alignment, load, store) in variants {
+        // All sixteen byte misalignments, interior aligned-block crossings,
+        // and both page edges. No operation may touch outside its 16 bytes.
+        for offset in (0..32).chain(page.len() - 32..=page.len() - 16) {
+            if offset % alignment != 0 {
+                continue;
+            }
+            reset_page(page);
+            // SAFETY: the sixteen-byte range lies inside the mapping, and
+            // only the typed variants' stated alignments are required.
+            let got = unsafe { black_box(load)(black_box(page.as_ptr().add(offset))) };
+            let want = core::array::from_fn(|i| page_pattern(offset + i));
+            same(got.to_array(), want, || format!("LLVM {name} load offset {offset}, {protection:?}"))?;
+            check_page_bytes(page, 0, &[], name, protection)?;
+            // SAFETY: the same exact sixteen-byte range is writable.
+            unsafe { black_box(store)(black_box(value), black_box(page.as_mut_ptr().add(offset))) };
+            check_page_bytes(page, offset, &bytes, name, protection)?;
+            let got = unsafe { black_box(load)(black_box(page.as_ptr().add(offset))) };
+            same(got.to_array(), bytes, || format!("LLVM {name} reload offset {offset}, {protection:?}"))?;
+        }
+    }
+    Ok("ordinary fixed-128 align1/2/4 loads/stores, byte offsets and page edges, full-page canaries".into())
+}
+
+#[inline(never)]
+unsafe fn llvm_f32_to_i32_store(value: f32, p: *mut i32) {
+    // SAFETY: the caller supplies an in-range finite value and aligned storage.
+    unsafe { p.write(value.to_int_unchecked()) };
+}
+
+fn check_conversion_page(page: &mut [u8], protection: xbox360::sys::xboxkrnl::PageProtection) -> Outcome {
+    let cases = [(-2.75f32, -2i32), (0.0, 0), (42.75, 42),
+                 (-2147483648.0, i32::MIN), (2147483520.0, 2147483520)];
+    for (value, expected) in cases {
+        for offset in [0, 4, 12, page.len() - 4] {
+            reset_page(page);
+            // SAFETY: offsets are word aligned and each complete word is mapped.
+            unsafe {
+                llvm_f32_to_i32_store(black_box(value), black_box(page.as_mut_ptr().add(offset).cast()));
+            }
+            check_page_bytes(page, offset, &expected.to_be_bytes(), "float-to-int store", protection)?;
+        }
+    }
+    Ok("ordinary float-to-i32 stores, physical WC, limits and full-page canaries".into())
+}
+
+fn check_partial_page(page: &mut [u8], protection: xbox360::sys::xboxkrnl::PageProtection) -> Outcome {
+    const PAGE: usize = 4096;
+    let pattern = |i: usize| ((i * 13 + (i >> 3)) & 255) as u8;
+    let value = u8x16::from_array(core::array::from_fn(|i| 0xC0 + i as u8));
+    for i in 0..PAGE {
+        page[i] = pattern(i);
+    }
+    // At an aligned address the right forms transfer zero bytes.
+    // SAFETY: the page begins at an aligned mapped address.
+    let zero: u8x16 = unsafe { vmx::load_right(black_box(page.as_ptr())) };
+    same(zero.to_array(), [0; 16], || format!("right load at page start {protection:?}"))?;
+    // SAFETY: an aligned right store has an empty write range.
+    unsafe { vmx::store_right(black_box(value), black_box(page.as_mut_ptr())) };
+    for offset in (0..16).flat_map(|i| [i, PAGE - 32 + i]).chain([PAGE - 16]) {
+        for i in 0..PAGE {
+            if page[i] != pattern(i) {
+                return Err(format!("unexpected write at {i}, offset {offset}, {protection:?}"));
+            }
+        }
+        // The guarded caller leaves the page following this range unmapped.
+        // SAFETY: exactly the sixteen bytes beginning at offset are mapped.
+        let got: u8x16 = unsafe { vmx::load_unaligned(black_box(page.as_ptr().add(offset))) };
+        same(got.to_array(), core::array::from_fn(|i| pattern(offset + i)), || {
+            format!("page load offset {offset}, {protection:?}")
+        })?;
+        // SAFETY: the same sixteen-byte range is writable.
+        unsafe {
+            vmx::store_unaligned(black_box(value), black_box(page.as_mut_ptr().add(offset)));
+            core::arch::asm!("sync", options(nostack, preserves_flags));
+        }
+        for i in 0..PAGE {
+            let expected = if (offset..offset + 16).contains(&i) { 0xC0 + (i - offset) as u8 } else { pattern(i) };
+            if page[i] != expected {
+                return Err(format!("page store byte {i}, offset {offset}, {protection:?}"));
+            }
+            page[i] = pattern(i);
+        }
     }
     Ok(String::new())
 }

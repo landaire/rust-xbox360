@@ -1,4 +1,4 @@
-# speed.c: clang version 22.1.8 (git@github.com:landaire/llvm-project.git 5f59e9fff8d5dc5b1fa65127b3579d4b1a71f950)
+# speed.c: clang version 22.1.8 (git@github.com:landaire/llvm-project.git 2f714b11080e5a449de3969e3c4477cf5cbe92ab)
 # flags: --target=powerpc64-unknown-xbox360 -ffreestanding -fno-builtin -fms-extensions -ffunction-sections -fdata-sections -fno-ident -fno-addrsig -fno-asynchronous-unwind-tables -g0 -O3 -ffast-math
 	.section	.text.cv_sp_saxpy_s,"ax",@progbits
 	.globl	cv_sp_saxpy_s                   # -- Begin function cv_sp_saxpy_s
@@ -10,41 +10,45 @@ cv_sp_saxpy_s:                          # @cv_sp_saxpy_s
 	cmpwi	6, 1
 	bltlr	0
 # %bb.1:                                # %for.body.preheader
-	stwu 1, -48(1)
+	stwu 1, -64(1)
 	cmplwi	6, 4
 	li 5, 0
+	std 30, 40(1)                           # 8-byte Folded Spill
 	blt	0, .Lcv_BB0_5
 # %bb.2:                                # %vector.ph
-	stfs 1, 32(1)
-	addi 5, 1, 32
-	li 7, 0
-	li 8, 15
-	addi 9, 1, 16
-	lvx128 2, 0, 5
+	stfs 1, 16(1)
+	addi 8, 1, 16
 	rlwinm 5, 6, 0, 1, 29
-	mr	10, 5
+	li 7, 0
+	li 9, 12
+	lvx128 2, 0, 8
+	li 8, 15
+	li 10, 8
+	li 11, 4
+	mr	12, 5
 	vspltw128 2, 2, 0
 .Lcv_BB0_3:                                # %vector.body
                                         # =>This Inner Loop Header: Depth=1
-	add 11, 4, 7
+	add 30, 4, 7
 	lvx128 4, 4, 7
-	addi 10, 10, -4
-	cmplwi	10, 0
-	lvx128 5, 11, 8
-	add 11, 3, 7
+	addi 12, 12, -4
+	cmplwi	12, 0
+	lvx128 5, 30, 8
+	add 30, 3, 7
 	lvx128 0, 3, 7
-	lvx128 1, 11, 8
+	lvx128 1, 30, 8
 	lvsl 3, 4, 7
 	vperm128 3, 4, 5, 3
 	lvsl 4, 3, 7
 	vperm128 4, 0, 1, 4
 	vmaddfp128 4, 3, 2, 4
-	stvx128 4, 0, 9
-	ld 12, 16(1)
-	stdx 12, 3, 7
+	lvsr 5, 3, 7
+	vperm128 3, 4, 4, 5
+	stvewx 3, 3, 7
 	addi 7, 7, 16
-	ld 12, 24(1)
-	std 12, 8(11)
+	stvewx 3, 30, 9
+	stvewx 3, 30, 10
+	stvewx 3, 30, 11
 	bne	0, .Lcv_BB0_3
 # %bb.4:                                # %middle.block
 	cmplw	6, 5
@@ -65,7 +69,8 @@ cv_sp_saxpy_s:                          # @cv_sp_saxpy_s
 	stfs 0, 0(3)
 	bne	0, .Lcv_BB0_6
 .Lcv_BB0_7:
-	addi 1, 1, 48
+	ld 30, 40(1)                            # 8-byte Folded Reload
+	addi 1, 1, 64
 	blr
 .Lcv_func_end0:
 	.size	cv_sp_saxpy_s, .Lcv_func_end0-.Lcv_func_begin0
@@ -108,6 +113,25 @@ cv_sp_saxpy_v:                          # @cv_sp_saxpy_v
 	.p2align	2, 0x0                          # -- Begin function cv_sp_dot_s
 .Lcv_CPI2_0:
 	.long	0x00000000                      # float 0
+	.section	.rodata.cst16,"aM",@progbits,16
+	.p2align	4, 0x0
+.Lcv_CPI2_1:
+	.byte	0                               # 0x0
+	.byte	1                               # 0x1
+	.byte	2                               # 0x2
+	.byte	3                               # 0x3
+	.byte	16                              # 0x10
+	.byte	17                              # 0x11
+	.byte	18                              # 0x12
+	.byte	19                              # 0x13
+	.byte	16                              # 0x10
+	.byte	17                              # 0x11
+	.byte	18                              # 0x12
+	.byte	19                              # 0x13
+	.byte	16                              # 0x10
+	.byte	17                              # 0x11
+	.byte	18                              # 0x12
+	.byte	19                              # 0x13
 	.section	.text.cv_sp_dot_s,"ax",@progbits
 	.globl	cv_sp_dot_s
 	.p2align	2
@@ -118,81 +142,187 @@ cv_sp_dot_s:                            # @cv_sp_dot_s
 	cmpwi	5, 1
 	lis 7, .Lcv_CPI2_0@ha
 	blt	0, .Lcv_BB2_3
-# %bb.1:                                # %for.body.preheader
-	stwu 1, -32(1)
-	cmplwi	5, 8
+# %bb.1:                                # %iter.check
+	stwu 1, -144(1)
+	cmplwi	5, 4
+	std 26, 88(1)                           # 8-byte Folded Spill
+	std 27, 96(1)                           # 8-byte Folded Spill
+	std 28, 104(1)                          # 8-byte Folded Spill
+	std 29, 112(1)                          # 8-byte Folded Spill
+	std 30, 120(1)                          # 8-byte Folded Spill
 	bge 0, .Lcv_BB2_4
 # %bb.2:
 	li 6, 0
 	lfs 1, .Lcv_CPI2_0@l(7)
-	b .Lcv_BB2_7
+	b .Lcv_BB2_13
 .Lcv_BB2_3:
 	lfs 1, .Lcv_CPI2_0@l(7)
 	blr
-.Lcv_BB2_4:                                # %vector.ph
-	rlwinm 6, 5, 0, 1, 28
-	vspltisw128 2, 0
-	addi 7, 4, 16
-	addi 8, 3, 16
-	li 9, 0
-	vspltisw128 3, 0
-	li 10, 15
-	mr	11, 6
-.Lcv_BB2_5:                                # %vector.body
+.Lcv_BB2_4:                                # %vector.main.loop.iter.check
+	cmplwi	5, 32
+	lis 7, .Lcv_CPI2_0@ha
+	bge 0, .Lcv_BB2_6
+# %bb.5:
+	li 6, 0
+	lfs 1, .Lcv_CPI2_0@l(7)
+	b .Lcv_BB2_10
+.Lcv_BB2_6:                                # %vector.ph
+	rlwinm 6, 5, 0, 1, 26
+	vspltisw128 8, 0
+	li 8, 0
+	li 9, 16
+	li 10, 32
+	vspltisw128 9, 0
+	li 11, 48
+	li 12, 64
+	vspltisw128 4, 0
+	li 0, 80
+	li 30, 96
+	li 29, 112
+	li 28, 127
+	vspltisw128 5, 0
+	mr	27, 6
+	vspltisw128 0, 0
+	vspltisw128 1, 0
+	vspltisw128 6, 0
+	vspltisw128 7, 0
+.Lcv_BB2_7:                                # %vector.body
                                         # =>This Inner Loop Header: Depth=1
-	add 12, 3, 9
-	lvx128 0, 3, 9
-	addi 11, 11, -8
-	cmplwi	11, 0
-	lvx128 1, 12, 10
-	add 12, 8, 9
-	lvx128 6, 8, 9
-	lvx128 7, 12, 10
-	add 12, 4, 9
-	lvx128 8, 4, 9
-	lvx128 9, 12, 10
-	add 12, 7, 9
-	lvsl 5, 3, 9
-	vperm128 5, 0, 1, 5
-	lvsl 0, 4, 9
-	vperm128 0, 8, 9, 0
-	vmaddfp128 2, 0, 5, 2
-	lvx128 1, 7, 9
-	lvx128 5, 12, 10
-	lvsl 4, 8, 9
-	vperm128 4, 6, 7, 4
-	lvsl 0, 7, 9
-	addi 9, 9, 32
-	vperm128 5, 1, 5, 0
-	vmaddfp128 3, 5, 4, 3
-	bne	0, .Lcv_BB2_5
-# %bb.6:                                # %middle.block
-	vaddfp128 2, 3, 2
+	add 26, 3, 8
+	lvx128 3, 3, 8
+	addi 27, 27, -32
+	cmplwi	27, 0
+	lvx128 10, 26, 9
+	lvx128 11, 26, 10
+	lvx128 12, 26, 11
+	lvx128 13, 26, 12
+	lvx128 14, 26, 0
+	lvx128 15, 26, 30
+	lvx128 16, 26, 29
+	lvx128 17, 26, 28
+	add 26, 4, 8
+	lvx128 18, 4, 8
+	lvx128 19, 26, 9
+	lvsl 2, 3, 8
+	vperm128 31, 3, 10, 2
+	lvsl 3, 4, 8
+	addi 8, 8, 128
+	vperm128 18, 18, 19, 3
+	vmaddfp128 8, 18, 31, 8
+	lvx128 18, 26, 10
+	vperm128 10, 10, 11, 2
+	vperm128 19, 19, 18, 3
+	vmaddfp128 9, 19, 10, 9
+	lvx128 10, 26, 11
+	vperm128 11, 11, 12, 2
+	vperm128 18, 18, 10, 3
+	vperm128 12, 12, 13, 2
+	vmaddfp128 4, 18, 11, 4
+	lvx128 11, 26, 12
+	vperm128 10, 10, 11, 3
+	vmaddfp128 5, 10, 12, 5
+	lvx128 10, 26, 0
+	vperm128 12, 13, 14, 2
+	vperm128 11, 11, 10, 3
+	vmaddfp128 0, 11, 12, 0
+	lvx128 11, 26, 30
+	vperm128 12, 14, 15, 2
+	vperm128 10, 10, 11, 3
+	vmaddfp128 1, 10, 12, 1
+	lvx128 10, 26, 29
+	vperm128 12, 15, 16, 2
+	vperm128 11, 11, 10, 3
+	vperm128 2, 16, 17, 2
+	vmaddfp128 6, 11, 12, 6
+	lvx128 11, 26, 28
+	vperm128 3, 10, 11, 3
+	vmaddfp128 7, 3, 2, 7
+	bne	0, .Lcv_BB2_7
+# %bb.8:                                # %middle.block
+	vaddfp128 2, 9, 8
+	addi 8, 1, 64
+	cmplw	5, 6
+	vaddfp128 2, 4, 2
+	vaddfp128 2, 5, 2
+	vaddfp128 2, 0, 2
+	vaddfp128 2, 1, 2
+	vaddfp128 2, 6, 2
+	vaddfp128 2, 7, 2
+	vsldoi128 3, 2, 2, 8
+	vaddfp128 2, 2, 3
+	vsldoi128 3, 2, 2, 4
+	vaddfp128 2, 2, 3
+	stvx128 2, 0, 8
+	lfs 1, 64(1)
+	beq	0, .Lcv_BB2_15
+# %bb.9:                                # %vec.epilog.iter.check
+	andi. 8, 5, 28
+	beq	0, .Lcv_BB2_13
+.Lcv_BB2_10:                               # %vec.epilog.ph
+	lwz 7, .Lcv_CPI2_0@l(7)
+	li 8, .Lcv_CPI2_1@l
+	lis 9, .Lcv_CPI2_1@ha
+	stfs 1, 32(1)
+	stw 7, 48(1)
+	addi 7, 1, 32
+	lvx128 3, 0, 7
+	addi 7, 1, 48
+	lvx128 2, 9, 8
+	mr	8, 6
+	rlwinm 6, 5, 0, 1, 29
+	li 9, 15
+	lvx128 4, 0, 7
+	sub	7, 8, 6
+	slwi 8, 8, 2
+	vperm128 2, 3, 4, 2
+.Lcv_BB2_11:                               # %vec.epilog.vector.body
+                                        # =>This Inner Loop Header: Depth=1
+	add 10, 3, 8
+	lvx128 4, 3, 8
+	addi 7, 7, 4
+	cmplwi	7, 0
+	lvx128 5, 10, 9
+	add 10, 4, 8
+	lvx128 0, 4, 8
+	lvx128 1, 10, 9
+	lvsl 3, 3, 8
+	vperm128 3, 4, 5, 3
+	lvsl 4, 4, 8
+	addi 8, 8, 16
+	vperm128 4, 0, 1, 4
+	vmaddfp128 2, 4, 3, 2
+	bne	0, .Lcv_BB2_11
+# %bb.12:                               # %vec.epilog.middle.block
+	vsldoi128 3, 2, 2, 8
 	addi 7, 1, 16
 	cmplw	5, 6
-	vsldoi128 3, 2, 2, 8
 	vaddfp128 2, 2, 3
 	vsldoi128 3, 2, 2, 4
 	vaddfp128 2, 2, 3
 	stvx128 2, 0, 7
 	lfs 1, 16(1)
-	beq	0, .Lcv_BB2_9
-.Lcv_BB2_7:                                # %for.body.preheader13
+	beq	0, .Lcv_BB2_15
+.Lcv_BB2_13:                               # %for.body.preheader
 	slwi 7, 6, 2
 	sub	5, 5, 6
 	addi 6, 7, -4
 	add 3, 3, 6
 	add 4, 4, 6
-.Lcv_BB2_8:                                # %for.body
+.Lcv_BB2_14:                               # %for.body
                                         # =>This Inner Loop Header: Depth=1
 	lfsu 0, 4(4)
 	addi 5, 5, -1
 	cmplwi	5, 0
 	lfsu 2, 4(3)
 	fmadds 1, 0, 2, 1
-	bne	0, .Lcv_BB2_8
-.Lcv_BB2_9:
-	addi 1, 1, 32
+	bne	0, .Lcv_BB2_14
+.Lcv_BB2_15:
+	ld 30, 120(1)                           # 8-byte Folded Reload
+	ld 29, 112(1)                           # 8-byte Folded Reload
+	ld 28, 104(1)                           # 8-byte Folded Reload
+	ld 27, 96(1)                            # 8-byte Folded Reload
+	ld 26, 88(1)                            # 8-byte Folded Reload
+	addi 1, 1, 144
 	blr
 .Lcv_func_end2:
 	.size	cv_sp_dot_s, .Lcv_func_end2-.Lcv_func_begin2
@@ -353,17 +483,24 @@ cv_sp_mat4_s:                           # @cv_sp_mat4_s
 	cmpwi	6, 1
 	bltlr	0
 # %bb.1:                                # %for.body.lr.ph
-	stwu 1, -224(1)
-	std 26, 168(1)                          # 8-byte Folded Spill
+	stwu 1, -192(1)
+	std 19, 80(1)                           # 8-byte Folded Spill
 	li 7, 16
 	li 8, 32
 	li 9, 48
 	li 10, 63
-	std 27, 176(1)                          # 8-byte Folded Spill
+	std 20, 88(1)                           # 8-byte Folded Spill
 	cmplwi	6, 4
-	std 28, 184(1)                          # 8-byte Folded Spill
-	std 29, 192(1)                          # 8-byte Folded Spill
-	std 30, 200(1)                          # 8-byte Folded Spill
+	std 21, 96(1)                           # 8-byte Folded Spill
+	std 22, 104(1)                          # 8-byte Folded Spill
+	std 23, 112(1)                          # 8-byte Folded Spill
+	std 24, 120(1)                          # 8-byte Folded Spill
+	std 25, 128(1)                          # 8-byte Folded Spill
+	std 26, 136(1)                          # 8-byte Folded Spill
+	std 27, 144(1)                          # 8-byte Folded Spill
+	std 28, 152(1)                          # 8-byte Folded Spill
+	std 29, 160(1)                          # 8-byte Folded Spill
+	std 30, 168(1)                          # 8-byte Folded Spill
 	lvx128 3, 0, 4
 	lvx128 4, 4, 7
 	lvx128 5, 4, 8
@@ -373,7 +510,7 @@ cv_sp_mat4_s:                           # @cv_sp_mat4_s
 	li 4, 0
 	vperm128 27, 3, 4, 2
 	vperm128 26, 4, 5, 2
-	vperm128 4, 5, 0, 2
+	vperm128 35, 5, 0, 2
 	vperm128 5, 0, 1, 2
 	blt	0, .Lcv_BB4_5
 # %bb.2:                                # %vector.ph
@@ -381,56 +518,65 @@ cv_sp_mat4_s:                           # @cv_sp_mat4_s
 	lis 30, .Lcv_CPI4_0@ha
 	vspltw128 16, 27, 0
 	lvx128 0, 30, 12
-	li 12, .Lcv_CPI4_1@l
-	lis 30, .Lcv_CPI4_1@ha
+	li 29, .Lcv_CPI4_1@l
+	lis 28, .Lcv_CPI4_1@ha
 	vspltw128 18, 26, 0
-	lvx128 1, 30, 12
-	li 12, .Lcv_CPI4_2@l
-	lis 30, .Lcv_CPI4_2@ha
-	li 0, .Lcv_CPI4_3@l
-	lis 29, .Lcv_CPI4_3@ha
-	vspltw128 31, 4, 0
-	lvx128 6, 30, 12
-	li 30, .Lcv_CPI4_4@l
-	lis 28, .Lcv_CPI4_4@ha
+	li 26, .Lcv_CPI4_2@l
+	lis 25, .Lcv_CPI4_2@ha
+	lvx128 1, 28, 29
+	li 24, .Lcv_CPI4_3@l
+	lis 23, .Lcv_CPI4_3@ha
+	vspltw128 31, 35, 0
+	lvx128 6, 25, 26
+	li 22, .Lcv_CPI4_4@l
+	lis 21, .Lcv_CPI4_4@ha
 	vspltw128 29, 5, 0
-	lvx128 7, 29, 0
+	lvx128 7, 23, 24
 	rlwinm 4, 6, 0, 1, 29
 	li 11, 0
 	vspltw128 8, 27, 1
-	addi 12, 1, 96
-	addi 0, 1, 144
-	lvx128 2, 28, 30
-	addi 30, 1, 128
-	addi 29, 1, 112
+	li 12, 60
+	li 0, 56
+	lvx128 2, 21, 22
+	li 30, 52
+	li 29, 44
 	vspltw128 9, 26, 1
-	mr	28, 4
-	vspltw128 10, 4, 1
+	li 28, 40
+	li 27, 36
+	vspltw128 10, 35, 1
+	li 26, 28
+	li 25, 24
+	li 24, 20
+	li 23, 12
 	vspltw128 11, 5, 1
+	li 22, 8
+	li 21, 4
 	vspltw128 12, 27, 2
+	mr	20, 4
 	vspltw128 13, 26, 2
-	vspltw128 14, 4, 2
+	vspltw128 14, 35, 2
 	vspltw128 15, 5, 2
 	vspltw128 17, 27, 3
 	vspltw128 19, 26, 3
-	vspltw128 30, 4, 3
+	vspltw128 30, 35, 3
 	vspltw128 28, 5, 3
 .Lcv_BB4_3:                                # %vector.body
                                         # =>This Inner Loop Header: Depth=1
-	add 27, 5, 11
+	add 19, 5, 11
 	lvsl 3, 5, 11
-	mr	26, 3
-	addi 28, 28, -4
-	lvx128 25, 27, 8
-	cmplwi	28, 0
-	lvx128 24, 27, 7
+	addi 20, 20, -4
+	cmplwi	20, 0
+	lvx128 25, 19, 8
+	lvx128 24, 19, 7
 	lvx128 23, 5, 11
 	vperm128 21, 24, 25, 3
-	lvx128 22, 27, 10
+	lvx128 22, 19, 10
 	vperm128 24, 23, 24, 3
-	lvx128 20, 27, 9
+	lvx128 20, 19, 9
 	vperm128 33, 24, 21, 6
+	add 19, 3, 11
 	vperm128 23, 20, 22, 3
+	lvsr 4, 19, 9
 	vperm128 3, 25, 20, 3
 	vperm128 25, 3, 23, 0
 	vmrghw128 22, 24, 21
@@ -457,94 +603,107 @@ cv_sp_mat4_s:                           # @cv_sp_mat4_s
 	vmaddfp128 25, 30, 33, 25
 	vmaddfp128 22, 29, 3, 22
 	vmaddfp128 20, 11, 3, 20
-	vperm128 24, 22, 20, 6
-	vmrglw128 21, 22, 20
+	vperm128 24, 22, 20, 2
 	vmaddfp128 32, 15, 3, 32
 	vmaddfp128 25, 28, 3, 25
-	vmrghw128 3, 32, 25
-	vperm128 23, 32, 25, 7
-	vmrglw128 33, 32, 25
-	vperm128 25, 32, 25, 0
-	vperm128 32, 22, 20, 2
-	vmrghw128 22, 22, 20
-	vperm128 25, 22, 25, 1
-	stvx128 25, 0, 12
-	vperm128 25, 32, 33, 1
-	stvx128 25, 0, 0
-	vperm128 25, 21, 23, 1
-	stvx128 25, 0, 30
+	vmrglw128 3, 32, 25
 	vperm128 3, 24, 3, 1
-	stvx128 3, 0, 29
-	ld 27, 96(1)
-	stdux 27, 26, 11
+	vperm128 3, 3, 3, 4
+	stvewx 3, 19, 12
+	vperm128 4, 32, 25, 7
+	stvewx 3, 19, 0
+	vmrglw128 24, 22, 20
+	stvewx 3, 19, 30
+	stvewx 3, 19, 9
+	vperm128 3, 24, 4, 1
+	lvsr 4, 19, 8
+	vmrghw128 24, 32, 25
+	vperm128 3, 3, 3, 4
+	stvewx 3, 19, 29
+	vperm128 4, 22, 20, 6
+	stvewx 3, 19, 28
+	stvewx 3, 19, 27
+	stvewx 3, 19, 8
+	vperm128 3, 4, 24, 1
+	lvsr 4, 19, 7
+	vperm128 3, 3, 3, 4
+	stvewx 3, 19, 26
+	vperm128 4, 32, 25, 0
+	stvewx 3, 19, 25
+	vmrghw128 25, 22, 20
+	stvewx 3, 19, 24
+	stvewx 3, 19, 7
+	vperm128 3, 25, 4, 1
+	lvsr 4, 3, 11
+	vperm128 3, 3, 3, 4
+	stvewx 3, 3, 11
 	addi 11, 11, 64
-	ld 27, 152(1)
-	std 27, 56(26)
-	ld 27, 144(1)
-	std 27, 48(26)
-	ld 27, 136(1)
-	std 27, 40(26)
-	ld 27, 128(1)
-	std 27, 32(26)
-	ld 27, 120(1)
-	std 27, 24(26)
-	ld 27, 112(1)
-	std 27, 16(26)
-	ld 27, 104(1)
-	std 27, 8(26)
+	stvewx 3, 19, 23
+	stvewx 3, 19, 22
+	stvewx 3, 19, 21
 	bne	0, .Lcv_BB4_3
 # %bb.4:                                # %middle.block
 	cmplw	6, 4
 	beq	0, .Lcv_BB4_7
 .Lcv_BB4_5:                                # %for.body.preheader
-	slwi 9, 4, 4
+	slwi 11, 4, 4
 	sub	6, 6, 4
-	add 5, 9, 5
-	addi 4, 1, 32
-	addi 7, 1, 48
-	addi 8, 1, 64
-	add 3, 3, 9
+	add 5, 11, 5
+	addi 4, 1, 16
+	addi 7, 1, 32
+	addi 8, 1, 48
+	addi 9, 1, 64
+	li 10, 12
+	add 3, 3, 11
 	addi 5, 5, -16
-	addi 9, 1, 80
-	addi 10, 1, 16
+	li 11, 8
+	li 12, 4
 .Lcv_BB4_6:                                # %for.body
                                         # =>This Inner Loop Header: Depth=1
-	lwzu 11, 16(5)
+	lwzu 0, 16(5)
 	addi 6, 6, -1
 	cmplwi	6, 0
-	lwz 12, 4(5)
-	lwz 0, 8(5)
-	lwz 30, 12(5)
-	stw 11, 32(1)
+	lwz 30, 4(5)
+	lwz 29, 8(5)
+	lwz 28, 12(5)
+	stw 0, 16(1)
 	lvx128 2, 0, 4
-	stw 12, 48(1)
+	stw 30, 32(1)
 	vspltw128 2, 2, 0
 	vmulfp128 2, 27, 2
 	lvx128 3, 0, 7
 	vspltw128 3, 3, 0
-	stw 0, 64(1)
+	stw 29, 48(1)
 	vmaddfp128 2, 26, 3, 2
 	lvx128 3, 0, 8
 	vspltw128 3, 3, 0
-	stw 30, 80(1)
-	vmaddfp128 2, 4, 3, 2
+	stw 28, 64(1)
+	lvsr 4, 0, 3
+	vmaddfp128 2, 35, 3, 2
 	lvx128 3, 0, 9
 	vspltw128 3, 3, 0
 	vmaddfp128 2, 5, 3, 2
-	stvx128 2, 0, 10
-	ld 11, 24(1)
-	std 11, 8(3)
-	ld 11, 16(1)
-	std 11, 0(3)
+	vperm128 2, 2, 2, 4
+	stvewx 2, 3, 10
+	stvewx 2, 3, 11
+	stvewx 2, 3, 12
+	stvewx 2, 0, 3
 	addi 3, 3, 16
 	bne	0, .Lcv_BB4_6
 .Lcv_BB4_7:
-	ld 30, 200(1)                           # 8-byte Folded Reload
-	ld 29, 192(1)                           # 8-byte Folded Reload
-	ld 28, 184(1)                           # 8-byte Folded Reload
-	ld 27, 176(1)                           # 8-byte Folded Reload
-	ld 26, 168(1)                           # 8-byte Folded Reload
-	addi 1, 1, 224
+	ld 30, 168(1)                           # 8-byte Folded Reload
+	ld 29, 160(1)                           # 8-byte Folded Reload
+	ld 28, 152(1)                           # 8-byte Folded Reload
+	ld 27, 144(1)                           # 8-byte Folded Reload
+	ld 26, 136(1)                           # 8-byte Folded Reload
+	ld 25, 128(1)                           # 8-byte Folded Reload
+	ld 24, 120(1)                           # 8-byte Folded Reload
+	ld 23, 112(1)                           # 8-byte Folded Reload
+	ld 22, 104(1)                           # 8-byte Folded Reload
+	ld 21, 96(1)                            # 8-byte Folded Reload
+	ld 20, 88(1)                            # 8-byte Folded Reload
+	ld 19, 80(1)                            # 8-byte Folded Reload
+	addi 1, 1, 192
 	blr
 .Lcv_func_end4:
 	.size	cv_sp_mat4_s, .Lcv_func_end4-.Lcv_func_begin4
@@ -991,39 +1150,214 @@ cv_sp_copy_s:                           # @cv_sp_copy_s
 # %bb.0:                                # %entry
 	cmpwi	5, 1
 	bltlr	0
-# %bb.1:                                # %for.body.preheader
-	li 6, 0
-	beq	0, .Lcv_BB9_5
-# %bb.2:                                # %vector.ph
-	rlwinm 6, 5, 0, 1, 30
-	addi 7, 4, -8
-	addi 8, 3, -8
-	mr	9, 6
-.Lcv_BB9_3:                                # %vector.body
+# %bb.1:                                # %iter.check
+	stwu 1, -176(1)
+	cmplwi	5, 4
+	li 0, 0
+	std 14, 24(1)                           # 8-byte Folded Spill
+	std 15, 32(1)                           # 8-byte Folded Spill
+	std 16, 40(1)                           # 8-byte Folded Spill
+	std 17, 48(1)                           # 8-byte Folded Spill
+	std 18, 56(1)                           # 8-byte Folded Spill
+	std 19, 64(1)                           # 8-byte Folded Spill
+	std 20, 72(1)                           # 8-byte Folded Spill
+	std 21, 80(1)                           # 8-byte Folded Spill
+	std 22, 88(1)                           # 8-byte Folded Spill
+	std 23, 96(1)                           # 8-byte Folded Spill
+	std 24, 104(1)                          # 8-byte Folded Spill
+	std 25, 112(1)                          # 8-byte Folded Spill
+	std 26, 120(1)                          # 8-byte Folded Spill
+	std 27, 128(1)                          # 8-byte Folded Spill
+	std 28, 136(1)                          # 8-byte Folded Spill
+	std 29, 144(1)                          # 8-byte Folded Spill
+	std 30, 152(1)                          # 8-byte Folded Spill
+	std 31, 160(1)                          # 8-byte Folded Spill
+	blt	0, .Lcv_BB9_10
+# %bb.2:                                # %vector.main.loop.iter.check
+	cmplwi	5, 32
+	blt	0, .Lcv_BB9_7
+# %bb.3:                                # %vector.ph
+	stw 5, 20(1)                            # 4-byte Folded Spill
+	rlwinm 23, 5, 0, 1, 26
+	li 7, 0
+	li 8, 16
+	li 9, 32
+	stw 23, 16(1)                           # 4-byte Folded Spill
+	li 10, 48
+	li 11, 64
+	li 12, 80
+	li 0, 96
+	li 30, 112
+	li 20, 36
+	li 19, 60
+	li 18, 56
+	li 17, 52
+	li 16, 76
+	li 15, 72
+	li 14, 68
+	li 31, 92
+	li 6, 88
+	li 29, 84
+	li 28, 108
+	li 27, 104
+	li 5, 100
+	li 26, 124
+	li 25, 120
+	li 24, 116
+.Lcv_BB9_4:                                # %vector.body
                                         # =>This Inner Loop Header: Depth=1
-	lwzu 10, 8(7)
-	addi 9, 9, -2
-	cmplwi	9, 0
-	stwu 10, 8(8)
-	lwz 10, 4(7)
-	stw 10, 4(8)
-	bne	0, .Lcv_BB9_3
-# %bb.4:                                # %middle.block
-	cmplw	5, 6
-	beqlr	0
-.Lcv_BB9_5:                                # %for.body.preheader7
-	slwi 7, 6, 2
-	sub	5, 5, 6
-	addi 6, 7, -4
+	add 22, 4, 7
+	lvx128 11, 4, 7
+	li 21, 127
+	addi 23, 23, -32
+	lvx128 4, 22, 8
+	cmplwi	23, 0
+	lvx128 5, 22, 9
+	lvsl 2, 4, 7
+	vperm128 10, 4, 5, 2
+	lvx128 0, 22, 10
+	lvx128 1, 22, 11
+	lvx128 6, 22, 12
+	lvx128 7, 22, 0
+	lvx128 8, 22, 30
+	lvx128 9, 22, 21
+	add 22, 3, 7
+	li 21, 28
+	lvsr 3, 22, 8
+	vperm128 3, 10, 10, 3
+	stvewx 3, 22, 21
+	li 21, 24
+	stvewx 3, 22, 21
+	li 21, 20
+	stvewx 3, 22, 21
+	li 21, 44
+	stvewx 3, 22, 8
+	vperm128 3, 5, 0, 2
+	lvsr 5, 22, 9
+	vperm128 3, 3, 3, 5
+	stvewx 3, 22, 21
+	li 21, 40
+	stvewx 3, 22, 21
+	li 21, 12
+	stvewx 3, 22, 20
+	stvewx 3, 22, 9
+	vperm128 3, 0, 1, 2
+	lvsr 5, 22, 10
+	vperm128 3, 3, 3, 5
+	stvewx 3, 22, 19
+	stvewx 3, 22, 18
+	stvewx 3, 22, 17
+	stvewx 3, 22, 10
+	vperm128 3, 1, 6, 2
+	lvsr 5, 22, 11
+	vperm128 3, 3, 3, 5
+	stvewx 3, 22, 16
+	stvewx 3, 22, 15
+	stvewx 3, 22, 14
+	stvewx 3, 22, 11
+	vperm128 3, 6, 7, 2
+	lvsr 5, 22, 12
+	vperm128 3, 3, 3, 5
+	stvewx 3, 22, 31
+	stvewx 3, 22, 6
+	stvewx 3, 22, 29
+	stvewx 3, 22, 12
+	vperm128 3, 7, 8, 2
+	lvsr 5, 22, 0
+	vperm128 3, 3, 3, 5
+	stvewx 3, 22, 28
+	stvewx 3, 22, 27
+	stvewx 3, 22, 5
+	stvewx 3, 22, 0
+	vperm128 3, 8, 9, 2
+	lvsr 5, 22, 30
+	vperm128 2, 11, 4, 2
+	vperm128 3, 3, 3, 5
+	stvewx 3, 22, 26
+	stvewx 3, 22, 25
+	stvewx 3, 22, 24
+	stvewx 3, 22, 30
+	lvsr 3, 3, 7
+	vperm128 2, 2, 2, 3
+	stvewx 2, 22, 21
+	li 21, 8
+	stvewx 2, 22, 21
+	li 21, 4
+	stvewx 2, 3, 7
+	addi 7, 7, 128
+	stvewx 2, 22, 21
+	bne	0, .Lcv_BB9_4
+# %bb.5:                                # %middle.block
+	lwz 5, 20(1)                            # 4-byte Folded Reload
+	lwz 0, 16(1)                            # 4-byte Folded Reload
+	cmplw	5, 0
+	beq	0, .Lcv_BB9_12
+# %bb.6:                                # %vec.epilog.iter.check
+	andi. 6, 5, 28
+	beq	0, .Lcv_BB9_10
+.Lcv_BB9_7:                                # %vec.epilog.ph
+	mr	8, 0
+	rlwinm 0, 5, 0, 1, 29
+	li 12, 15
+	li 6, 12
+	sub	7, 8, 0
+	slwi 8, 8, 2
+	li 9, 8
+	li 10, 4
+.Lcv_BB9_8:                                # %vec.epilog.vector.body
+                                        # =>This Inner Loop Header: Depth=1
+	add 11, 4, 8
+	lvx128 2, 4, 8
+	addi 7, 7, 4
+	cmplwi	7, 0
+	lvx128 3, 11, 12
+	add 11, 3, 8
+	lvsl 4, 4, 8
+	vperm128 2, 2, 3, 4
+	lvsr 3, 3, 8
+	vperm128 2, 2, 2, 3
+	stvewx 2, 3, 8
+	addi 8, 8, 16
+	stvewx 2, 11, 6
+	stvewx 2, 11, 9
+	stvewx 2, 11, 10
+	bne	0, .Lcv_BB9_8
+# %bb.9:                                # %vec.epilog.middle.block
+	cmplw	5, 0
+	beq	0, .Lcv_BB9_12
+.Lcv_BB9_10:                               # %for.body.preheader
+	slwi 6, 0, 2
+	sub	5, 5, 0
+	addi 6, 6, -4
 	add 4, 4, 6
 	add 3, 3, 6
-.Lcv_BB9_6:                                # %for.body
+.Lcv_BB9_11:                               # %for.body
                                         # =>This Inner Loop Header: Depth=1
 	lwzu 6, 4(4)
 	addi 5, 5, -1
 	cmplwi	5, 0
 	stwu 6, 4(3)
-	bne	0, .Lcv_BB9_6
+	bne	0, .Lcv_BB9_11
+.Lcv_BB9_12:
+	ld 31, 160(1)                           # 8-byte Folded Reload
+	ld 30, 152(1)                           # 8-byte Folded Reload
+	ld 29, 144(1)                           # 8-byte Folded Reload
+	ld 28, 136(1)                           # 8-byte Folded Reload
+	ld 27, 128(1)                           # 8-byte Folded Reload
+	ld 26, 120(1)                           # 8-byte Folded Reload
+	ld 25, 112(1)                           # 8-byte Folded Reload
+	ld 24, 104(1)                           # 8-byte Folded Reload
+	ld 23, 96(1)                            # 8-byte Folded Reload
+	ld 22, 88(1)                            # 8-byte Folded Reload
+	ld 21, 80(1)                            # 8-byte Folded Reload
+	ld 20, 72(1)                            # 8-byte Folded Reload
+	ld 19, 64(1)                            # 8-byte Folded Reload
+	ld 18, 56(1)                            # 8-byte Folded Reload
+	ld 17, 48(1)                            # 8-byte Folded Reload
+	ld 16, 40(1)                            # 8-byte Folded Reload
+	ld 15, 32(1)                            # 8-byte Folded Reload
+	ld 14, 24(1)                            # 8-byte Folded Reload
+	addi 1, 1, 176
 	blr
 .Lcv_func_end9:
 	.size	cv_sp_copy_s, .Lcv_func_end9-.Lcv_func_begin9
@@ -1063,62 +1397,148 @@ cv_sp_bright_s:                         # @cv_sp_bright_s
 # %bb.0:                                # %entry
 	cmpwi	5, 1
 	bltlr	0
-# %bb.1:                                # %for.body.preheader
-	stwu 1, -32(1)
-	cmplwi	5, 16
+# %bb.1:                                # %iter.check
+	stwu 1, -128(1)
+	cmplwi	5, 4
 	li 6, 0
-	blt	0, .Lcv_BB11_6
-# %bb.2:                                # %vector.ph
+	std 21, 32(1)                           # 8-byte Folded Spill
+	std 22, 40(1)                           # 8-byte Folded Spill
+	std 23, 48(1)                           # 8-byte Folded Spill
+	std 24, 56(1)                           # 8-byte Folded Spill
+	std 25, 64(1)                           # 8-byte Folded Spill
+	std 26, 72(1)                           # 8-byte Folded Spill
+	std 27, 80(1)                           # 8-byte Folded Spill
+	std 28, 88(1)                           # 8-byte Folded Spill
+	std 29, 96(1)                           # 8-byte Folded Spill
+	std 30, 104(1)                          # 8-byte Folded Spill
+	blt	0, .Lcv_BB11_11
+# %bb.2:                                # %vector.main.loop.iter.check
+	cmplwi	5, 16
 	vspltisb 2, 10
+	blt	0, .Lcv_BB11_7
+# %bb.3:                                # %vector.ph
 	rlwinm 6, 5, 0, 1, 27
 	li 7, 0
-	vslb 2, 2, 2
+	vslb 3, 2, 2
 	li 8, 15
-	addi 9, 1, 16
-.Lcv_BB11_3:                               # %vector.body
+	li 9, 14
+	li 10, 13
+	li 11, 12
+	li 12, 11
+	li 0, 10
+	li 30, 9
+	li 29, 8
+	li 28, 7
+	li 27, 6
+	li 26, 5
+	li 25, 4
+	li 24, 3
+	li 23, 2
+	li 22, 1
+.Lcv_BB11_4:                               # %vector.body
                                         # =>This Inner Loop Header: Depth=1
-	add 10, 4, 7
-	lvx128 3, 4, 7
-	mr	11, 3
-	lvx128 4, 10, 8
-	lvsl 5, 4, 7
-	vperm128 3, 3, 4, 5
-	vaddubs 3, 3, 2
-	stvx128 3, 0, 9
-	ld 10, 16(1)
-	stdux 10, 11, 7
+	add 21, 4, 7
+	lvx128 4, 4, 7
+	lvx128 5, 21, 8
+	add 21, 3, 7
+	lvsl 0, 4, 7
+	vperm128 4, 4, 5, 0
+	vaddubs 4, 4, 3
+	lvsr 5, 3, 7
+	vperm128 4, 4, 4, 5
+	stvebx 4, 3, 7
 	addi 7, 7, 16
 	cmplw	6, 7
-	ld 10, 24(1)
-	std 10, 8(11)
-	bne	0, .Lcv_BB11_3
-# %bb.4:                                # %middle.block
+	stvebx 4, 21, 8
+	stvebx 4, 21, 9
+	stvebx 4, 21, 10
+	stvebx 4, 21, 11
+	stvebx 4, 21, 12
+	stvebx 4, 21, 0
+	stvebx 4, 21, 30
+	stvebx 4, 21, 29
+	stvebx 4, 21, 28
+	stvebx 4, 21, 27
+	stvebx 4, 21, 26
+	stvebx 4, 21, 25
+	stvebx 4, 21, 24
+	stvebx 4, 21, 23
+	stvebx 4, 21, 22
+	bne	0, .Lcv_BB11_4
+# %bb.5:                                # %middle.block
 	cmplw	5, 6
-	bne	0, .Lcv_BB11_6
-.Lcv_BB11_5:
-	addi 1, 1, 32
+	beq	0, .Lcv_BB11_10
+# %bb.6:                                # %vec.epilog.iter.check
+	andi. 7, 5, 12
+	beq	0, .Lcv_BB11_11
+.Lcv_BB11_7:                               # %vec.epilog.ph
+	mr	7, 6
+	rlwinm 6, 5, 0, 1, 29
+	vslb 2, 2, 2
+	addi 8, 1, 16
+	li 9, 3
+	li 10, 2
+	li 11, 1
+.Lcv_BB11_8:                               # %vec.epilog.vector.body
+                                        # =>This Inner Loop Header: Depth=1
+	lbzx 12, 4, 7
+	stb 12, 16(1)
+	add 12, 4, 7
+	lbz 0, 1(12)
+	stb 0, 17(1)
+	lbz 0, 2(12)
+	stb 0, 18(1)
+	lbz 12, 3(12)
+	stb 12, 19(1)
+	add 12, 3, 7
+	lvx128 3, 0, 8
+	lvsr 4, 3, 7
+	vaddubs 3, 3, 2
+	vperm128 3, 3, 3, 4
+	stvebx 3, 3, 7
+	addi 7, 7, 4
+	cmplw	6, 7
+	stvebx 3, 12, 9
+	stvebx 3, 12, 10
+	stvebx 3, 12, 11
+	bne	0, .Lcv_BB11_8
+# %bb.9:                                # %vec.epilog.middle.block
+	cmplw	5, 6
+	bne	0, .Lcv_BB11_11
+.Lcv_BB11_10:
+	ld 30, 104(1)                           # 8-byte Folded Reload
+	ld 29, 96(1)                            # 8-byte Folded Reload
+	ld 28, 88(1)                            # 8-byte Folded Reload
+	ld 27, 80(1)                            # 8-byte Folded Reload
+	ld 26, 72(1)                            # 8-byte Folded Reload
+	ld 25, 64(1)                            # 8-byte Folded Reload
+	ld 24, 56(1)                            # 8-byte Folded Reload
+	ld 23, 48(1)                            # 8-byte Folded Reload
+	ld 22, 40(1)                            # 8-byte Folded Reload
+	ld 21, 32(1)                            # 8-byte Folded Reload
+	addi 1, 1, 128
 	blr
-.Lcv_BB11_6:                               # %for.body.preheader11
+.Lcv_BB11_11:                              # %for.body.preheader
 	addi 7, 6, -1
 	add 4, 4, 7
 	add 3, 3, 7
-	b .Lcv_BB11_8
-.Lcv_BB11_7:                               # %for.body
-                                        #   in Loop: Header=BB11_8 Depth=1
+	b .Lcv_BB11_13
+.Lcv_BB11_12:                              # %for.body
+                                        #   in Loop: Header=BB11_13 Depth=1
 	addi 6, 6, 1
 	stbu 7, 1(3)
 	cmplw	5, 6
-	beq	0, .Lcv_BB11_5
-.Lcv_BB11_8:                               # %for.body
+	beq	0, .Lcv_BB11_10
+.Lcv_BB11_13:                              # %for.body
                                         # =>This Inner Loop Header: Depth=1
 	lbzu 7, 1(4)
 	addi 7, 7, 40
 	cmplwi	7, 255
-	blt	0, .Lcv_BB11_7
-# %bb.9:                                # %for.body
-                                        #   in Loop: Header=BB11_8 Depth=1
+	blt	0, .Lcv_BB11_12
+# %bb.14:                               # %for.body
+                                        #   in Loop: Header=BB11_13 Depth=1
 	li 7, 255
-	b .Lcv_BB11_7
+	b .Lcv_BB11_12
 .Lcv_func_end11:
 	.size	cv_sp_bright_s, .Lcv_func_end11-.Lcv_func_begin11
                                         # -- End function
@@ -1151,9 +1571,16 @@ cv_sp_bright_v:                         # @cv_sp_bright_v
 .Lcv_func_end12:
 	.size	cv_sp_bright_v, .Lcv_func_end12-.Lcv_func_begin12
                                         # -- End function
-	.section	.rodata.cst4,"aM",@progbits,4
-	.p2align	2, 0x0                          # -- Begin function cv_sp_u8f_s
+	.section	.rodata.cst16,"aM",@progbits,16
+	.p2align	4, 0x0                          # -- Begin function cv_sp_u8f_s
 .Lcv_CPI13_0:
+	.long	0x3b808081                      # float 0.00392156886
+	.long	0x3b808081                      # float 0.00392156886
+	.long	0x3b808081                      # float 0.00392156886
+	.long	0x3b808081                      # float 0.00392156886
+	.section	.rodata.cst4,"aM",@progbits,4
+	.p2align	2, 0x0
+.Lcv_CPI13_1:
 	.long	0x3b808081                      # float 0.00392156886
 	.section	.text.cv_sp_u8f_s,"ax",@progbits
 	.globl	cv_sp_u8f_s
@@ -1165,34 +1592,68 @@ cv_sp_u8f_s:                            # @cv_sp_u8f_s
 	cmpwi	5, 1
 	bltlr	0
 # %bb.1:                                # %for.body.preheader
-	stwu 1, -48(1)
+	stwu 1, -128(1)
+	cmplwi	5, 4
 	li 6, 0
-	beq	0, .Lcv_BB13_5
+	std 27, 80(1)                           # 8-byte Folded Spill
+	std 28, 88(1)                           # 8-byte Folded Spill
+	std 29, 96(1)                           # 8-byte Folded Spill
+	std 30, 104(1)                          # 8-byte Folded Spill
+	blt	0, .Lcv_BB13_5
 # %bb.2:                                # %vector.ph
-	lis 9, .Lcv_CPI13_0@ha
-	rlwinm 6, 5, 0, 1, 30
-	lfs 0, .Lcv_CPI13_0@l(9)
-	addi 7, 4, -2
-	addi 8, 3, -8
-	mr	9, 6
+	li 9, .Lcv_CPI13_0@l
+	lis 10, .Lcv_CPI13_0@ha
+	lvx128 2, 10, 9
+	rlwinm 6, 5, 0, 1, 29
+	addi 7, 1, 64
+	li 8, 12
+	li 9, 8
+	li 10, 4
+	mr	11, 4
+	mr	12, 3
+	mr	30, 6
 .Lcv_BB13_3:                               # %vector.body
                                         # =>This Inner Loop Header: Depth=1
-	lbzu 10, 2(7)
-	addi 9, 9, -2
-	cmplwi	9, 0
-	std 10, 40(1)
-	lfd 1, 40(1)
-	fcfid 1, 1
-	lbz 10, 1(7)
-	frsp 1, 1
-	fmuls 1, 1, 0
-	stfsu 1, 8(8)
-	std 10, 32(1)
-	lfd 1, 32(1)
-	fcfid 1, 1
-	frsp 1, 1
-	fmuls 1, 1, 0
-	stfs 1, 4(8)
+	lbz 0, 0(11)
+	addi 30, 30, -4
+	cmplwi	30, 0
+	clrlwi	0, 0, 24
+	lbz 29, 1(11)
+	lbz 28, 2(11)
+	lbz 27, 3(11)
+	addi 11, 11, 4
+	std 0, 32(1)
+	clrlwi	0, 29, 24
+	lfd 0, 32(1)
+	fcfid 0, 0
+	std 0, 40(1)
+	clrlwi	0, 28, 24
+	frsp 0, 0
+	stfs 0, 64(1)
+	lfd 0, 40(1)
+	fcfid 0, 0
+	std 0, 48(1)
+	clrlwi	0, 27, 24
+	frsp 0, 0
+	stfs 0, 68(1)
+	lfd 0, 48(1)
+	fcfid 0, 0
+	std 0, 56(1)
+	frsp 0, 0
+	stfs 0, 72(1)
+	lfd 0, 56(1)
+	fcfid 0, 0
+	lvsr 4, 0, 12
+	frsp 0, 0
+	stfs 0, 76(1)
+	lvx128 3, 0, 7
+	vmulfp128 3, 3, 2
+	vperm128 3, 3, 3, 4
+	stvewx 3, 12, 8
+	stvewx 3, 12, 9
+	stvewx 3, 12, 10
+	stvewx 3, 0, 12
+	addi 12, 12, 16
 	bne	0, .Lcv_BB13_3
 # %bb.4:                                # %middle.block
 	cmplw	5, 6
@@ -1201,8 +1662,8 @@ cv_sp_u8f_s:                            # @cv_sp_u8f_s
 	sub	5, 5, 6
 	slwi 7, 6, 2
 	add 4, 6, 4
-	lis 6, .Lcv_CPI13_0@ha
-	lfs 0, .Lcv_CPI13_0@l(6)
+	lis 6, .Lcv_CPI13_1@ha
+	lfs 0, .Lcv_CPI13_1@l(6)
 	add 7, 7, 3
 	addi 3, 4, -1
 	addi 4, 7, -4
@@ -1219,7 +1680,11 @@ cv_sp_u8f_s:                            # @cv_sp_u8f_s
 	stfsu 1, 4(4)
 	bne	0, .Lcv_BB13_6
 .Lcv_BB13_7:
-	addi 1, 1, 48
+	ld 30, 104(1)                           # 8-byte Folded Reload
+	ld 29, 96(1)                            # 8-byte Folded Reload
+	ld 28, 88(1)                            # 8-byte Folded Reload
+	ld 27, 80(1)                            # 8-byte Folded Reload
+	addi 1, 1, 128
 	blr
 .Lcv_func_end13:
 	.size	cv_sp_u8f_s, .Lcv_func_end13-.Lcv_func_begin13

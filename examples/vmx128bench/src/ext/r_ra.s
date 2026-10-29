@@ -39,36 +39,57 @@ ra_k_abs_i32_r:
 .Lra_func_begin1:
 	cmpwi	5, 1
 	bltlr	0
-	stwu 1, -32(1)
-	cmplwi	5, 4
+	stwu 1, -48(1)
+	cmplwi	5, 8
 	sub	7, 3, 4
 	li 6, 0
+	std 29, 16(1)
+	std 30, 24(1)
 	bc 12, 0, .Lra_BB1_6
-	cmplwi	7, 16
+	cmplwi	7, 32
 	bc 12, 0, .Lra_BB1_6
-	rlwinm 6, 5, 0, 1, 29
-	li 7, 0
-	li 8, 15
+	rlwinm 6, 5, 0, 1, 28
+	addi 7, 4, 16
+	addi 8, 3, 16
+	li 9, 0
+	li 10, 15
 	vxor 2, 2, 2
-	addi 9, 1, 16
-	mr	10, 6
+	li 11, 12
+	li 12, 8
+	li 0, 4
+	mr	30, 6
 .Lra_BB1_4:
-	add 11, 4, 7
-	lvx 3, 4, 7
-	mr	12, 3
-	lvx 4, 11, 8
-	addi 10, 10, -4
-	lvsl 5, 4, 7
-	cmplwi	10, 0
-	vperm 3, 3, 4, 5
-	vsubuwm 4, 2, 3
-	vmaxsw 3, 3, 4
-	stvx 3, 0, 9
-	ld 11, 16(1)
-	stdux 11, 12, 7
-	ld 11, 24(1)
-	addi 7, 7, 16
-	std 11, 8(12)
+	add 29, 4, 9
+	lvx 4, 4, 9
+	addi 30, 30, -8
+	lvx 5, 29, 10
+	add 29, 7, 9
+	lvsl 3, 4, 9
+	cmplwi	30, 0
+	vperm 3, 4, 5, 3
+	lvx 4, 7, 9
+	vsubuwm 5, 2, 3
+	vmaxsw 3, 3, 5
+	lvx 5, 29, 10
+	add 29, 3, 9
+	lvsl 0, 7, 9
+	vperm 4, 4, 5, 0
+	lvsr 1, 3, 9
+	vsubuwm 5, 2, 4
+	vperm 3, 3, 3, 1
+	lvsr 1, 8, 9
+	vmaxsw 4, 4, 5
+	stvewx 3, 29, 11
+	stvewx 3, 29, 12
+	stvewx 3, 29, 0
+	add 29, 8, 9
+	stvewx 3, 3, 9
+	vperm 3, 4, 4, 1
+	stvewx 3, 8, 9
+	addi 9, 9, 32
+	stvewx 3, 29, 11
+	stvewx 3, 29, 12
+	stvewx 3, 29, 0
 	bne	0, .Lra_BB1_4
 	cmplw	5, 6
 	beq	0, .Lra_BB1_8
@@ -88,7 +109,9 @@ ra_k_abs_i32_r:
 	stwu 6, 4(3)
 	bne	0, .Lra_BB1_7
 .Lra_BB1_8:
-	addi 1, 1, 32
+	ld 30, 24(1)
+	ld 29, 16(1)
+	addi 1, 1, 48
 	blr
 .Lra_func_end1:
 	.size	ra_k_abs_i32_r, .Lra_func_end1-.Lra_func_begin1
@@ -178,6 +201,9 @@ ra_k_add_f32_r:
 	stwu 1, -64(1)
 	cmplwi	6, 8
 	li 7, 0
+	std 27, 16(1)
+	std 28, 24(1)
+	std 29, 32(1)
 	std 30, 40(1)
 	bge 0, .Lra_BB3_5
 .Lra_BB3_2:
@@ -197,41 +223,68 @@ ra_k_add_f32_r:
 	bne	0, .Lra_BB3_3
 .Lra_BB3_4:
 	ld 30, 40(1)
+	ld 29, 32(1)
+	ld 28, 24(1)
+	ld 27, 16(1)
 	addi 1, 1, 64
 	blr
 .Lra_BB3_5:
 	sub	8, 3, 4
-	cmplwi	8, 16
+	cmplwi	8, 32
 	sub	8, 3, 5
 	bc 12, 0, .Lra_BB3_2
-	cmplwi	8, 16
+	cmplwi	8, 32
 	bc 12, 0, .Lra_BB3_2
-	rlwinm 7, 6, 0, 1, 29
-	li 8, 0
-	li 9, 15
-	addi 10, 1, 16
-	mr	11, 7
+	rlwinm 7, 6, 0, 1, 28
+	addi 8, 4, 16
+	addi 9, 5, 16
+	addi 10, 3, 16
+	li 11, 0
+	li 12, 15
+	li 0, 12
+	li 30, 8
+	li 29, 4
+	mr	28, 7
 .Lra_BB3_8:
-	add 12, 4, 8
-	lvx 2, 4, 8
-	mr	30, 3
-	lvx 3, 12, 9
-	add 12, 5, 8
-	lvx 4, 5, 8
-	addi 11, 11, -4
-	lvx 5, 12, 9
-	cmplwi	11, 0
-	lvsl 0, 4, 8
-	vperm 2, 2, 3, 0
-	lvsl 1, 5, 8
-	vperm 3, 4, 5, 1
+	add 27, 4, 11
+	lvx 3, 4, 11
+	addi 28, 28, -8
+	lvx 0, 27, 12
+	add 27, 8, 11
+	lvx 1, 8, 11
+	cmplwi	28, 0
+	lvx 6, 27, 12
+	add 27, 5, 11
+	lvx 7, 5, 11
+	lvx 8, 27, 12
+	add 27, 9, 11
+	lvsl 2, 4, 11
+	vperm 2, 3, 0, 2
+	lvsl 5, 5, 11
+	vperm 3, 7, 8, 5
 	vaddfp 2, 2, 3
-	stvx 2, 0, 10
-	ld 12, 16(1)
-	stdux 12, 30, 8
-	ld 12, 24(1)
-	addi 8, 8, 16
-	std 12, 8(30)
+	lvx 3, 9, 11
+	lvx 0, 27, 12
+	add 27, 3, 11
+	lvsl 4, 8, 11
+	vperm 4, 1, 6, 4
+	lvsl 9, 9, 11
+	vperm 3, 3, 0, 9
+	lvsr 10, 3, 11
+	vperm 2, 2, 2, 10
+	vaddfp 3, 4, 3
+	lvsr 5, 10, 11
+	stvewx 2, 27, 0
+	stvewx 2, 27, 30
+	stvewx 2, 27, 29
+	add 27, 10, 11
+	stvewx 2, 3, 11
+	vperm 2, 3, 3, 5
+	stvewx 2, 10, 11
+	addi 11, 11, 32
+	stvewx 2, 27, 0
+	stvewx 2, 27, 30
+	stvewx 2, 27, 29
 	bne	0, .Lra_BB3_8
 	cmplw	6, 7
 	bne	0, .Lra_BB3_2
@@ -247,10 +300,14 @@ ra_k_add_i16_r:
 .Lra_func_begin4:
 	cmpwi	6, 1
 	bltlr	0
-	stwu 1, -64(1)
+	stwu 1, -80(1)
 	cmplwi	6, 16
 	li 7, 0
-	std 30, 40(1)
+	std 26, 24(1)
+	std 27, 32(1)
+	std 28, 40(1)
+	std 29, 48(1)
+	std 30, 56(1)
 	bge 0, .Lra_BB4_5
 .Lra_BB4_2:
 	sub	6, 6, 7
@@ -268,8 +325,12 @@ ra_k_add_i16_r:
 	sthu 7, 2(3)
 	bne	0, .Lra_BB4_3
 .Lra_BB4_4:
-	ld 30, 40(1)
-	addi 1, 1, 64
+	ld 30, 56(1)
+	ld 29, 48(1)
+	ld 28, 40(1)
+	ld 27, 32(1)
+	ld 26, 24(1)
+	addi 1, 1, 80
 	blr
 .Lra_BB4_5:
 	sub	8, 3, 4
@@ -281,29 +342,40 @@ ra_k_add_i16_r:
 	rlwinm 7, 6, 0, 1, 28
 	li 8, 0
 	li 9, 15
-	addi 10, 1, 16
-	mr	11, 7
+	li 10, 14
+	li 11, 12
+	li 12, 10
+	li 0, 8
+	li 30, 6
+	li 29, 4
+	li 28, 2
+	mr	27, 7
 .Lra_BB4_8:
-	add 12, 4, 8
+	add 26, 4, 8
 	lvx 2, 4, 8
-	mr	30, 3
-	lvx 3, 12, 9
-	add 12, 5, 8
+	addi 27, 27, -8
+	lvx 3, 26, 9
+	add 26, 5, 8
 	lvx 4, 5, 8
-	addi 11, 11, -8
-	lvx 5, 12, 9
-	cmplwi	11, 0
+	cmplwi	27, 0
+	lvx 5, 26, 9
+	add 26, 3, 8
 	lvsl 0, 4, 8
 	vperm 2, 2, 3, 0
 	lvsl 1, 5, 8
 	vperm 3, 4, 5, 1
+	lvsr 4, 3, 8
 	vadduhm 2, 3, 2
-	stvx 2, 0, 10
-	ld 12, 16(1)
-	stdux 12, 30, 8
-	ld 12, 24(1)
+	vperm 2, 2, 2, 4
+	stvehx 2, 3, 8
 	addi 8, 8, 16
-	std 12, 8(30)
+	stvehx 2, 26, 10
+	stvehx 2, 26, 11
+	stvehx 2, 26, 12
+	stvehx 2, 26, 0
+	stvehx 2, 26, 30
+	stvehx 2, 26, 29
+	stvehx 2, 26, 28
 	bne	0, .Lra_BB4_8
 	cmplw	6, 7
 	bne	0, .Lra_BB4_2
@@ -320,8 +392,11 @@ ra_k_add_i32:
 	cmpwi	6, 1
 	bltlr	0
 	stwu 1, -64(1)
-	cmplwi	6, 20
+	cmplwi	6, 12
 	li 7, 0
+	std 27, 16(1)
+	std 28, 24(1)
+	std 29, 32(1)
 	std 30, 40(1)
 	bge 0, .Lra_BB5_5
 .Lra_BB5_2:
@@ -341,41 +416,68 @@ ra_k_add_i32:
 	bne	0, .Lra_BB5_3
 .Lra_BB5_4:
 	ld 30, 40(1)
+	ld 29, 32(1)
+	ld 28, 24(1)
+	ld 27, 16(1)
 	addi 1, 1, 64
 	blr
 .Lra_BB5_5:
 	sub	8, 3, 4
-	cmplwi	8, 16
+	cmplwi	8, 32
 	sub	8, 3, 5
 	bc 12, 0, .Lra_BB5_2
-	cmplwi	8, 16
+	cmplwi	8, 32
 	bc 12, 0, .Lra_BB5_2
-	rlwinm 7, 6, 0, 1, 29
-	li 8, 0
-	li 9, 15
-	addi 10, 1, 16
-	mr	11, 7
+	rlwinm 7, 6, 0, 1, 28
+	addi 8, 3, 16
+	addi 9, 5, 16
+	addi 10, 4, 16
+	li 11, 0
+	li 12, 15
+	li 0, 12
+	li 30, 8
+	li 29, 4
+	mr	28, 7
 .Lra_BB5_8:
-	add 12, 4, 8
-	lvx 2, 4, 8
-	mr	30, 3
-	lvx 3, 12, 9
-	add 12, 5, 8
-	lvx 4, 5, 8
-	addi 11, 11, -4
-	lvx 5, 12, 9
-	cmplwi	11, 0
-	lvsl 0, 4, 8
-	vperm 2, 2, 3, 0
-	lvsl 1, 5, 8
-	vperm 3, 4, 5, 1
+	add 27, 4, 11
+	lvx 3, 4, 11
+	addi 28, 28, -8
+	lvx 0, 27, 12
+	add 27, 10, 11
+	lvx 1, 10, 11
+	cmplwi	28, 0
+	lvx 6, 27, 12
+	add 27, 5, 11
+	lvx 7, 5, 11
+	lvx 8, 27, 12
+	add 27, 9, 11
+	lvsl 2, 4, 11
+	vperm 2, 3, 0, 2
+	lvsl 5, 5, 11
+	vperm 3, 7, 8, 5
 	vadduwm 2, 3, 2
-	stvx 2, 0, 10
-	ld 12, 16(1)
-	stdux 12, 30, 8
-	ld 12, 24(1)
-	addi 8, 8, 16
-	std 12, 8(30)
+	lvx 3, 9, 11
+	lvx 0, 27, 12
+	add 27, 3, 11
+	lvsl 4, 10, 11
+	vperm 4, 1, 6, 4
+	lvsl 9, 9, 11
+	vperm 3, 3, 0, 9
+	lvsr 10, 3, 11
+	vperm 2, 2, 2, 10
+	vadduwm 3, 3, 4
+	lvsr 5, 8, 11
+	stvewx 2, 27, 0
+	stvewx 2, 27, 30
+	stvewx 2, 27, 29
+	add 27, 8, 11
+	stvewx 2, 3, 11
+	vperm 2, 3, 3, 5
+	stvewx 2, 8, 11
+	addi 11, 11, 32
+	stvewx 2, 27, 0
+	stvewx 2, 27, 30
+	stvewx 2, 27, 29
 	bne	0, .Lra_BB5_8
 	cmplw	6, 7
 	bne	0, .Lra_BB5_2
@@ -392,8 +494,11 @@ ra_k_add_i32_r:
 	cmpwi	6, 1
 	bltlr	0
 	stwu 1, -64(1)
-	cmplwi	6, 20
+	cmplwi	6, 12
 	li 7, 0
+	std 27, 16(1)
+	std 28, 24(1)
+	std 29, 32(1)
 	std 30, 40(1)
 	bge 0, .Lra_BB6_5
 .Lra_BB6_2:
@@ -413,41 +518,68 @@ ra_k_add_i32_r:
 	bne	0, .Lra_BB6_3
 .Lra_BB6_4:
 	ld 30, 40(1)
+	ld 29, 32(1)
+	ld 28, 24(1)
+	ld 27, 16(1)
 	addi 1, 1, 64
 	blr
 .Lra_BB6_5:
 	sub	8, 3, 4
-	cmplwi	8, 16
+	cmplwi	8, 32
 	sub	8, 3, 5
 	bc 12, 0, .Lra_BB6_2
-	cmplwi	8, 16
+	cmplwi	8, 32
 	bc 12, 0, .Lra_BB6_2
-	rlwinm 7, 6, 0, 1, 29
-	li 8, 0
-	li 9, 15
-	addi 10, 1, 16
-	mr	11, 7
+	rlwinm 7, 6, 0, 1, 28
+	addi 8, 4, 16
+	addi 9, 5, 16
+	addi 10, 3, 16
+	li 11, 0
+	li 12, 15
+	li 0, 12
+	li 30, 8
+	li 29, 4
+	mr	28, 7
 .Lra_BB6_8:
-	add 12, 4, 8
-	lvx 2, 4, 8
-	mr	30, 3
-	lvx 3, 12, 9
-	add 12, 5, 8
-	lvx 4, 5, 8
-	addi 11, 11, -4
-	lvx 5, 12, 9
-	cmplwi	11, 0
-	lvsl 0, 4, 8
-	vperm 2, 2, 3, 0
-	lvsl 1, 5, 8
-	vperm 3, 4, 5, 1
+	add 27, 4, 11
+	lvx 3, 4, 11
+	addi 28, 28, -8
+	lvx 0, 27, 12
+	add 27, 8, 11
+	lvx 1, 8, 11
+	cmplwi	28, 0
+	lvx 6, 27, 12
+	add 27, 5, 11
+	lvx 7, 5, 11
+	lvx 8, 27, 12
+	add 27, 9, 11
+	lvsl 2, 4, 11
+	vperm 2, 3, 0, 2
+	lvsl 5, 5, 11
+	vperm 3, 7, 8, 5
 	vadduwm 2, 3, 2
-	stvx 2, 0, 10
-	ld 12, 16(1)
-	stdux 12, 30, 8
-	ld 12, 24(1)
-	addi 8, 8, 16
-	std 12, 8(30)
+	lvx 3, 9, 11
+	lvx 0, 27, 12
+	add 27, 3, 11
+	lvsl 4, 8, 11
+	vperm 4, 1, 6, 4
+	lvsl 9, 9, 11
+	vperm 3, 3, 0, 9
+	lvsr 10, 3, 11
+	vperm 2, 2, 2, 10
+	vadduwm 3, 3, 4
+	lvsr 5, 10, 11
+	stvewx 2, 27, 0
+	stvewx 2, 27, 30
+	stvewx 2, 27, 29
+	add 27, 10, 11
+	stvewx 2, 3, 11
+	vperm 2, 3, 3, 5
+	stvewx 2, 10, 11
+	addi 11, 11, 32
+	stvewx 2, 27, 0
+	stvewx 2, 27, 30
+	stvewx 2, 27, 29
 	bne	0, .Lra_BB6_8
 	cmplw	6, 7
 	bne	0, .Lra_BB6_2
@@ -463,9 +595,20 @@ ra_k_add_u8_r:
 .Lra_func_begin7:
 	cmpwi	6, 1
 	bltlr	0
-	stwu 1, -32(1)
-	cmplwi	6, 16
+	stwu 1, -160(1)
+	cmplwi	6, 8
 	li 7, 0
+	std 20, 56(1)
+	std 21, 64(1)
+	std 22, 72(1)
+	std 23, 80(1)
+	std 24, 88(1)
+	std 25, 96(1)
+	std 26, 104(1)
+	std 27, 112(1)
+	std 28, 120(1)
+	std 29, 128(1)
+	std 30, 136(1)
 	bge 0, .Lra_BB7_5
 .Lra_BB7_2:
 	addi 8, 7, -1
@@ -481,7 +624,18 @@ ra_k_add_u8_r:
 	stbu 8, 1(3)
 	bne	0, .Lra_BB7_3
 .Lra_BB7_4:
-	addi 1, 1, 32
+	ld 30, 136(1)
+	ld 29, 128(1)
+	ld 28, 120(1)
+	ld 27, 112(1)
+	ld 26, 104(1)
+	ld 25, 96(1)
+	ld 24, 88(1)
+	ld 23, 80(1)
+	ld 22, 72(1)
+	ld 21, 64(1)
+	ld 20, 56(1)
+	addi 1, 1, 160
 	blr
 .Lra_BB7_5:
 	sub	8, 3, 4
@@ -490,34 +644,132 @@ ra_k_add_u8_r:
 	bc 12, 0, .Lra_BB7_2
 	cmplwi	8, 16
 	bc 12, 0, .Lra_BB7_2
+	cmplwi	6, 16
+	bge 0, .Lra_BB7_11
+.Lra_BB7_8:
+	mr	8, 7
+	rlwinm 7, 6, 0, 1, 28
+	addi 9, 1, 32
+	addi 10, 1, 16
+	li 11, 7
+	li 12, 6
+	li 0, 5
+	li 30, 4
+	li 29, 3
+	li 28, 2
+	li 27, 1
+.Lra_BB7_9:
+	lbzx 26, 4, 8
+	stb 26, 32(1)
+	add 26, 4, 8
+	lbz 25, 1(26)
+	stb 25, 33(1)
+	lbz 25, 2(26)
+	stb 25, 34(1)
+	lbz 25, 3(26)
+	stb 25, 35(1)
+	lbz 25, 4(26)
+	stb 25, 36(1)
+	lbz 25, 5(26)
+	stb 25, 37(1)
+	lbz 25, 6(26)
+	stb 25, 38(1)
+	lbz 26, 7(26)
+	stb 26, 39(1)
+	lbzx 26, 5, 8
+	lvx 2, 0, 9
+	stb 26, 16(1)
+	add 26, 5, 8
+	lbz 25, 1(26)
+	stb 25, 17(1)
+	lbz 25, 2(26)
+	stb 25, 18(1)
+	lbz 25, 3(26)
+	stb 25, 19(1)
+	lbz 25, 4(26)
+	stb 25, 20(1)
+	lbz 25, 5(26)
+	stb 25, 21(1)
+	lbz 25, 6(26)
+	stb 25, 22(1)
+	lbz 26, 7(26)
+	stb 26, 23(1)
+	add 26, 3, 8
+	lvx 3, 0, 10
+	vaddubm 2, 3, 2
+	lvsr 3, 3, 8
+	vperm 2, 2, 2, 3
+	stvebx 2, 3, 8
+	addi 8, 8, 8
+	cmplw	7, 8
+	stvebx 2, 26, 11
+	stvebx 2, 26, 12
+	stvebx 2, 26, 0
+	stvebx 2, 26, 30
+	stvebx 2, 26, 29
+	stvebx 2, 26, 28
+	stvebx 2, 26, 27
+	bne	0, .Lra_BB7_9
+	cmplw	6, 7
+	bne	0, .Lra_BB7_2
+	b .Lra_BB7_4
+.Lra_BB7_11:
 	rlwinm 7, 6, 0, 1, 27
 	li 8, 0
 	li 9, 15
-	addi 10, 1, 16
-.Lra_BB7_8:
-	add 11, 4, 8
+	li 10, 14
+	li 11, 13
+	li 12, 12
+	li 0, 11
+	li 30, 10
+	li 29, 9
+	li 28, 8
+	li 27, 7
+	li 26, 6
+	li 25, 5
+	li 24, 4
+	li 23, 3
+	li 22, 2
+	li 21, 1
+.Lra_BB7_12:
+	add 20, 4, 8
 	lvx 2, 4, 8
-	mr	12, 3
-	lvx 3, 11, 9
-	add 11, 5, 8
+	lvx 3, 20, 9
+	add 20, 5, 8
 	lvx 4, 5, 8
-	lvx 5, 11, 9
+	lvx 5, 20, 9
+	add 20, 3, 8
 	lvsl 0, 4, 8
 	vperm 2, 2, 3, 0
 	lvsl 1, 5, 8
 	vperm 3, 4, 5, 1
+	lvsr 4, 3, 8
 	vaddubm 2, 3, 2
-	stvx 2, 0, 10
-	ld 11, 16(1)
-	stdux 11, 12, 8
-	ld 11, 24(1)
+	vperm 2, 2, 2, 4
+	stvebx 2, 3, 8
 	addi 8, 8, 16
 	cmplw	7, 8
-	std 11, 8(12)
-	bne	0, .Lra_BB7_8
+	stvebx 2, 20, 9
+	stvebx 2, 20, 10
+	stvebx 2, 20, 11
+	stvebx 2, 20, 12
+	stvebx 2, 20, 0
+	stvebx 2, 20, 30
+	stvebx 2, 20, 29
+	stvebx 2, 20, 28
+	stvebx 2, 20, 27
+	stvebx 2, 20, 26
+	stvebx 2, 20, 25
+	stvebx 2, 20, 24
+	stvebx 2, 20, 23
+	stvebx 2, 20, 22
+	stvebx 2, 20, 21
+	bne	0, .Lra_BB7_12
 	cmplw	6, 7
-	bne	0, .Lra_BB7_2
-	b .Lra_BB7_4
+	beq	0, .Lra_BB7_4
+	andi. 8, 6, 8
+	beq	0, .Lra_BB7_2
+	b .Lra_BB7_8
 .Lra_func_end7:
 	.size	ra_k_add_u8_r, .Lra_func_end7-.Lra_func_begin7
 
@@ -529,9 +781,20 @@ ra_k_addsat_u8_r:
 .Lra_func_begin8:
 	cmpwi	6, 1
 	bltlr	0
-	stwu 1, -32(1)
-	cmplwi	6, 16
+	stwu 1, -160(1)
+	cmplwi	6, 8
 	li 7, 0
+	std 20, 56(1)
+	std 21, 64(1)
+	std 22, 72(1)
+	std 23, 80(1)
+	std 24, 88(1)
+	std 25, 96(1)
+	std 26, 104(1)
+	std 27, 112(1)
+	std 28, 120(1)
+	std 29, 128(1)
+	std 30, 136(1)
 	bge 0, .Lra_BB8_6
 .Lra_BB8_2:
 	addi 8, 7, -1
@@ -543,7 +806,7 @@ ra_k_addsat_u8_r:
 	addi 7, 7, 1
 	cmplw	6, 7
 	stbu 8, 1(3)
-	beq	0, .Lra_BB8_11
+	beq	0, .Lra_BB8_15
 .Lra_BB8_4:
 	lbzu 8, 1(4)
 	lbzu 9, 1(5)
@@ -559,36 +822,147 @@ ra_k_addsat_u8_r:
 	bc 12, 0, .Lra_BB8_2
 	cmplwi	8, 16
 	bc 12, 0, .Lra_BB8_2
+	cmplwi	6, 16
+	bge 0, .Lra_BB8_12
+.Lra_BB8_9:
+	mr	8, 7
+	rlwinm 7, 6, 0, 1, 28
+	addi 9, 1, 32
+	addi 10, 1, 16
+	li 11, 7
+	li 12, 6
+	li 0, 5
+	li 30, 4
+	li 29, 3
+	li 28, 2
+	li 27, 1
+.Lra_BB8_10:
+	lbzx 26, 4, 8
+	stb 26, 32(1)
+	add 26, 4, 8
+	lbz 25, 1(26)
+	stb 25, 33(1)
+	lbz 25, 2(26)
+	stb 25, 34(1)
+	lbz 25, 3(26)
+	stb 25, 35(1)
+	lbz 25, 4(26)
+	stb 25, 36(1)
+	lbz 25, 5(26)
+	stb 25, 37(1)
+	lbz 25, 6(26)
+	stb 25, 38(1)
+	lbz 26, 7(26)
+	stb 26, 39(1)
+	lbzx 26, 5, 8
+	lvx 2, 0, 9
+	stb 26, 16(1)
+	add 26, 5, 8
+	lbz 25, 1(26)
+	stb 25, 17(1)
+	lbz 25, 2(26)
+	stb 25, 18(1)
+	lbz 25, 3(26)
+	stb 25, 19(1)
+	lbz 25, 4(26)
+	stb 25, 20(1)
+	lbz 25, 5(26)
+	stb 25, 21(1)
+	lbz 25, 6(26)
+	stb 25, 22(1)
+	lbz 26, 7(26)
+	stb 26, 23(1)
+	add 26, 3, 8
+	lvx 3, 0, 10
+	vaddubs 2, 2, 3
+	lvsr 3, 3, 8
+	vperm 2, 2, 2, 3
+	stvebx 2, 3, 8
+	addi 8, 8, 8
+	cmplw	7, 8
+	stvebx 2, 26, 11
+	stvebx 2, 26, 12
+	stvebx 2, 26, 0
+	stvebx 2, 26, 30
+	stvebx 2, 26, 29
+	stvebx 2, 26, 28
+	stvebx 2, 26, 27
+	bne	0, .Lra_BB8_10
+	cmplw	6, 7
+	bne	0, .Lra_BB8_2
+	b .Lra_BB8_15
+.Lra_BB8_12:
 	rlwinm 7, 6, 0, 1, 27
 	li 8, 0
 	li 9, 15
-	addi 10, 1, 16
-.Lra_BB8_9:
-	add 11, 4, 8
+	li 10, 14
+	li 11, 13
+	li 12, 12
+	li 0, 11
+	li 30, 10
+	li 29, 9
+	li 28, 8
+	li 27, 7
+	li 26, 6
+	li 25, 5
+	li 24, 4
+	li 23, 3
+	li 22, 2
+	li 21, 1
+.Lra_BB8_13:
+	add 20, 4, 8
 	lvx 2, 4, 8
-	mr	12, 3
-	lvx 3, 11, 9
-	add 11, 5, 8
+	lvx 3, 20, 9
+	add 20, 5, 8
 	lvx 4, 5, 8
-	lvx 5, 11, 9
+	lvx 5, 20, 9
+	add 20, 3, 8
 	lvsl 0, 4, 8
 	vperm 2, 2, 3, 0
 	lvsl 1, 5, 8
 	vperm 3, 4, 5, 1
+	lvsr 4, 3, 8
 	vaddubs 2, 2, 3
-	stvx 2, 0, 10
-	ld 11, 16(1)
-	stdux 11, 12, 8
-	ld 11, 24(1)
+	vperm 2, 2, 2, 4
+	stvebx 2, 3, 8
 	addi 8, 8, 16
 	cmplw	7, 8
-	std 11, 8(12)
-	bne	0, .Lra_BB8_9
+	stvebx 2, 20, 9
+	stvebx 2, 20, 10
+	stvebx 2, 20, 11
+	stvebx 2, 20, 12
+	stvebx 2, 20, 0
+	stvebx 2, 20, 30
+	stvebx 2, 20, 29
+	stvebx 2, 20, 28
+	stvebx 2, 20, 27
+	stvebx 2, 20, 26
+	stvebx 2, 20, 25
+	stvebx 2, 20, 24
+	stvebx 2, 20, 23
+	stvebx 2, 20, 22
+	stvebx 2, 20, 21
+	bne	0, .Lra_BB8_13
 	cmplw	6, 7
-	bne	0, .Lra_BB8_2
-.Lra_BB8_11:
-	addi 1, 1, 32
+	bne	0, .Lra_BB8_16
+.Lra_BB8_15:
+	ld 30, 136(1)
+	ld 29, 128(1)
+	ld 28, 120(1)
+	ld 27, 112(1)
+	ld 26, 104(1)
+	ld 25, 96(1)
+	ld 24, 88(1)
+	ld 23, 80(1)
+	ld 22, 72(1)
+	ld 21, 64(1)
+	ld 20, 56(1)
+	addi 1, 1, 160
 	blr
+.Lra_BB8_16:
+	andi. 8, 6, 8
+	beq	0, .Lra_BB8_2
+	b .Lra_BB8_9
 .Lra_func_end8:
 	.size	ra_k_addsat_u8_r, .Lra_func_end8-.Lra_func_begin8
 
@@ -601,8 +975,11 @@ ra_k_and_u32_r:
 	cmpwi	6, 1
 	bltlr	0
 	stwu 1, -64(1)
-	cmplwi	6, 20
+	cmplwi	6, 12
 	li 7, 0
+	std 27, 16(1)
+	std 28, 24(1)
+	std 29, 32(1)
 	std 30, 40(1)
 	bge 0, .Lra_BB9_5
 .Lra_BB9_2:
@@ -622,41 +999,68 @@ ra_k_and_u32_r:
 	bne	0, .Lra_BB9_3
 .Lra_BB9_4:
 	ld 30, 40(1)
+	ld 29, 32(1)
+	ld 28, 24(1)
+	ld 27, 16(1)
 	addi 1, 1, 64
 	blr
 .Lra_BB9_5:
 	sub	8, 3, 4
-	cmplwi	8, 16
+	cmplwi	8, 32
 	sub	8, 3, 5
 	bc 12, 0, .Lra_BB9_2
-	cmplwi	8, 16
+	cmplwi	8, 32
 	bc 12, 0, .Lra_BB9_2
-	rlwinm 7, 6, 0, 1, 29
-	li 8, 0
-	li 9, 15
-	addi 10, 1, 16
-	mr	11, 7
+	rlwinm 7, 6, 0, 1, 28
+	addi 8, 4, 16
+	addi 9, 5, 16
+	addi 10, 3, 16
+	li 11, 0
+	li 12, 15
+	li 0, 12
+	li 30, 8
+	li 29, 4
+	mr	28, 7
 .Lra_BB9_8:
-	add 12, 4, 8
-	lvx 2, 4, 8
-	mr	30, 3
-	lvx 3, 12, 9
-	add 12, 5, 8
-	lvx 4, 5, 8
-	addi 11, 11, -4
-	lvx 5, 12, 9
-	cmplwi	11, 0
-	lvsl 0, 4, 8
-	vperm 2, 2, 3, 0
-	lvsl 1, 5, 8
-	vperm 3, 4, 5, 1
+	add 27, 4, 11
+	lvx 3, 4, 11
+	addi 28, 28, -8
+	lvx 0, 27, 12
+	add 27, 8, 11
+	lvx 1, 8, 11
+	cmplwi	28, 0
+	lvx 6, 27, 12
+	add 27, 5, 11
+	lvx 7, 5, 11
+	lvx 8, 27, 12
+	add 27, 9, 11
+	lvsl 2, 4, 11
+	vperm 2, 3, 0, 2
+	lvsl 5, 5, 11
+	vperm 3, 7, 8, 5
 	vand 2, 3, 2
-	stvx 2, 0, 10
-	ld 12, 16(1)
-	stdux 12, 30, 8
-	ld 12, 24(1)
-	addi 8, 8, 16
-	std 12, 8(30)
+	lvx 3, 9, 11
+	lvx 0, 27, 12
+	add 27, 3, 11
+	lvsl 4, 8, 11
+	vperm 4, 1, 6, 4
+	lvsl 9, 9, 11
+	vperm 3, 3, 0, 9
+	lvsr 10, 3, 11
+	vperm 2, 2, 2, 10
+	vand 3, 3, 4
+	lvsr 5, 10, 11
+	stvewx 2, 27, 0
+	stvewx 2, 27, 30
+	stvewx 2, 27, 29
+	add 27, 10, 11
+	stvewx 2, 3, 11
+	vperm 2, 3, 3, 5
+	stvewx 2, 10, 11
+	addi 11, 11, 32
+	stvewx 2, 27, 0
+	stvewx 2, 27, 30
+	stvewx 2, 27, 29
 	bne	0, .Lra_BB9_8
 	cmplw	6, 7
 	bne	0, .Lra_BB9_2
@@ -672,9 +1076,20 @@ ra_k_avg_u8_r:
 .Lra_func_begin10:
 	cmpwi	6, 1
 	bltlr	0
-	stwu 1, -32(1)
-	cmplwi	6, 16
+	stwu 1, -160(1)
+	cmplwi	6, 8
 	li 7, 0
+	std 20, 56(1)
+	std 21, 64(1)
+	std 22, 72(1)
+	std 23, 80(1)
+	std 24, 88(1)
+	std 25, 96(1)
+	std 26, 104(1)
+	std 27, 112(1)
+	std 28, 120(1)
+	std 29, 128(1)
+	std 30, 136(1)
 	bge 0, .Lra_BB10_5
 .Lra_BB10_2:
 	addi 8, 7, -1
@@ -692,7 +1107,18 @@ ra_k_avg_u8_r:
 	stbu 8, 1(3)
 	bne	0, .Lra_BB10_3
 .Lra_BB10_4:
-	addi 1, 1, 32
+	ld 30, 136(1)
+	ld 29, 128(1)
+	ld 28, 120(1)
+	ld 27, 112(1)
+	ld 26, 104(1)
+	ld 25, 96(1)
+	ld 24, 88(1)
+	ld 23, 80(1)
+	ld 22, 72(1)
+	ld 21, 64(1)
+	ld 20, 56(1)
+	addi 1, 1, 160
 	blr
 .Lra_BB10_5:
 	sub	8, 3, 4
@@ -701,19 +1127,121 @@ ra_k_avg_u8_r:
 	bc 12, 0, .Lra_BB10_2
 	cmplwi	8, 16
 	bc 12, 0, .Lra_BB10_2
+	cmplwi	6, 16
+	vspltisb 2, 1
+	bge 0, .Lra_BB10_11
+.Lra_BB10_8:
+	mr	8, 7
+	rlwinm 7, 6, 0, 1, 28
+	addi 9, 1, 32
+	addi 10, 1, 16
+	li 11, 7
+	li 12, 6
+	li 0, 5
+	li 30, 4
+	li 29, 3
+	li 28, 2
+	li 27, 1
+.Lra_BB10_9:
+	stb 3, 47(1)
+	stb 3, 46(1)
+	stb 3, 45(1)
+	stb 3, 44(1)
+	stb 3, 43(1)
+	stb 3, 42(1)
+	stb 3, 41(1)
+	stb 3, 40(1)
+	lbzx 26, 4, 8
+	stb 26, 32(1)
+	add 26, 4, 8
+	lbz 25, 1(26)
+	stb 25, 33(1)
+	lbz 25, 2(26)
+	stb 25, 34(1)
+	lbz 25, 3(26)
+	stb 25, 35(1)
+	lbz 25, 4(26)
+	stb 25, 36(1)
+	lbz 25, 5(26)
+	stb 25, 37(1)
+	lbz 25, 6(26)
+	stb 25, 38(1)
+	lbz 26, 7(26)
+	stb 26, 39(1)
+	lvx 3, 0, 9
+	stb 3, 31(1)
+	stb 3, 30(1)
+	stb 3, 29(1)
+	stb 3, 28(1)
+	stb 3, 27(1)
+	stb 3, 26(1)
+	stb 3, 25(1)
+	stb 3, 24(1)
+	lbzx 26, 5, 8
+	stb 26, 16(1)
+	add 26, 5, 8
+	lbz 25, 1(26)
+	stb 25, 17(1)
+	lbz 25, 2(26)
+	stb 25, 18(1)
+	lbz 25, 3(26)
+	stb 25, 19(1)
+	lbz 25, 4(26)
+	stb 25, 20(1)
+	lbz 25, 5(26)
+	stb 25, 21(1)
+	lbz 25, 6(26)
+	stb 25, 22(1)
+	lbz 26, 7(26)
+	stb 26, 23(1)
+	add 26, 3, 8
+	lvx 4, 0, 10
+	vxor 5, 3, 4
+	vor 3, 3, 4
+	vsrb 4, 5, 2
+	lvsr 5, 3, 8
+	vsububm 3, 3, 4
+	vperm 3, 3, 3, 5
+	stvebx 3, 3, 8
+	addi 8, 8, 8
+	cmplw	7, 8
+	stvebx 3, 26, 11
+	stvebx 3, 26, 12
+	stvebx 3, 26, 0
+	stvebx 3, 26, 30
+	stvebx 3, 26, 29
+	stvebx 3, 26, 28
+	stvebx 3, 26, 27
+	bne	0, .Lra_BB10_9
+	cmplw	6, 7
+	bne	0, .Lra_BB10_2
+	b .Lra_BB10_4
+.Lra_BB10_11:
 	rlwinm 7, 6, 0, 1, 27
 	li 8, 0
 	li 9, 15
-	vspltisb 2, 1
-	addi 10, 1, 16
-.Lra_BB10_8:
-	add 11, 4, 8
+	li 10, 14
+	li 11, 13
+	li 12, 12
+	li 0, 11
+	li 30, 10
+	li 29, 9
+	li 28, 8
+	li 27, 7
+	li 26, 6
+	li 25, 5
+	li 24, 4
+	li 23, 3
+	li 22, 2
+	li 21, 1
+.Lra_BB10_12:
+	add 20, 4, 8
 	lvx 3, 4, 8
-	mr	12, 3
-	lvx 4, 11, 9
-	add 11, 5, 8
+	lvx 4, 20, 9
+	add 20, 5, 8
 	lvx 5, 5, 8
-	lvx 0, 11, 9
+	lvx 0, 20, 9
+	add 20, 3, 8
 	lvsl 1, 4, 8
 	vperm 3, 3, 4, 1
 	lvsl 6, 5, 8
@@ -721,18 +1249,33 @@ ra_k_avg_u8_r:
 	vxor 5, 3, 4
 	vor 3, 3, 4
 	vsrb 4, 5, 2
+	lvsr 5, 3, 8
 	vsububm 3, 3, 4
-	stvx 3, 0, 10
-	ld 11, 16(1)
-	stdux 11, 12, 8
-	ld 11, 24(1)
+	vperm 3, 3, 3, 5
+	stvebx 3, 3, 8
 	addi 8, 8, 16
 	cmplw	7, 8
-	std 11, 8(12)
-	bne	0, .Lra_BB10_8
+	stvebx 3, 20, 9
+	stvebx 3, 20, 10
+	stvebx 3, 20, 11
+	stvebx 3, 20, 12
+	stvebx 3, 20, 0
+	stvebx 3, 20, 30
+	stvebx 3, 20, 29
+	stvebx 3, 20, 28
+	stvebx 3, 20, 27
+	stvebx 3, 20, 26
+	stvebx 3, 20, 25
+	stvebx 3, 20, 24
+	stvebx 3, 20, 23
+	stvebx 3, 20, 22
+	stvebx 3, 20, 21
+	bne	0, .Lra_BB10_12
 	cmplw	6, 7
-	bne	0, .Lra_BB10_2
-	b .Lra_BB10_4
+	beq	0, .Lra_BB10_4
+	andi. 8, 6, 8
+	beq	0, .Lra_BB10_2
+	b .Lra_BB10_8
 .Lra_func_end10:
 	.size	ra_k_avg_u8_r, .Lra_func_end10-.Lra_func_begin10
 
@@ -744,50 +1287,75 @@ ra_k_clamp_f32_r:
 .Lra_func_begin11:
 	cmpwi	7, 1
 	bltlr	0
-	stwu 1, -64(1)
-	cmplwi	7, 4
+	stwu 1, -80(1)
+	cmplwi	7, 8
 	sub	6, 3, 4
 	li 5, 0
+	std 29, 48(1)
+	std 30, 56(1)
 	bc 12, 0, .Lra_BB11_7
-	cmplwi	6, 16
+	cmplwi	6, 32
 	bc 12, 0, .Lra_BB11_7
-	stfs 1, 48(1)
-	addi 5, 1, 48
-	lvx 2, 0, 5
-	addi 5, 1, 32
-	stfs 2, 32(1)
-	li 6, 0
-	lvx 3, 0, 5
-	rlwinm 5, 7, 0, 1, 29
-	li 8, 15
-	vspltw 2, 2, 0
+	stfs 1, 32(1)
+	addi 6, 1, 32
 	addi 9, 1, 16
+	lvx 2, 0, 6
+	rlwinm 5, 7, 0, 1, 28
+	stfs 2, 16(1)
+	addi 6, 4, 16
+	lvx 3, 0, 9
+	addi 8, 3, 16
+	li 9, 0
+	li 10, 15
+	li 11, 12
+	li 12, 8
+	vspltw 2, 2, 0
 	vspltw 3, 3, 0
-	mr	10, 5
+	li 0, 4
+	mr	30, 5
 .Lra_BB11_4:
-	add 11, 4, 6
-	lvx 4, 4, 6
-	mr	12, 3
-	lvx 5, 11, 8
-	addi 10, 10, -4
-	lvsl 0, 4, 6
-	cmplwi	10, 0
-	vperm 4, 4, 5, 0
-	vcmpgtfp 5, 2, 4
-	vsel 4, 4, 2, 5
-	vcmpgtfp 5, 4, 3
-	vsel 4, 4, 3, 5
-	stvx 4, 0, 9
-	ld 11, 16(1)
-	stdux 11, 12, 6
-	ld 11, 24(1)
-	addi 6, 6, 16
-	std 11, 8(12)
+	add 29, 4, 9
+	lvx 5, 4, 9
+	addi 30, 30, -8
+	lvx 0, 29, 10
+	add 29, 6, 9
+	lvsl 4, 4, 9
+	cmplwi	30, 0
+	lvx 1, 6, 9
+	vperm 4, 5, 0, 4
+	lvx 6, 29, 10
+	vcmpgtfp 0, 2, 4
+	add 29, 3, 9
+	vsel 4, 4, 2, 0
+	lvsl 5, 6, 9
+	vcmpgtfp 7, 4, 3
+	lvsr 0, 3, 9
+	vperm 5, 1, 6, 5
+	vsel 4, 4, 3, 7
+	vperm 4, 4, 4, 0
+	vcmpgtfp 0, 2, 5
+	lvsr 1, 8, 9
+	vsel 5, 5, 2, 0
+	vcmpgtfp 0, 5, 3
+	stvewx 4, 29, 11
+	vsel 5, 5, 3, 0
+	stvewx 4, 29, 12
+	stvewx 4, 29, 0
+	add 29, 8, 9
+	stvewx 4, 3, 9
+	vperm 4, 5, 5, 1
+	stvewx 4, 8, 9
+	addi 9, 9, 32
+	stvewx 4, 29, 11
+	stvewx 4, 29, 12
+	stvewx 4, 29, 0
 	bne	0, .Lra_BB11_4
 	cmplw	7, 5
 	bne	0, .Lra_BB11_7
 .Lra_BB11_6:
-	addi 1, 1, 64
+	ld 30, 56(1)
+	ld 29, 48(1)
+	addi 1, 1, 80
 	blr
 .Lra_BB11_7:
 	sub	6, 7, 5
@@ -849,73 +1417,168 @@ ra_k_clamp_i16_r:
 .Lra_func_begin12:
 	cmpwi	5, 1
 	bltlr	0
-	stwu 1, -32(1)
+	stwu 1, -80(1)
 	cmplwi	5, 8
 	sub	7, 3, 4
 	li 6, 0
-	bc 12, 0, .Lra_BB12_7
-	cmplwi	7, 16
-	bc 12, 0, .Lra_BB12_7
-	li 9, .Lra_CPI12_0@l
-	lis 10, .Lra_CPI12_0@ha
-	lvx 2, 10, 9
-	li 9, .Lra_CPI12_1@l
-	lis 10, .Lra_CPI12_1@ha
-	lvx 3, 10, 9
-	rlwinm 6, 5, 0, 1, 28
-	li 7, 0
-	li 8, 15
-	addi 9, 1, 16
-	mr	10, 6
+	std 25, 16(1)
+	std 26, 24(1)
+	std 27, 32(1)
+	std 28, 40(1)
+	std 29, 48(1)
+	std 30, 56(1)
+	bc 12, 0, .Lra_BB12_12
+	cmplwi	7, 32
+	bc 12, 0, .Lra_BB12_12
+	cmplwi	5, 16
+	bge 0, .Lra_BB12_7
 .Lra_BB12_4:
-	add 11, 4, 7
-	lvx 4, 4, 7
-	mr	12, 3
-	lvx 5, 11, 8
-	addi 10, 10, -8
-	lvsl 0, 4, 7
-	cmplwi	10, 0
+	li 12, .Lra_CPI12_0@l
+	lis 30, .Lra_CPI12_0@ha
+	li 28, .Lra_CPI12_1@l
+	lis 27, .Lra_CPI12_1@ha
+	lvx 2, 30, 12
+	mr	29, 6
+	lvx 3, 27, 28
+	rlwinm 6, 5, 0, 1, 28
+	li 7, 15
+	li 8, 14
+	li 9, 12
+	li 10, 10
+	li 11, 8
+	li 12, 6
+	li 0, 4
+	sub	30, 29, 6
+	slwi 29, 29, 1
+	li 28, 2
+.Lra_BB12_5:
+	add 27, 4, 29
+	lvx 4, 4, 29
+	addi 30, 30, 8
+	lvx 5, 27, 7
+	add 27, 3, 29
+	lvsl 0, 4, 29
+	cmplwi	30, 0
 	vperm 4, 4, 5, 0
+	lvsr 5, 3, 29
 	vmaxsh 4, 4, 2
 	vminsh 4, 4, 3
-	stvx 4, 0, 9
-	ld 11, 16(1)
-	stdux 11, 12, 7
-	ld 11, 24(1)
-	addi 7, 7, 16
-	std 11, 8(12)
-	bne	0, .Lra_BB12_4
+	vperm 4, 4, 4, 5
+	stvehx 4, 3, 29
+	addi 29, 29, 16
+	stvehx 4, 27, 8
+	stvehx 4, 27, 9
+	stvehx 4, 27, 10
+	stvehx 4, 27, 11
+	stvehx 4, 27, 12
+	stvehx 4, 27, 0
+	stvehx 4, 27, 28
+	bne	0, .Lra_BB12_5
 	cmplw	5, 6
-	bne	0, .Lra_BB12_7
-.Lra_BB12_6:
-	addi 1, 1, 32
-	blr
+	beq	0, .Lra_BB12_10
+	b .Lra_BB12_12
 .Lra_BB12_7:
+	li 29, .Lra_CPI12_0@l
+	lis 28, .Lra_CPI12_0@ha
+	li 27, .Lra_CPI12_1@l
+	lis 26, .Lra_CPI12_1@ha
+	lvx 2, 28, 29
+	rlwinm 6, 5, 0, 1, 27
+	lvx 3, 26, 27
+	addi 7, 4, 16
+	addi 8, 3, 16
+	li 9, 0
+	li 10, 15
+	li 11, 14
+	li 12, 12
+	li 0, 10
+	li 30, 8
+	li 29, 6
+	li 28, 4
+	li 27, 2
+	mr	26, 6
+.Lra_BB12_8:
+	add 25, 4, 9
+	lvx 5, 4, 9
+	addi 26, 26, -16
+	lvx 0, 25, 10
+	add 25, 7, 9
+	lvsl 4, 4, 9
+	cmplwi	26, 0
+	vperm 4, 5, 0, 4
+	lvsr 6, 3, 9
+	vmaxsh 4, 4, 2
+	vminsh 4, 4, 3
+	lvx 0, 7, 9
+	vperm 4, 4, 4, 6
+	lvx 6, 25, 10
+	add 25, 3, 9
+	lvsl 1, 7, 9
+	vperm 0, 0, 6, 1
+	lvsr 5, 8, 9
+	vmaxsh 0, 0, 2
+	vminsh 0, 0, 3
+	stvehx 4, 25, 11
+	stvehx 4, 25, 12
+	stvehx 4, 25, 0
+	stvehx 4, 25, 30
+	stvehx 4, 25, 29
+	stvehx 4, 25, 28
+	stvehx 4, 25, 27
+	add 25, 8, 9
+	stvehx 4, 3, 9
+	vperm 4, 0, 0, 5
+	stvehx 4, 8, 9
+	addi 9, 9, 32
+	stvehx 4, 25, 11
+	stvehx 4, 25, 12
+	stvehx 4, 25, 0
+	stvehx 4, 25, 30
+	stvehx 4, 25, 29
+	stvehx 4, 25, 28
+	stvehx 4, 25, 27
+	bne	0, .Lra_BB12_8
+	cmplw	5, 6
+	bne	0, .Lra_BB12_11
+.Lra_BB12_10:
+	ld 30, 56(1)
+	ld 29, 48(1)
+	ld 28, 40(1)
+	ld 27, 32(1)
+	ld 26, 24(1)
+	ld 25, 16(1)
+	addi 1, 1, 80
+	blr
+.Lra_BB12_11:
+	andi. 7, 5, 8
+	bne	0, .Lra_BB12_4
+.Lra_BB12_12:
 	sub	5, 5, 6
 	slwi 6, 6, 1
 	addi 6, 6, -2
 	add 4, 4, 6
 	add 3, 3, 6
-	b .Lra_BB12_9
-.Lra_BB12_8:
+	b .Lra_BB12_14
+.Lra_BB12_13:
 	addi 5, 5, -1
 	cmplwi	5, 0
 	sthu 6, 2(3)
-	beq	0, .Lra_BB12_6
-.Lra_BB12_9:
-	lhau 6, 2(4)
+	beq	0, .Lra_BB12_10
+.Lra_BB12_14:
+	lhzu 6, 2(4)
+	extsh 6, 6
 	cmpwi	6, -1000
-	ble 0, .Lra_BB12_11
+	ble 0, .Lra_BB12_16
 	cmpwi	6, 1000
-	blt	0, .Lra_BB12_8
-	b .Lra_BB12_12
-.Lra_BB12_11:
+	blt	0, .Lra_BB12_13
+	b .Lra_BB12_17
+.Lra_BB12_16:
 	li 6, -1000
 	cmpwi	6, 1000
-	blt	0, .Lra_BB12_8
-.Lra_BB12_12:
+	blt	0, .Lra_BB12_13
+.Lra_BB12_17:
 	li 6, 1000
-	b .Lra_BB12_8
+	b .Lra_BB12_13
 .Lra_func_end12:
 	.size	ra_k_clamp_i16_r, .Lra_func_end12-.Lra_func_begin12
 
@@ -927,14 +1590,71 @@ ra_k_copy_u32_r:
 .Lra_func_begin13:
 	cmpwi	5, 1
 	bltlr	0
-	addi 4, 4, -4
-	addi 3, 3, -4
-.Lra_BB13_2:
+	stwu 1, -48(1)
+	cmplwi	5, 8
+	sub	7, 3, 4
+	li 6, 0
+	std 29, 16(1)
+	std 30, 24(1)
+	bc 12, 0, .Lra_BB13_6
+	cmplwi	7, 32
+	bc 12, 0, .Lra_BB13_6
+	rlwinm 6, 5, 0, 1, 28
+	addi 7, 4, 16
+	addi 8, 3, 16
+	li 9, 0
+	li 10, 15
+	li 11, 12
+	li 12, 8
+	li 0, 4
+	mr	30, 6
+.Lra_BB13_4:
+	add 29, 4, 9
+	lvx 3, 4, 9
+	addi 30, 30, -8
+	lvx 4, 29, 10
+	add 29, 7, 9
+	lvsl 2, 4, 9
+	cmplwi	30, 0
+	vperm 2, 3, 4, 2
+	lvx 3, 7, 9
+	lvx 4, 29, 10
+	add 29, 3, 9
+	lvsl 5, 7, 9
+	lvsr 0, 3, 9
+	vperm 2, 2, 2, 0
+	vperm 3, 3, 4, 5
+	lvsr 0, 8, 9
+	stvewx 2, 29, 11
+	stvewx 2, 29, 12
+	stvewx 2, 29, 0
+	add 29, 8, 9
+	stvewx 2, 3, 9
+	vperm 2, 3, 3, 0
+	stvewx 2, 8, 9
+	addi 9, 9, 32
+	stvewx 2, 29, 11
+	stvewx 2, 29, 12
+	stvewx 2, 29, 0
+	bne	0, .Lra_BB13_4
+	cmplw	5, 6
+	beq	0, .Lra_BB13_8
+.Lra_BB13_6:
+	sub	5, 5, 6
+	slwi 6, 6, 2
+	addi 6, 6, -4
+	add 4, 4, 6
+	add 3, 3, 6
+.Lra_BB13_7:
 	lwzu 6, 4(4)
 	addi 5, 5, -1
 	cmplwi	5, 0
 	stwu 6, 4(3)
-	bne	0, .Lra_BB13_2
+	bne	0, .Lra_BB13_7
+.Lra_BB13_8:
+	ld 30, 24(1)
+	ld 29, 16(1)
+	addi 1, 1, 48
 	blr
 .Lra_func_end13:
 	.size	ra_k_copy_u32_r, .Lra_func_end13-.Lra_func_begin13
@@ -947,15 +1667,144 @@ ra_k_copy_u8:
 .Lra_func_begin14:
 	cmpwi	5, 1
 	bltlr	0
-	addi 4, 4, -1
-	addi 3, 3, -1
+	stwu 1, -128(1)
+	cmplwi	5, 8
+	sub	7, 3, 4
 	li 6, 0
-.Lra_BB14_2:
+	std 21, 32(1)
+	std 22, 40(1)
+	std 23, 48(1)
+	std 24, 56(1)
+	std 25, 64(1)
+	std 26, 72(1)
+	std 27, 80(1)
+	std 28, 88(1)
+	std 29, 96(1)
+	std 30, 104(1)
+	bc 12, 0, .Lra_BB14_11
+	cmplwi	7, 16
+	bc 12, 0, .Lra_BB14_11
+	cmplwi	5, 16
+	bge 0, .Lra_BB14_7
+.Lra_BB14_4:
+	mr	7, 6
+	rlwinm 6, 5, 0, 1, 28
+	addi 8, 1, 16
+	li 9, 7
+	li 10, 6
+	li 11, 5
+	li 12, 4
+	li 0, 3
+	li 30, 2
+	li 29, 1
+.Lra_BB14_5:
+	lbzx 28, 4, 7
+	lvsr 3, 3, 7
+	stb 28, 16(1)
+	add 28, 4, 7
+	lbz 27, 1(28)
+	stb 27, 17(1)
+	lbz 27, 2(28)
+	stb 27, 18(1)
+	lbz 27, 3(28)
+	stb 27, 19(1)
+	lbz 27, 4(28)
+	stb 27, 20(1)
+	lbz 27, 5(28)
+	stb 27, 21(1)
+	lbz 27, 6(28)
+	stb 27, 22(1)
+	lbz 28, 7(28)
+	stb 28, 23(1)
+	add 28, 3, 7
+	lvx 2, 0, 8
+	vperm 2, 2, 2, 3
+	stvebx 2, 3, 7
+	addi 7, 7, 8
+	cmplw	6, 7
+	stvebx 2, 28, 9
+	stvebx 2, 28, 10
+	stvebx 2, 28, 11
+	stvebx 2, 28, 12
+	stvebx 2, 28, 0
+	stvebx 2, 28, 30
+	stvebx 2, 28, 29
+	bne	0, .Lra_BB14_5
+	cmplw	5, 6
+	bne	0, .Lra_BB14_11
+	b .Lra_BB14_13
+.Lra_BB14_7:
+	rlwinm 6, 5, 0, 1, 27
+	li 7, 0
+	li 8, 15
+	li 9, 14
+	li 10, 13
+	li 11, 12
+	li 12, 11
+	li 0, 10
+	li 30, 9
+	li 29, 8
+	li 28, 7
+	li 27, 6
+	li 26, 5
+	li 25, 4
+	li 24, 3
+	li 23, 2
+	li 22, 1
+.Lra_BB14_8:
+	add 21, 4, 7
+	lvx 2, 4, 7
+	lvx 3, 21, 8
+	add 21, 3, 7
+	lvsl 4, 4, 7
+	vperm 2, 2, 3, 4
+	lvsr 3, 3, 7
+	vperm 2, 2, 2, 3
+	stvebx 2, 3, 7
+	addi 7, 7, 16
+	cmplw	6, 7
+	stvebx 2, 21, 8
+	stvebx 2, 21, 9
+	stvebx 2, 21, 10
+	stvebx 2, 21, 11
+	stvebx 2, 21, 12
+	stvebx 2, 21, 0
+	stvebx 2, 21, 30
+	stvebx 2, 21, 29
+	stvebx 2, 21, 28
+	stvebx 2, 21, 27
+	stvebx 2, 21, 26
+	stvebx 2, 21, 25
+	stvebx 2, 21, 24
+	stvebx 2, 21, 23
+	stvebx 2, 21, 22
+	bne	0, .Lra_BB14_8
+	cmplw	5, 6
+	beq	0, .Lra_BB14_13
+	andi. 7, 5, 8
+	bne	0, .Lra_BB14_4
+.Lra_BB14_11:
+	addi 7, 6, -1
+	add 4, 4, 7
+	add 3, 3, 7
+.Lra_BB14_12:
 	lbzu 7, 1(4)
 	addi 6, 6, 1
 	cmplw	5, 6
 	stbu 7, 1(3)
-	bne	0, .Lra_BB14_2
+	bne	0, .Lra_BB14_12
+.Lra_BB14_13:
+	ld 30, 104(1)
+	ld 29, 96(1)
+	ld 28, 88(1)
+	ld 27, 80(1)
+	ld 26, 72(1)
+	ld 25, 64(1)
+	ld 24, 56(1)
+	ld 23, 48(1)
+	ld 22, 40(1)
+	ld 21, 32(1)
+	addi 1, 1, 128
 	blr
 .Lra_func_end14:
 	.size	ra_k_copy_u8, .Lra_func_end14-.Lra_func_begin14
@@ -1003,12 +1852,13 @@ ra_k_dot_i16:
 	andc 7, 5, 6
 	cmplwi	7, 0
 	beq	0, .Lra_BB16_8
-	stwu 1, -48(1)
+	stwu 1, -64(1)
 	li 6, 0
 	cmpwi	5, 2
 	li 8, 0
-	std 29, 16(1)
-	std 30, 24(1)
+	std 28, 24(1)
+	std 29, 32(1)
+	std 30, 40(1)
 	blt	0, .Lra_BB16_5
 	rlwinm 8, 7, 0, 1, 30
 	addi 9, 3, -4
@@ -1016,15 +1866,19 @@ ra_k_dot_i16:
 	mr	12, 8
 	li 11, 0
 .Lra_BB16_3:
-	lhau 0, 4(9)
+	lhzu 0, 4(9)
 	addi 12, 12, -2
-	lhau 30, 4(10)
+	lhzu 30, 4(10)
 	cmplwi	12, 0
-	lha 29, 2(9)
+	lhz 29, 2(9)
+	extsh 0, 0
+	lhz 28, 2(10)
+	extsh 30, 30
 	mullw 0, 30, 0
-	lha 30, 2(10)
 	add 6, 0, 6
-	mullw 0, 30, 29
+	extsh 0, 29
+	extsh 30, 28
+	mullw 0, 30, 0
 	add 11, 0, 11
 	bne	0, .Lra_BB16_3
 	cmplw	5, 8
@@ -1037,17 +1891,20 @@ ra_k_dot_i16:
 	add 3, 3, 7
 	add 4, 4, 7
 .Lra_BB16_6:
-	lhau 7, 2(4)
+	lhzu 7, 2(3)
 	addi 5, 5, -1
-	lhau 8, 2(3)
+	lhzu 8, 2(4)
 	cmplwi	5, 0
-	mullw 7, 7, 8
+	extsh 7, 7
+	extsh 8, 8
+	mullw 7, 8, 7
 	add 6, 7, 6
 	bne	0, .Lra_BB16_6
 .Lra_BB16_7:
-	ld 30, 24(1)
-	ld 29, 16(1)
-	addi 1, 1, 48
+	ld 30, 40(1)
+	ld 29, 32(1)
+	ld 28, 24(1)
+	addi 1, 1, 64
 	mr	3, 6
 	blr
 .Lra_BB16_8:
@@ -1151,10 +2008,11 @@ ra_k_fir3_f32_r:
 	cmpwi 1, 5, 1
 	cror 20, 4, 2
 	bclr 12, 20, 0
-	stwu 1, -64(1)
+	stwu 1, -48(1)
 	cmplwi	6, 4
 	li 5, 0
-	std 30, 40(1)
+	std 29, 16(1)
+	std 30, 24(1)
 	blt	0, .Lra_BB18_7
 	slwi 8, 7, 2
 	add 9, 4, 8
@@ -1167,32 +2025,34 @@ ra_k_fir3_f32_r:
 .Lra_BB18_4:
 	li 11, .Lra_CPI18_0@l
 	lis 12, .Lra_CPI18_0@ha
+	li 0, .Lra_CPI18_1@l
+	lis 30, .Lra_CPI18_1@ha
 	lvx 2, 12, 11
-	li 11, .Lra_CPI18_1@l
-	lis 12, .Lra_CPI18_1@ha
-	lvx 4, 12, 11
 	rlwinm 5, 7, 0, 2, 29
+	lvx 4, 30, 0
 	vspltisw 3, -1
 	addi 7, 4, 8
 	addi 8, 4, 4
 	li 9, 0
 	li 10, 15
+	li 11, 12
+	li 12, 8
 	vslw 3, 3, 3
-	addi 11, 1, 16
-	mr	12, 5
+	li 0, 4
+	mr	30, 5
 .Lra_BB18_5:
-	add 30, 4, 9
+	add 29, 4, 9
 	lvx 0, 4, 9
-	addi 12, 12, -4
-	lvx 1, 30, 10
-	add 30, 8, 9
+	addi 30, 30, -4
+	lvx 1, 29, 10
+	add 29, 8, 9
 	lvx 6, 8, 9
-	cmplwi	12, 0
-	lvx 7, 30, 10
-	add 30, 7, 9
+	cmplwi	30, 0
+	lvx 7, 29, 10
+	add 29, 7, 9
 	lvx 8, 7, 9
-	lvx 9, 30, 10
-	mr	30, 3
+	lvx 9, 29, 10
+	add 29, 3, 9
 	lvsl 5, 4, 9
 	vperm 5, 0, 1, 5
 	lvsl 10, 8, 9
@@ -1203,13 +2063,14 @@ ra_k_fir3_f32_r:
 	vmaddfp 0, 0, 4, 3
 	vmaddfp 1, 1, 2, 3
 	vaddfp 5, 5, 0
+	lvsr 0, 3, 9
 	vaddfp 5, 5, 1
-	stvx 5, 0, 11
-	ld 0, 16(1)
-	stdux 0, 30, 9
-	ld 0, 24(1)
+	vperm 5, 5, 5, 0
+	stvewx 5, 3, 9
 	addi 9, 9, 16
-	std 0, 8(30)
+	stvewx 5, 29, 11
+	stvewx 5, 29, 12
+	stvewx 5, 29, 0
 	bne	0, .Lra_BB18_5
 	cmplw	6, 5
 	beq	0, .Lra_BB18_9
@@ -1237,8 +2098,9 @@ ra_k_fir3_f32_r:
 	stfsu 2, 4(3)
 	bne	0, .Lra_BB18_8
 .Lra_BB18_9:
-	ld 30, 40(1)
-	addi 1, 1, 64
+	ld 30, 24(1)
+	ld 29, 16(1)
+	addi 1, 1, 48
 	blr
 .Lra_func_end18:
 	.size	ra_k_fir3_f32_r, .Lra_func_end18-.Lra_func_begin18
@@ -1249,20 +2111,28 @@ ra_k_fir3_f32_r:
 	.type	ra_k_g_add_f32,@function
 ra_k_g_add_f32:
 .Lra_func_begin19:
-	lis 4, ra_g_a@ha
-	lis 5, ra_g_b@ha
-	lis 6, ra_g_c@ha
+	lis 5, ra_g_a@ha
+	lis 6, ra_g_b@ha
+	lis 7, ra_g_c@ha
 	li 3, 0
-	la 4, ra_g_a@l(4)
-	la 5, ra_g_b@l(5)
-	la 6, ra_g_c@l(6)
+	li 4, 16
+	la 5, ra_g_a@l(5)
+	la 6, ra_g_b@l(6)
+	la 7, ra_g_c@l(7)
 .Lra_BB19_1:
-	lvx 2, 4, 3
-	lvx 3, 5, 3
+	lvx 2, 5, 3
+	add 8, 5, 3
+	lvx 3, 6, 3
+	lvx 4, 8, 4
+	add 8, 6, 3
+	lvx 5, 8, 4
 	vaddfp 2, 2, 3
-	stvx 2, 6, 3
-	addi 3, 3, 16
+	add 8, 7, 3
+	stvx 2, 7, 3
+	addi 3, 3, 32
+	vaddfp 3, 4, 5
 	cmplwi	3, 4096
+	stvx 3, 8, 4
 	bne	0, .Lra_BB19_1
 	blr
 .Lra_func_end19:
@@ -1274,20 +2144,28 @@ ra_k_g_add_f32:
 	.type	ra_k_g_add_i32,@function
 ra_k_g_add_i32:
 .Lra_func_begin20:
-	lis 4, ra_g_ia@ha
-	lis 5, ra_g_ib@ha
-	lis 6, ra_g_ic@ha
+	lis 5, ra_g_ia@ha
+	lis 6, ra_g_ib@ha
+	lis 7, ra_g_ic@ha
 	li 3, 0
-	la 4, ra_g_ia@l(4)
-	la 5, ra_g_ib@l(5)
-	la 6, ra_g_ic@l(6)
+	li 4, 16
+	la 5, ra_g_ia@l(5)
+	la 6, ra_g_ib@l(6)
+	la 7, ra_g_ic@l(7)
 .Lra_BB20_1:
-	lvx 2, 4, 3
-	lvx 3, 5, 3
+	lvx 2, 5, 3
+	add 8, 5, 3
+	lvx 3, 6, 3
+	lvx 4, 8, 4
+	add 8, 6, 3
+	lvx 5, 8, 4
 	vadduwm 2, 3, 2
-	stvx 2, 6, 3
-	addi 3, 3, 16
+	add 8, 7, 3
+	stvx 2, 7, 3
+	addi 3, 3, 32
+	vadduwm 3, 5, 4
 	cmplwi	3, 4096
+	stvx 3, 8, 4
 	bne	0, .Lra_BB20_1
 	blr
 .Lra_func_end20:
@@ -1388,10 +2266,64 @@ ra_k_i2f_r:
 .Lra_func_begin24:
 	cmpwi	5, 1
 	bltlr	0
-	stwu 1, -32(1)
-	addi 4, 4, -4
-	addi 3, 3, -4
-.Lra_BB24_2:
+	stwu 1, -64(1)
+	cmplwi	5, 8
+	sub	7, 3, 4
+	li 6, 0
+	std 29, 32(1)
+	std 30, 40(1)
+	bc 12, 0, .Lra_BB24_6
+	cmplwi	7, 32
+	bc 12, 0, .Lra_BB24_6
+	rlwinm 6, 5, 0, 1, 28
+	addi 7, 4, 16
+	addi 8, 3, 16
+	li 9, 0
+	li 10, 15
+	li 11, 12
+	li 12, 8
+	li 0, 4
+	mr	30, 6
+.Lra_BB24_4:
+	add 29, 4, 9
+	lvx 3, 4, 9
+	addi 30, 30, -8
+	lvx 5, 29, 10
+	add 29, 7, 9
+	lvsl 2, 4, 9
+	cmplwi	30, 0
+	vperm 2, 3, 5, 2
+	lvx 3, 7, 9
+	vcfsx 2, 2, 0
+	lvx 5, 29, 10
+	add 29, 3, 9
+	lvsl 4, 7, 9
+	lvsr 0, 3, 9
+	vperm 3, 3, 5, 4
+	vperm 2, 2, 2, 0
+	lvsr 1, 8, 9
+	vcfsx 3, 3, 0
+	stvewx 2, 29, 11
+	stvewx 2, 29, 12
+	stvewx 2, 29, 0
+	add 29, 8, 9
+	stvewx 2, 3, 9
+	vperm 2, 3, 3, 1
+	stvewx 2, 8, 9
+	addi 9, 9, 32
+	stvewx 2, 29, 11
+	stvewx 2, 29, 12
+	stvewx 2, 29, 0
+	bne	0, .Lra_BB24_4
+	cmplw	5, 6
+	beq	0, .Lra_BB24_8
+.Lra_BB24_6:
+	sub	5, 5, 6
+	slwi 6, 6, 2
+	addi 6, 6, -4
+	add 4, 4, 6
+	add 3, 3, 6
+.Lra_BB24_7:
 	lwa 6, 4(4)
 	addi 5, 5, -1
 	cmplwi	5, 0
@@ -1401,8 +2333,11 @@ ra_k_i2f_r:
 	fcfid 0, 0
 	frsp 0, 0
 	stfsu 0, 4(3)
-	bne	0, .Lra_BB24_2
-	addi 1, 1, 32
+	bne	0, .Lra_BB24_7
+.Lra_BB24_8:
+	ld 30, 40(1)
+	ld 29, 32(1)
+	addi 1, 1, 64
 	blr
 .Lra_func_end24:
 	.size	ra_k_i2f_r, .Lra_func_end24-.Lra_func_begin24
@@ -1502,18 +2437,25 @@ ra_k_mat4_vec4_r:
 .Lra_func_begin25:
 	cmpwi	6, 1
 	bltlr	0
-	stwu 1, -464(1)
+	stwu 1, -448(1)
 	cmplwi	6, 4
 	li 7, 0
-	std 25, 400(1)
-	std 26, 408(1)
-	std 27, 416(1)
-	std 28, 424(1)
-	std 29, 432(1)
-	std 30, 440(1)
-	stfd 29, 376(1)
-	stfd 30, 384(1)
-	stfd 31, 392(1)
+	std 18, 328(1)
+	std 19, 336(1)
+	std 20, 344(1)
+	std 21, 352(1)
+	std 22, 360(1)
+	std 23, 368(1)
+	std 24, 376(1)
+	std 25, 384(1)
+	std 26, 392(1)
+	std 27, 400(1)
+	std 28, 408(1)
+	std 29, 416(1)
+	std 30, 424(1)
+	stfd 29, 304(1)
+	stfd 30, 312(1)
+	stfd 31, 320(1)
 	bge 0, .Lra_BB25_5
 .Lra_BB25_2:
 	sub	6, 6, 7
@@ -1578,16 +2520,23 @@ ra_k_mat4_vec4_r:
 	stfs 0, 12(3)
 	bne	0, .Lra_BB25_3
 .Lra_BB25_4:
-	lfd 31, 392(1)
-	ld 30, 440(1)
-	ld 29, 432(1)
-	ld 28, 424(1)
-	ld 27, 416(1)
-	ld 26, 408(1)
-	ld 25, 400(1)
-	lfd 30, 384(1)
-	lfd 29, 376(1)
-	addi 1, 1, 464
+	lfd 31, 320(1)
+	ld 30, 424(1)
+	ld 29, 416(1)
+	ld 28, 408(1)
+	ld 27, 400(1)
+	ld 26, 392(1)
+	ld 25, 384(1)
+	ld 24, 376(1)
+	ld 23, 368(1)
+	ld 22, 360(1)
+	ld 21, 352(1)
+	ld 20, 344(1)
+	ld 19, 336(1)
+	ld 18, 328(1)
+	lfd 30, 312(1)
+	lfd 29, 304(1)
+	addi 1, 1, 448
 	blr
 .Lra_BB25_5:
 	slwi 9, 6, 4
@@ -1608,201 +2557,215 @@ ra_k_mat4_vec4_r:
 	lis 9, .Lra_CPI25_0@ha
 	lvx 2, 9, 8
 	li 8, .Lra_CPI25_2@l
-	stw 7, 112(1)
+	stw 7, 48(1)
 	lis 9, .Lra_CPI25_2@ha
 	lwz 7, 44(4)
 	li 10, .Lra_CPI25_1@l
 	lvx 4, 9, 8
-	addi 8, 1, 112
+	addi 8, 1, 48
 	lvx 6, 0, 8
-	addi 8, 1, 128
-	stw 7, 128(1)
-	addi 9, 1, 272
+	addi 8, 1, 64
+	stw 7, 64(1)
+	addi 9, 1, 144
 	lwz 7, 28(4)
 	lis 11, .Lra_CPI25_1@ha
 	lvx 7, 0, 8
-	addi 8, 1, 144
-	stw 7, 144(1)
-	addi 12, 1, 320
+	addi 8, 1, 80
+	stw 7, 80(1)
+	addi 12, 1, 208
 	lwz 7, 12(4)
-	addi 0, 1, 336
+	addi 0, 1, 224
 	lvx 8, 0, 8
-	addi 8, 1, 160
-	stw 7, 160(1)
-	addi 30, 1, 352
+	addi 8, 1, 96
+	stw 7, 96(1)
+	addi 30, 1, 240
 	lwz 7, 56(4)
-	lis 27, .Lra_CPI25_3@ha
+	addi 28, 1, 256
 	lvx 9, 0, 8
-	addi 8, 1, 176
-	stw 7, 176(1)
-	li 26, .Lra_CPI25_4@l
+	addi 8, 1, 112
+	stw 7, 112(1)
+	addi 25, 1, 272
 	lwz 7, 40(4)
+	addi 23, 1, 288
+	lvx 10, 0, 8
+	addi 8, 1, 128
+	stw 7, 128(1)
+	li 22, .Lra_CPI25_3@l
+	lwz 7, 24(4)
+	lis 21, .Lra_CPI25_3@ha
+	lvx 11, 0, 8
+	li 20, .Lra_CPI25_4@l
+	stw 7, 144(1)
+	lis 19, .Lra_CPI25_4@ha
+	lwz 8, 8(4)
+	rlwinm 7, 6, 0, 1, 29
+	lvx 12, 0, 9
+	addi 9, 1, 160
+	stw 8, 160(1)
+	addi 8, 1, 176
+	lvx 3, 11, 10
+	addi 11, 1, 192
+	lwz 10, 52(4)
 	vspltisw 1, -1
 	vspltw 6, 6, 0
+	li 26, 36
+	lvx 13, 0, 9
+	vslw 1, 1, 1
 	vspltw 7, 7, 0
 	vspltw 8, 8, 0
 	vspltw 9, 9, 0
-	lvx 10, 0, 8
-	addi 8, 1, 192
-	stw 7, 192(1)
-	vslw 1, 1, 1
-	lwz 7, 24(4)
 	vspltw 10, 10, 0
-	lvx 11, 0, 8
-	addi 8, 1, 208
-	stw 7, 208(1)
-	lwz 7, 8(4)
 	vspltw 11, 11, 0
-	lvx 12, 0, 8
-	addi 8, 1, 224
-	stw 7, 224(1)
-	lwz 7, 52(4)
 	vspltw 12, 12, 0
-	lvx 13, 0, 8
-	addi 8, 1, 240
-	stw 7, 240(1)
-	lwz 7, 36(4)
+	stw 10, 176(1)
+	li 10, 16
+	lwz 9, 36(4)
 	vspltw 13, 13, 0
 	lvx 14, 0, 8
-	addi 8, 1, 256
-	stw 7, 256(1)
-	lwz 7, 20(4)
-	vspltw 14, 14, 0
-	lvx 15, 0, 8
-	stw 7, 272(1)
-	rlwinm 7, 6, 0, 1, 29
-	lwz 8, 4(4)
-	vspltw 15, 15, 0
-	lvx 16, 0, 9
-	addi 9, 1, 288
-	stw 8, 288(1)
-	lwz 8, 48(4)
-	vspltw 16, 16, 0
-	lvx 17, 0, 9
-	li 9, 32
-	stw 8, 304(1)
 	li 8, 0
-	lvx 3, 11, 10
-	addi 10, 1, 304
-	lwz 11, 32(4)
-	vspltw 17, 17, 0
-	lvx 18, 0, 10
-	li 10, 16
-	stw 11, 320(1)
+	stw 9, 192(1)
+	lwz 9, 20(4)
+	vspltw 14, 14, 0
+	lvx 15, 0, 11
 	li 11, 63
-	lwz 29, 16(4)
-	vspltw 18, 18, 0
-	lvx 19, 0, 12
+	stw 9, 208(1)
+	li 9, 32
+	lwz 29, 4(4)
+	vspltw 15, 15, 0
+	lvx 16, 0, 12
 	li 12, 48
-	stw 29, 336(1)
-	li 29, .Lra_CPI25_3@l
-	lwz 28, 0(4)
+	stw 29, 224(1)
+	lwz 29, 48(4)
+	vspltw 16, 16, 0
+	lvx 17, 0, 0
+	li 0, 60
+	stw 29, 240(1)
+	lwz 29, 32(4)
+	vspltw 17, 17, 0
+	lvx 18, 0, 30
+	li 30, 56
+	stw 29, 256(1)
+	li 29, 52
+	lwz 27, 16(4)
+	vspltw 18, 18, 0
+	lvx 19, 0, 28
+	li 28, 44
+	stw 27, 272(1)
+	li 27, 40
+	lwz 24, 0(4)
 	vspltw 19, 19, 0
-	lvx 31, 0, 0
-	addi 0, 1, 48
-	stw 28, 352(1)
-	lis 28, .Lra_CPI25_4@ha
-	lvx 30, 0, 30
-	addi 30, 1, 96
-	lvx 5, 27, 29
-	addi 29, 1, 80
-	lvx 0, 28, 26
-	li 28, 32
-	stvx 6, 1, 28
+	lvx 31, 0, 25
+	li 25, 28
+	stw 24, 288(1)
+	li 24, 24
+	lvx 30, 0, 23
+	li 23, 20
+	lvx 5, 21, 22
+	li 22, 12
+	lvx 0, 19, 20
+	li 20, 32
+	li 21, 8
+	stvx 6, 1, 20
 	vspltw 31, 31, 0
 	vspltw 30, 30, 0
-	addi 28, 1, 64
-	mr	27, 7
+	li 20, 4
+	mr	19, 7
 .Lra_BB25_9:
-	add 26, 5, 8
-	lvx 29, 26, 9
-	mr	25, 3
-	lvx 28, 26, 10
-	addi 27, 27, -4
-	lvx 27, 5, 8
-	cmplwi	27, 0
-	lvx 26, 26, 11
-	lvx 25, 26, 12
-	li 26, 32
-	lvsl 24, 5, 8
-	vperm 23, 28, 29, 24
-	vperm 28, 27, 28, 24
-	vperm 27, 25, 26, 24
-	vperm 29, 29, 25, 24
-	vmrghw 25, 28, 23
-	vperm 24, 28, 23, 4
-	vmrglw 20, 28, 23
-	vperm 28, 28, 23, 0
-	vperm 26, 29, 27, 2
-	vmrghw 22, 29, 27
-	vperm 21, 29, 27, 5
-	vmrglw 29, 29, 27
-	vperm 26, 25, 26, 3
-	vperm 25, 24, 22, 3
-	vperm 27, 20, 21, 3
+	add 18, 5, 8
+	lvx 29, 18, 9
+	addi 19, 19, -4
+	lvx 28, 18, 10
+	cmplwi	19, 0
+	lvx 26, 5, 8
+	lvx 25, 18, 11
+	lvx 24, 18, 12
+	std 4, 24(1)
+	li 4, 32
+	lvsl 23, 5, 8
+	vperm 27, 28, 29, 23
+	vperm 26, 26, 28, 23
+	add 18, 3, 8
+	vperm 25, 24, 25, 23
+	vperm 24, 29, 24, 23
+	vmrghw 28, 26, 27
+	vperm 21, 26, 27, 4
+	vmrglw 22, 26, 27
+	vperm 27, 26, 27, 0
+	vperm 29, 24, 25, 2
+	vmrghw 20, 24, 25
+	vperm 23, 24, 25, 5
+	vmrglw 26, 24, 25
 	vperm 29, 28, 29, 3
-	vmaddfp 24, 26, 30, 1
-	vmaddfp 23, 25, 31, 1
-	vmaddfp 22, 26, 17, 1
-	vmaddfp 21, 25, 16, 1
-	vmaddfp 20, 26, 13, 1
-	vmaddfp 6, 25, 12, 1
-	vmaddfp 26, 26, 9, 1
-	vmaddfp 25, 25, 8, 1
-	vaddfp 28, 24, 23
-	vaddfp 24, 22, 21
-	vmaddfp 22, 27, 15, 1
-	vmaddfp 23, 27, 19, 1
-	vaddfp 6, 20, 6
-	vaddfp 26, 26, 25
-	vmaddfp 25, 27, 11, 1
-	vmaddfp 27, 27, 7, 1
-	vaddfp 24, 24, 22
-	lvx 22, 1, 26
-	vaddfp 28, 28, 23
-	vmaddfp 23, 29, 18, 1
+	vperm 28, 21, 20, 3
+	vperm 25, 22, 23, 3
+	vperm 27, 27, 26, 3
+	lvsr 21, 3, 8
+	vmaddfp 24, 29, 30, 1
+	vmaddfp 23, 28, 31, 1
+	vmaddfp 22, 29, 17, 1
+	vmaddfp 20, 28, 16, 1
+	vmaddfp 6, 29, 13, 1
+	vmaddfp 29, 29, 9, 1
+	vmaddfp 26, 25, 19, 1
+	vaddfp 24, 24, 23
+	vmaddfp 23, 28, 12, 1
+	vmaddfp 28, 28, 8, 1
+	vaddfp 22, 22, 20
+	lvsr 20, 18, 12
+	vaddfp 29, 29, 28
+	vmaddfp 28, 25, 15, 1
+	vaddfp 6, 6, 23
+	vaddfp 26, 24, 26
+	vmaddfp 24, 25, 11, 1
+	vmaddfp 25, 25, 7, 1
+	vmaddfp 23, 27, 18, 1
+	vaddfp 28, 22, 28
+	lvx 22, 1, 4
+	vaddfp 6, 6, 24
+	vmaddfp 24, 27, 14, 1
+	vaddfp 29, 29, 25
+	vmaddfp 25, 27, 10, 1
+	vaddfp 26, 26, 23
+	ld 4, 24(1)
+	vaddfp 28, 28, 24
 	vaddfp 6, 6, 25
-	vmaddfp 25, 29, 14, 1
-	vaddfp 27, 26, 27
-	vmaddfp 26, 29, 10, 1
-	vaddfp 28, 28, 23
-	vaddfp 25, 24, 25
-	vaddfp 6, 6, 26
-	vmrghw 26, 28, 25
-	vperm 24, 28, 25, 0
-	vmaddfp 29, 29, 22, 1
-	vaddfp 29, 27, 29
-	vperm 27, 6, 29, 2
-	vmrglw 23, 6, 29
-	vperm 27, 26, 27, 3
-	vmrglw 26, 28, 25
-	vperm 28, 28, 25, 4
-	vperm 24, 24, 23, 3
-	stvx 27, 0, 0
-	vperm 27, 6, 29, 5
-	vmrghw 6, 6, 29
-	vperm 29, 26, 27, 3
-	vperm 6, 28, 6, 3
-	stvx 24, 0, 30
-	stvx 29, 0, 29
-	stvx 6, 0, 28
-	ld 26, 48(1)
-	stdux 26, 25, 8
-	ld 26, 104(1)
+	lvsr 23, 18, 9
+	vmaddfp 27, 27, 22, 1
+	vmrglw 22, 26, 28
+	lvsr 24, 18, 10
+	vaddfp 29, 29, 27
+	vperm 27, 26, 28, 0
+	vmrglw 25, 6, 29
+	vperm 27, 27, 25, 3
+	vperm 25, 6, 29, 5
+	vperm 27, 27, 27, 20
+	vperm 25, 22, 25, 3
+	stvewx 27, 18, 0
+	stvewx 27, 18, 30
+	stvewx 27, 18, 29
+	stvewx 27, 18, 12
+	vperm 27, 25, 25, 23
+	vmrghw 23, 6, 29
+	vperm 6, 6, 29, 2
+	vmrghw 29, 26, 28
+	vperm 25, 26, 28, 4
+	vperm 6, 29, 6, 3
+	vperm 25, 25, 23, 3
+	stvewx 27, 18, 28
+	vperm 6, 6, 6, 21
+	stvewx 27, 18, 27
+	stvewx 27, 18, 26
+	stvewx 27, 18, 9
+	vperm 27, 25, 25, 24
+	stvewx 6, 3, 8
 	addi 8, 8, 64
-	std 26, 56(25)
-	ld 26, 96(1)
-	std 26, 48(25)
-	ld 26, 88(1)
-	std 26, 40(25)
-	ld 26, 80(1)
-	std 26, 32(25)
-	ld 26, 72(1)
-	std 26, 24(25)
-	ld 26, 64(1)
-	std 26, 16(25)
-	ld 26, 56(1)
-	std 26, 8(25)
+	stvewx 27, 18, 25
+	stvewx 27, 18, 24
+	stvewx 27, 18, 23
+	stvewx 27, 18, 10
+	stvewx 6, 18, 22
+	stvewx 6, 18, 21
+	stvewx 6, 18, 20
 	bne	0, .Lra_BB25_9
 	cmplw	6, 7
 	bne	0, .Lra_BB25_2
@@ -1865,6 +2828,9 @@ ra_k_max_i32_r:
 	stwu 1, -64(1)
 	cmplwi	6, 8
 	li 7, 0
+	std 27, 16(1)
+	std 28, 24(1)
+	std 29, 32(1)
 	std 30, 40(1)
 	bge 0, .Lra_BB27_6
 .Lra_BB27_2:
@@ -1889,42 +2855,69 @@ ra_k_max_i32_r:
 	b .Lra_BB27_3
 .Lra_BB27_6:
 	sub	8, 3, 4
-	cmplwi	8, 16
+	cmplwi	8, 32
 	sub	8, 3, 5
 	bc 12, 0, .Lra_BB27_2
-	cmplwi	8, 16
+	cmplwi	8, 32
 	bc 12, 0, .Lra_BB27_2
-	rlwinm 7, 6, 0, 1, 29
-	li 8, 0
-	li 9, 15
-	addi 10, 1, 16
-	mr	11, 7
+	rlwinm 7, 6, 0, 1, 28
+	addi 8, 4, 16
+	addi 9, 5, 16
+	addi 10, 3, 16
+	li 11, 0
+	li 12, 15
+	li 0, 12
+	li 30, 8
+	li 29, 4
+	mr	28, 7
 .Lra_BB27_9:
-	add 12, 4, 8
-	lvx 2, 4, 8
-	mr	30, 3
-	lvx 3, 12, 9
-	add 12, 5, 8
-	lvx 4, 5, 8
-	addi 11, 11, -4
-	lvx 5, 12, 9
-	cmplwi	11, 0
-	lvsl 0, 4, 8
-	vperm 2, 2, 3, 0
-	lvsl 1, 5, 8
-	vperm 3, 4, 5, 1
+	add 27, 4, 11
+	lvx 3, 4, 11
+	addi 28, 28, -8
+	lvx 0, 27, 12
+	add 27, 8, 11
+	lvx 1, 8, 11
+	cmplwi	28, 0
+	lvx 6, 27, 12
+	add 27, 5, 11
+	lvx 7, 5, 11
+	lvx 8, 27, 12
+	add 27, 9, 11
+	lvsl 2, 4, 11
+	vperm 2, 3, 0, 2
+	lvsl 5, 5, 11
+	vperm 3, 7, 8, 5
 	vmaxsw 2, 2, 3
-	stvx 2, 0, 10
-	ld 12, 16(1)
-	stdux 12, 30, 8
-	ld 12, 24(1)
-	addi 8, 8, 16
-	std 12, 8(30)
+	lvx 3, 9, 11
+	lvx 0, 27, 12
+	add 27, 3, 11
+	lvsl 4, 8, 11
+	vperm 4, 1, 6, 4
+	lvsl 9, 9, 11
+	vperm 3, 3, 0, 9
+	lvsr 10, 3, 11
+	vperm 2, 2, 2, 10
+	vmaxsw 3, 4, 3
+	lvsr 5, 10, 11
+	stvewx 2, 27, 0
+	stvewx 2, 27, 30
+	stvewx 2, 27, 29
+	add 27, 10, 11
+	stvewx 2, 3, 11
+	vperm 2, 3, 3, 5
+	stvewx 2, 10, 11
+	addi 11, 11, 32
+	stvewx 2, 27, 0
+	stvewx 2, 27, 30
+	stvewx 2, 27, 29
 	bne	0, .Lra_BB27_9
 	cmplw	6, 7
 	bne	0, .Lra_BB27_2
 .Lra_BB27_11:
 	ld 30, 40(1)
+	ld 29, 32(1)
+	ld 28, 24(1)
+	ld 27, 16(1)
 	addi 1, 1, 64
 	blr
 .Lra_func_end27:
@@ -1941,6 +2934,9 @@ ra_k_min_f32_r:
 	stwu 1, -64(1)
 	cmplwi	6, 8
 	li 7, 0
+	std 27, 16(1)
+	std 28, 24(1)
+	std 29, 32(1)
 	std 30, 40(1)
 	bge 0, .Lra_BB28_6
 .Lra_BB28_2:
@@ -1965,43 +2961,71 @@ ra_k_min_f32_r:
 	b .Lra_BB28_3
 .Lra_BB28_6:
 	sub	8, 3, 4
-	cmplwi	8, 16
+	cmplwi	8, 32
 	sub	8, 3, 5
 	bc 12, 0, .Lra_BB28_2
-	cmplwi	8, 16
+	cmplwi	8, 32
 	bc 12, 0, .Lra_BB28_2
-	rlwinm 7, 6, 0, 1, 29
-	li 8, 0
-	li 9, 15
-	addi 10, 1, 16
-	mr	11, 7
+	rlwinm 7, 6, 0, 1, 28
+	addi 8, 4, 16
+	addi 9, 5, 16
+	addi 10, 3, 16
+	li 11, 0
+	li 12, 15
+	li 0, 12
+	li 30, 8
+	li 29, 4
+	mr	28, 7
 .Lra_BB28_9:
-	add 12, 4, 8
-	lvx 2, 4, 8
-	mr	30, 3
-	lvx 3, 12, 9
-	add 12, 5, 8
-	lvx 4, 5, 8
-	addi 11, 11, -4
-	lvx 5, 12, 9
-	cmplwi	11, 0
-	lvsl 0, 4, 8
-	vperm 2, 2, 3, 0
-	lvsl 1, 5, 8
-	vperm 3, 4, 5, 1
-	vcmpgtfp 4, 3, 2
-	vsel 2, 3, 2, 4
-	stvx 2, 0, 10
-	ld 12, 16(1)
-	stdux 12, 30, 8
-	ld 12, 24(1)
-	addi 8, 8, 16
-	std 12, 8(30)
+	add 27, 4, 11
+	lvx 3, 4, 11
+	addi 28, 28, -8
+	lvx 5, 27, 12
+	add 27, 8, 11
+	lvx 0, 8, 11
+	cmplwi	28, 0
+	lvx 1, 27, 12
+	add 27, 5, 11
+	lvx 6, 5, 11
+	lvx 7, 27, 12
+	add 27, 9, 11
+	lvsl 2, 4, 11
+	vperm 2, 3, 5, 2
+	lvsl 8, 5, 11
+	vperm 3, 6, 7, 8
+	vcmpgtfp 6, 3, 2
+	lvsl 4, 8, 11
+	vsel 2, 3, 2, 6
+	vperm 4, 0, 1, 4
+	lvx 3, 9, 11
+	lvx 6, 27, 12
+	add 27, 3, 11
+	lvsl 9, 9, 11
+	vperm 3, 3, 6, 9
+	lvsr 5, 3, 11
+	vcmpgtfp 0, 3, 4
+	vperm 2, 2, 2, 5
+	lvsr 5, 10, 11
+	vsel 3, 3, 4, 0
+	stvewx 2, 27, 0
+	stvewx 2, 27, 30
+	stvewx 2, 27, 29
+	add 27, 10, 11
+	stvewx 2, 3, 11
+	vperm 2, 3, 3, 5
+	stvewx 2, 10, 11
+	addi 11, 11, 32
+	stvewx 2, 27, 0
+	stvewx 2, 27, 30
+	stvewx 2, 27, 29
 	bne	0, .Lra_BB28_9
 	cmplw	6, 7
 	bne	0, .Lra_BB28_2
 .Lra_BB28_11:
 	ld 30, 40(1)
+	ld 29, 32(1)
+	ld 28, 24(1)
+	ld 27, 16(1)
 	addi 1, 1, 64
 	blr
 .Lra_func_end28:
@@ -2018,6 +3042,9 @@ ra_k_mul_f32_r:
 	stwu 1, -64(1)
 	cmplwi	6, 8
 	li 7, 0
+	std 27, 16(1)
+	std 28, 24(1)
+	std 29, 32(1)
 	std 30, 40(1)
 	bge 0, .Lra_BB29_5
 .Lra_BB29_2:
@@ -2037,43 +3064,70 @@ ra_k_mul_f32_r:
 	bne	0, .Lra_BB29_3
 .Lra_BB29_4:
 	ld 30, 40(1)
+	ld 29, 32(1)
+	ld 28, 24(1)
+	ld 27, 16(1)
 	addi 1, 1, 64
 	blr
 .Lra_BB29_5:
 	sub	8, 3, 4
-	cmplwi	8, 16
+	cmplwi	8, 32
 	sub	8, 3, 5
 	bc 12, 0, .Lra_BB29_2
-	cmplwi	8, 16
+	cmplwi	8, 32
 	bc 12, 0, .Lra_BB29_2
-	rlwinm 7, 6, 0, 1, 29
+	rlwinm 7, 6, 0, 1, 28
 	vspltisw 2, -1
-	li 8, 0
-	li 9, 15
+	addi 8, 4, 16
+	addi 9, 5, 16
+	addi 10, 3, 16
+	li 11, 0
+	li 12, 15
+	li 0, 12
+	li 30, 8
 	vslw 2, 2, 2
-	addi 10, 1, 16
-	mr	11, 7
+	li 29, 4
+	mr	28, 7
 .Lra_BB29_8:
-	add 12, 4, 8
-	lvx 3, 4, 8
-	mr	30, 3
-	lvx 4, 12, 9
-	add 12, 5, 8
-	lvx 5, 5, 8
-	addi 11, 11, -4
-	lvx 0, 12, 9
-	cmplwi	11, 0
-	lvsl 1, 4, 8
-	vperm 3, 3, 4, 1
-	lvsl 6, 5, 8
-	vperm 4, 5, 0, 6
+	add 27, 4, 11
+	lvx 4, 4, 11
+	addi 28, 28, -8
+	lvx 1, 27, 12
+	add 27, 8, 11
+	lvx 6, 8, 11
+	cmplwi	28, 0
+	lvx 7, 27, 12
+	add 27, 5, 11
+	lvx 8, 5, 11
+	lvx 9, 27, 12
+	add 27, 9, 11
+	lvsl 3, 4, 11
+	vperm 3, 4, 1, 3
+	lvsl 0, 5, 11
+	vperm 4, 8, 9, 0
 	vmaddfp 3, 3, 4, 2
-	stvx 3, 0, 10
-	ld 12, 16(1)
-	stdux 12, 30, 8
-	ld 12, 24(1)
-	addi 8, 8, 16
-	std 12, 8(30)
+	lvx 4, 9, 11
+	lvx 1, 27, 12
+	add 27, 3, 11
+	lvsl 5, 8, 11
+	vperm 5, 6, 7, 5
+	lvsl 10, 9, 11
+	vperm 4, 4, 1, 10
+	lvsr 11, 3, 11
+	vperm 3, 3, 3, 11
+	vmaddfp 4, 5, 4, 2
+	lvsr 0, 10, 11
+	stvewx 3, 27, 0
+	stvewx 3, 27, 30
+	stvewx 3, 27, 29
+	add 27, 10, 11
+	stvewx 3, 3, 11
+	vperm 3, 4, 4, 0
+	stvewx 3, 10, 11
+	addi 11, 11, 32
+	stvewx 3, 27, 0
+	stvewx 3, 27, 30
+	stvewx 3, 27, 29
 	bne	0, .Lra_BB29_8
 	cmplw	6, 7
 	bne	0, .Lra_BB29_2
@@ -2119,6 +3173,9 @@ ra_k_offset1_f32_r:
 	stwu 1, -64(1)
 	cmplwi	6, 8
 	li 5, 0
+	std 27, 16(1)
+	std 28, 24(1)
+	std 29, 32(1)
 	std 30, 40(1)
 	blt	0, .Lra_BB31_7
 	slwi 8, 7, 2
@@ -2130,33 +3187,57 @@ ra_k_offset1_f32_r:
 	cmplw	4, 8
 	bc 12, 0, .Lra_BB31_7
 .Lra_BB31_4:
-	rlwinm 5, 7, 0, 2, 29
-	addi 7, 4, 4
-	li 8, 0
-	li 9, 15
-	addi 10, 1, 16
-	mr	11, 5
+	rlwinm 5, 7, 0, 2, 28
+	addi 7, 4, 20
+	addi 8, 4, 16
+	addi 9, 4, 4
+	addi 10, 3, 16
+	li 11, 0
+	li 12, 15
+	li 0, 12
+	li 30, 8
+	li 29, 4
+	mr	28, 5
 .Lra_BB31_5:
-	add 12, 4, 8
-	lvx 2, 4, 8
-	mr	30, 3
-	lvx 3, 12, 9
-	add 12, 7, 8
-	lvx 4, 7, 8
-	addi 11, 11, -4
-	lvx 5, 12, 9
-	cmplwi	11, 0
-	lvsl 0, 4, 8
-	vperm 2, 2, 3, 0
-	lvsl 1, 7, 8
-	vperm 3, 4, 5, 1
+	add 27, 4, 11
+	lvx 3, 4, 11
+	addi 28, 28, -8
+	lvx 0, 27, 12
+	add 27, 8, 11
+	lvx 1, 8, 11
+	cmplwi	28, 0
+	lvx 6, 27, 12
+	add 27, 9, 11
+	lvx 7, 9, 11
+	lvx 8, 27, 12
+	add 27, 7, 11
+	lvsl 2, 4, 11
+	vperm 2, 3, 0, 2
+	lvsl 5, 9, 11
+	vperm 3, 7, 8, 5
 	vaddfp 2, 2, 3
-	stvx 2, 0, 10
-	ld 12, 16(1)
-	stdux 12, 30, 8
-	ld 12, 24(1)
-	addi 8, 8, 16
-	std 12, 8(30)
+	lvx 3, 7, 11
+	lvx 0, 27, 12
+	add 27, 3, 11
+	lvsl 4, 8, 11
+	vperm 4, 1, 6, 4
+	lvsl 9, 7, 11
+	vperm 3, 3, 0, 9
+	lvsr 10, 3, 11
+	vperm 2, 2, 2, 10
+	vaddfp 3, 4, 3
+	lvsr 5, 10, 11
+	stvewx 2, 27, 0
+	stvewx 2, 27, 30
+	stvewx 2, 27, 29
+	add 27, 10, 11
+	stvewx 2, 3, 11
+	vperm 2, 3, 3, 5
+	stvewx 2, 10, 11
+	addi 11, 11, 32
+	stvewx 2, 27, 0
+	stvewx 2, 27, 30
+	stvewx 2, 27, 29
 	bne	0, .Lra_BB31_5
 	cmplw	6, 5
 	beq	0, .Lra_BB31_9
@@ -2176,6 +3257,9 @@ ra_k_offset1_f32_r:
 	bne	0, .Lra_BB31_8
 .Lra_BB31_9:
 	ld 30, 40(1)
+	ld 29, 32(1)
+	ld 28, 24(1)
+	ld 27, 16(1)
 	addi 1, 1, 64
 	blr
 .Lra_func_end31:
@@ -2210,9 +3294,10 @@ ra_k_saxpy:
 .Lra_func_begin33:
 	cmpwi	6, 1
 	bltlr	0
-	stwu 1, -48(1)
+	stwu 1, -64(1)
 	cmplwi	6, 8
 	li 5, 0
+	std 30, 40(1)
 	blt	0, .Lra_BB33_7
 	slwi 7, 6, 2
 	add 8, 4, 7
@@ -2222,38 +3307,41 @@ ra_k_saxpy:
 	cmplw	4, 7
 	bc 12, 0, .Lra_BB33_7
 .Lra_BB33_4:
-	stfs 1, 32(1)
-	addi 5, 1, 32
-	lvx 3, 0, 5
+	stfs 1, 16(1)
+	addi 7, 1, 16
+	lvx 3, 0, 7
 	rlwinm 5, 6, 0, 1, 29
 	vspltisw 2, -1
 	li 7, 0
 	li 8, 15
+	li 9, 12
+	li 10, 8
 	vslw 2, 2, 2
 	vspltw 3, 3, 0
-	addi 9, 1, 16
-	mr	10, 5
+	li 11, 4
+	mr	12, 5
 .Lra_BB33_5:
-	add 11, 4, 7
+	add 30, 4, 7
 	lvx 4, 4, 7
-	addi 10, 10, -4
-	lvx 5, 11, 8
-	add 11, 3, 7
+	addi 12, 12, -4
+	lvx 5, 30, 8
+	add 30, 3, 7
 	lvx 0, 3, 7
-	cmplwi	10, 0
-	lvx 1, 11, 8
+	cmplwi	12, 0
+	lvx 1, 30, 8
 	lvsl 6, 4, 7
 	vperm 4, 4, 5, 6
 	lvsl 5, 3, 7
 	vperm 5, 0, 1, 5
 	vmaddfp 4, 3, 4, 2
+	lvsr 0, 3, 7
 	vaddfp 4, 4, 5
-	stvx 4, 0, 9
-	ld 12, 16(1)
-	stdx 12, 3, 7
+	vperm 4, 4, 4, 0
+	stvewx 4, 3, 7
 	addi 7, 7, 16
-	ld 12, 24(1)
-	std 12, 8(11)
+	stvewx 4, 30, 9
+	stvewx 4, 30, 10
+	stvewx 4, 30, 11
 	bne	0, .Lra_BB33_5
 	cmplw	6, 5
 	beq	0, .Lra_BB33_9
@@ -2273,7 +3361,8 @@ ra_k_saxpy:
 	stfs 0, 0(3)
 	bne	0, .Lra_BB33_8
 .Lra_BB33_9:
-	addi 1, 1, 48
+	ld 30, 40(1)
+	addi 1, 1, 64
 	blr
 .Lra_func_end33:
 	.size	ra_k_saxpy, .Lra_func_end33-.Lra_func_begin33
@@ -2286,9 +3375,10 @@ ra_k_saxpy_r:
 .Lra_func_begin34:
 	cmpwi	6, 1
 	bltlr	0
-	stwu 1, -48(1)
+	stwu 1, -64(1)
 	cmplwi	6, 8
 	li 5, 0
+	std 30, 40(1)
 	blt	0, .Lra_BB34_7
 	slwi 7, 6, 2
 	add 8, 4, 7
@@ -2298,38 +3388,41 @@ ra_k_saxpy_r:
 	cmplw	4, 7
 	bc 12, 0, .Lra_BB34_7
 .Lra_BB34_4:
-	stfs 1, 32(1)
-	addi 5, 1, 32
-	lvx 3, 0, 5
+	stfs 1, 16(1)
+	addi 7, 1, 16
+	lvx 3, 0, 7
 	rlwinm 5, 6, 0, 1, 29
 	vspltisw 2, -1
 	li 7, 0
 	li 8, 15
+	li 9, 12
+	li 10, 8
 	vslw 2, 2, 2
 	vspltw 3, 3, 0
-	addi 9, 1, 16
-	mr	10, 5
+	li 11, 4
+	mr	12, 5
 .Lra_BB34_5:
-	add 11, 4, 7
+	add 30, 4, 7
 	lvx 4, 4, 7
-	addi 10, 10, -4
-	lvx 5, 11, 8
-	add 11, 3, 7
+	addi 12, 12, -4
+	lvx 5, 30, 8
+	add 30, 3, 7
 	lvx 0, 3, 7
-	cmplwi	10, 0
-	lvx 1, 11, 8
+	cmplwi	12, 0
+	lvx 1, 30, 8
 	lvsl 6, 4, 7
 	vperm 4, 4, 5, 6
 	lvsl 5, 3, 7
 	vperm 5, 0, 1, 5
 	vmaddfp 4, 3, 4, 2
+	lvsr 0, 3, 7
 	vaddfp 4, 4, 5
-	stvx 4, 0, 9
-	ld 12, 16(1)
-	stdx 12, 3, 7
+	vperm 4, 4, 4, 0
+	stvewx 4, 3, 7
 	addi 7, 7, 16
-	ld 12, 24(1)
-	std 12, 8(11)
+	stvewx 4, 30, 9
+	stvewx 4, 30, 10
+	stvewx 4, 30, 11
 	bne	0, .Lra_BB34_5
 	cmplw	6, 5
 	beq	0, .Lra_BB34_9
@@ -2349,7 +3442,8 @@ ra_k_saxpy_r:
 	stfs 0, 0(3)
 	bne	0, .Lra_BB34_8
 .Lra_BB34_9:
-	addi 1, 1, 48
+	ld 30, 40(1)
+	addi 1, 1, 64
 	blr
 .Lra_func_end34:
 	.size	ra_k_saxpy_r, .Lra_func_end34-.Lra_func_begin34
@@ -2362,35 +3456,69 @@ ra_k_scale_inplace:
 .Lra_func_begin35:
 	cmpwi	5, 1
 	bltlr	0
+	stwu 1, -80(1)
 	srawi 4, 5, 31
 	andc 4, 5, 4
 	slwi 4, 4, 2
-	addi 6, 4, -4
-	cmplwi	6, 0
-	mr	5, 3
-	beq	0, .Lra_BB35_5
-	srwi 5, 6, 2
-	addi 6, 5, 1
-	rlwinm 7, 6, 0, 1, 30
-	rlwinm 5, 6, 2, 0, 28
-	add 5, 3, 5
-	addi 8, 3, -8
-	mr	9, 7
+	addi 5, 4, -4
+	cmplwi	5, 28
+	mr	7, 3
+	std 28, 40(1)
+	std 29, 48(1)
+	std 30, 56(1)
+	blt	0, .Lra_BB35_5
+	stfs 1, 16(1)
+	addi 11, 1, 16
+	lvx 3, 0, 11
+	srwi 7, 5, 2
+	addi 11, 7, 1
+	vspltisw 2, -1
+	rlwinm 12, 11, 0, 1, 28
+	rlwinm 7, 11, 2, 0, 26
+	addi 5, 3, 16
+	li 6, 0
+	li 8, 15
+	li 9, 12
+	li 10, 8
+	vslw 2, 2, 2
+	add 7, 3, 7
+	vspltw 3, 3, 0
+	li 0, 4
+	mr	30, 12
 .Lra_BB35_3:
-	lfsu 0, 8(8)
-	addi 9, 9, -2
-	cmplwi	9, 0
-	lfs 2, 4(8)
-	fmuls 0, 1, 0
-	stfs 0, 0(8)
-	fmuls 0, 1, 2
-	stfs 0, 4(8)
+	add 29, 3, 6
+	lvx 5, 3, 6
+	add 28, 5, 6
+	lvx 1, 29, 8
+	addi 30, 30, -8
+	lvsl 4, 3, 6
+	cmplwi	30, 0
+	vperm 4, 5, 1, 4
+	lvx 5, 5, 6
+	vmaddfp 4, 3, 4, 2
+	lvx 1, 28, 8
+	lvsl 0, 5, 6
+	lvsr 6, 3, 6
+	vperm 5, 5, 1, 0
+	vperm 4, 4, 4, 6
+	lvsr 7, 5, 6
+	vmaddfp 5, 3, 5, 2
+	stvewx 4, 29, 9
+	stvewx 4, 29, 10
+	stvewx 4, 29, 0
+	stvewx 4, 3, 6
+	vperm 4, 5, 5, 7
+	stvewx 4, 5, 6
+	addi 6, 6, 32
+	stvewx 4, 28, 9
+	stvewx 4, 28, 10
+	stvewx 4, 28, 0
 	bne	0, .Lra_BB35_3
-	cmplw	6, 7
-	beqlr	0
+	cmplw	11, 12
+	beq	0, .Lra_BB35_7
 .Lra_BB35_5:
 	add 3, 3, 4
-	addi 4, 5, -4
+	addi 4, 7, -4
 .Lra_BB35_6:
 	lfsu 0, 4(4)
 	addi 5, 4, 4
@@ -2398,6 +3526,11 @@ ra_k_scale_inplace:
 	cmplw	5, 3
 	stfs 0, 0(4)
 	bne	0, .Lra_BB35_6
+.Lra_BB35_7:
+	ld 30, 56(1)
+	ld 29, 48(1)
+	ld 28, 40(1)
+	addi 1, 1, 80
 	blr
 .Lra_func_end35:
 	.size	ra_k_scale_inplace, .Lra_func_end35-.Lra_func_begin35
@@ -2410,19 +3543,42 @@ ra_k_set_f32:
 .Lra_func_begin36:
 	cmpwi	5, 1
 	bltlr	0
+	stwu 1, -32(1)
+	cmplwi	5, 8
 	li 4, 0
-	ble 0, .Lra_BB36_5
-	rlwinm 4, 5, 0, 1, 30
-	addi 6, 3, -8
-	mr	7, 4
+	blt	0, .Lra_BB36_5
+	stfs 1, 16(1)
+	addi 6, 1, 16
+	lvx 2, 0, 6
+	rlwinm 4, 5, 0, 1, 28
+	addi 6, 3, 16
+	li 7, 0
+	li 8, 12
+	li 9, 8
+	vspltw 2, 2, 0
+	li 10, 4
+	mr	11, 4
 .Lra_BB36_3:
-	addi 7, 7, -2
-	stfsu 1, 8(6)
-	cmplwi	7, 0
-	stfs 1, 4(6)
+	lvsr 3, 3, 7
+	add 12, 3, 7
+	vperm 3, 2, 2, 3
+	addi 11, 11, -8
+	stvewx 3, 12, 8
+	cmplwi	11, 0
+	stvewx 3, 12, 9
+	stvewx 3, 12, 10
+	add 12, 6, 7
+	stvewx 3, 3, 7
+	lvsr 3, 6, 7
+	vperm 3, 2, 2, 3
+	stvewx 3, 6, 7
+	addi 7, 7, 32
+	stvewx 3, 12, 8
+	stvewx 3, 12, 9
+	stvewx 3, 12, 10
 	bne	0, .Lra_BB36_3
 	cmplw	5, 4
-	beqlr	0
+	beq	0, .Lra_BB36_7
 .Lra_BB36_5:
 	slwi 6, 4, 2
 	add 3, 6, 3
@@ -2433,6 +3589,8 @@ ra_k_set_f32:
 	cmplwi	4, 0
 	stfsu 1, 4(3)
 	bne	0, .Lra_BB36_6
+.Lra_BB36_7:
+	addi 1, 1, 32
 	blr
 .Lra_func_end36:
 	.size	ra_k_set_f32, .Lra_func_end36-.Lra_func_begin36
@@ -2445,19 +3603,45 @@ ra_k_set_u32:
 .Lra_func_begin37:
 	cmpwi	5, 1
 	bltlr	0
+	stwu 1, -64(1)
+	cmplwi	5, 8
 	li 6, 0
-	ble 0, .Lra_BB37_5
-	rlwinm 6, 5, 0, 1, 30
-	addi 7, 3, -8
-	mr	8, 6
+	std 30, 40(1)
+	blt	0, .Lra_BB37_5
+	sldi 7, 4, 32
+	addi 8, 1, 16
+	std 7, 16(1)
+	std 7, 24(1)
+	rlwinm 6, 5, 0, 1, 28
+	lvx 2, 0, 8
+	addi 7, 3, 16
+	li 8, 0
+	li 9, 12
+	li 10, 8
+	vspltw 2, 2, 0
+	li 11, 4
+	mr	12, 6
 .Lra_BB37_3:
-	addi 8, 8, -2
-	stwu 4, 8(7)
-	cmplwi	8, 0
-	stw 4, 4(7)
+	lvsr 3, 3, 8
+	add 30, 3, 8
+	vperm 3, 2, 2, 3
+	addi 12, 12, -8
+	stvewx 3, 30, 9
+	cmplwi	12, 0
+	stvewx 3, 30, 10
+	stvewx 3, 30, 11
+	add 30, 7, 8
+	stvewx 3, 3, 8
+	lvsr 3, 7, 8
+	vperm 3, 2, 2, 3
+	stvewx 3, 7, 8
+	addi 8, 8, 32
+	stvewx 3, 30, 9
+	stvewx 3, 30, 10
+	stvewx 3, 30, 11
 	bne	0, .Lra_BB37_3
 	cmplw	5, 6
-	beqlr	0
+	beq	0, .Lra_BB37_7
 .Lra_BB37_5:
 	slwi 7, 6, 2
 	add 3, 7, 3
@@ -2468,6 +3652,9 @@ ra_k_set_u32:
 	cmplwi	5, 0
 	stwu 4, 4(3)
 	bne	0, .Lra_BB37_6
+.Lra_BB37_7:
+	ld 30, 40(1)
+	addi 1, 1, 64
 	blr
 .Lra_func_end37:
 	.size	ra_k_set_u32, .Lra_func_end37-.Lra_func_begin37
@@ -2480,15 +3667,75 @@ ra_k_shl_i32_r:
 .Lra_func_begin38:
 	cmpwi	5, 1
 	bltlr	0
-	addi 4, 4, -4
-	addi 3, 3, -4
-.Lra_BB38_2:
+	stwu 1, -48(1)
+	cmplwi	5, 8
+	sub	7, 3, 4
+	li 6, 0
+	std 29, 16(1)
+	std 30, 24(1)
+	bc 12, 0, .Lra_BB38_6
+	cmplwi	7, 32
+	bc 12, 0, .Lra_BB38_6
+	rlwinm 6, 5, 0, 1, 28
+	addi 7, 4, 16
+	addi 8, 3, 16
+	li 9, 0
+	li 10, 15
+	vspltisw 2, 3
+	li 11, 12
+	li 12, 8
+	li 0, 4
+	mr	30, 6
+.Lra_BB38_4:
+	add 29, 4, 9
+	lvx 4, 4, 9
+	addi 30, 30, -8
+	lvx 0, 29, 10
+	add 29, 7, 9
+	lvsl 3, 4, 9
+	cmplwi	30, 0
+	vperm 3, 4, 0, 3
+	lvx 4, 7, 9
+	vslw 3, 3, 2
+	lvx 0, 29, 10
+	add 29, 3, 9
+	lvsl 5, 7, 9
+	lvsr 1, 3, 9
+	vperm 4, 4, 0, 5
+	vperm 3, 3, 3, 1
+	lvsr 6, 8, 9
+	vslw 4, 4, 2
+	stvewx 3, 29, 11
+	stvewx 3, 29, 12
+	stvewx 3, 29, 0
+	add 29, 8, 9
+	stvewx 3, 3, 9
+	vperm 3, 4, 4, 6
+	stvewx 3, 8, 9
+	addi 9, 9, 32
+	stvewx 3, 29, 11
+	stvewx 3, 29, 12
+	stvewx 3, 29, 0
+	bne	0, .Lra_BB38_4
+	cmplw	5, 6
+	beq	0, .Lra_BB38_8
+.Lra_BB38_6:
+	sub	5, 5, 6
+	slwi 6, 6, 2
+	addi 6, 6, -4
+	add 4, 4, 6
+	add 3, 3, 6
+.Lra_BB38_7:
 	lwzu 6, 4(4)
 	addi 5, 5, -1
 	cmplwi	5, 0
 	slwi 6, 6, 3
 	stwu 6, 4(3)
-	bne	0, .Lra_BB38_2
+	bne	0, .Lra_BB38_7
+.Lra_BB38_8:
+	ld 30, 24(1)
+	ld 29, 16(1)
+	addi 1, 1, 48
 	blr
 .Lra_func_end38:
 	.size	ra_k_shl_i32_r, .Lra_func_end38-.Lra_func_begin38
@@ -2539,9 +3786,11 @@ ra_k_stride2_f32_r:
 	andc 7, 5, 6
 	clrlwi.	5, 7, 2
 	beqlr	0
-	stwu 1, -32(1)
+	stwu 1, -48(1)
 	cmplwi	5, 8
 	li 6, 0
+	std 29, 16(1)
+	std 30, 24(1)
 	blt	0, .Lra_BB39_7
 	slwi 9, 7, 3
 	slwi 8, 7, 2
@@ -2552,38 +3801,41 @@ ra_k_stride2_f32_r:
 	cmplw	4, 8
 	bc 12, 0, .Lra_BB39_7
 .Lra_BB39_4:
-	li 9, .Lra_CPI39_0@l
-	lis 10, .Lra_CPI39_0@ha
-	li 11, .Lra_CPI39_1@l
-	lvx 2, 10, 9
-	lis 9, .Lra_CPI39_1@ha
-	lvx 3, 9, 11
+	li 10, .Lra_CPI39_0@l
+	lis 11, .Lra_CPI39_0@ha
+	li 12, .Lra_CPI39_1@l
+	lis 30, .Lra_CPI39_1@ha
+	lvx 2, 11, 10
 	rlwinm 6, 7, 0, 2, 29
+	lvx 3, 30, 12
 	li 7, 31
 	li 8, 16
-	addi 9, 1, 16
-	mr	10, 3
-	mr	11, 4
-	mr	12, 6
+	li 9, 12
+	li 10, 8
+	li 11, 4
+	mr	12, 3
+	mr	30, 4
+	mr	29, 6
 .Lra_BB39_5:
-	lvx 4, 11, 7
-	addi 12, 12, -4
-	lvx 5, 11, 8
-	cmplwi	12, 0
-	lvx 0, 0, 11
-	lvsl 1, 0, 11
+	lvx 4, 30, 7
+	addi 29, 29, -4
+	lvx 5, 30, 8
+	cmplwi	29, 0
+	lvx 0, 0, 30
+	lvsl 1, 0, 30
 	vperm 4, 5, 4, 1
-	addi 11, 11, 32
+	addi 30, 30, 32
 	vperm 5, 0, 5, 1
 	vperm 0, 5, 4, 2
 	vperm 4, 5, 4, 3
+	lvsr 5, 0, 12
 	vaddfp 4, 0, 4
-	stvx 4, 0, 9
-	ld 0, 24(1)
-	std 0, 8(10)
-	ld 0, 16(1)
-	std 0, 0(10)
-	addi 10, 10, 16
+	vperm 4, 4, 4, 5
+	stvewx 4, 12, 9
+	stvewx 4, 12, 10
+	stvewx 4, 12, 11
+	stvewx 4, 0, 12
+	addi 12, 12, 16
 	bne	0, .Lra_BB39_5
 	cmplw	5, 6
 	beq	0, .Lra_BB39_9
@@ -2604,7 +3856,9 @@ ra_k_stride2_f32_r:
 	stfsu 0, 4(4)
 	bne	0, .Lra_BB39_8
 .Lra_BB39_9:
-	addi 1, 1, 32
+	ld 30, 24(1)
+	ld 29, 16(1)
+	addi 1, 1, 48
 	blr
 .Lra_func_end39:
 	.size	ra_k_stride2_f32_r, .Lra_func_end39-.Lra_func_begin39
@@ -2714,9 +3968,16 @@ ra_k_sum_i32:
 .Lra_func_end41:
 	.size	ra_k_sum_i32, .Lra_func_end41-.Lra_func_begin41
 
+	.section	.rodata.cst16,"aM",@progbits,16
+	.p2align	4, 0x0
+.Lra_CPI42_0:
+	.long	0x3b808081
+	.long	0x3b808081
+	.long	0x3b808081
+	.long	0x3b808081
 	.section	.rodata.cst4,"aM",@progbits,4
 	.p2align	2, 0x0
-.Lra_CPI42_0:
+.Lra_CPI42_1:
 	.long	0x3b808081
 	.section	.text.ra_k_u8_to_f32_r,"ax",@progbits
 	.globl	ra_k_u8_to_f32_r
@@ -2726,12 +3987,89 @@ ra_k_u8_to_f32_r:
 .Lra_func_begin42:
 	cmpwi	5, 1
 	bltlr	0
-	stwu 1, -32(1)
-	lis 6, .Lra_CPI42_0@ha
-	lfs 0, .Lra_CPI42_0@l(6)
+	stwu 1, -128(1)
+	cmplwi	5, 8
+	li 6, 0
+	std 27, 80(1)
+	std 28, 88(1)
+	std 29, 96(1)
+	std 30, 104(1)
+	blt	0, .Lra_BB42_7
+	slwi 7, 5, 2
+	add 8, 4, 5
+	cmplw	3, 8
+	add 7, 3, 7
+	bc 4, 0, .Lra_BB42_4
+	cmplw	4, 7
+	bc 12, 0, .Lra_BB42_7
+.Lra_BB42_4:
+	li 10, .Lra_CPI42_0@l
+	lis 11, .Lra_CPI42_0@ha
+	lvx 2, 11, 10
+	rlwinm 6, 5, 0, 1, 29
+	vspltisw 3, -1
+	addi 7, 1, 64
+	li 8, 12
+	li 9, 8
+	vslw 3, 3, 3
+	li 10, 4
+	mr	11, 3
+	mr	12, 4
+	mr	30, 6
+.Lra_BB42_5:
+	lbz 0, 0(12)
+	addi 30, 30, -4
+	lbz 29, 1(12)
+	cmplwi	30, 0
+	clrlwi	0, 0, 24
+	lbz 28, 2(12)
+	clrlwi	29, 29, 24
+	lbz 27, 3(12)
+	std 0, 32(1)
+	std 29, 40(1)
+	addi 12, 12, 4
+	lfd 0, 32(1)
+	clrlwi	28, 28, 24
+	std 28, 48(1)
+	clrlwi	27, 27, 24
+	std 27, 56(1)
+	lvsr 5, 0, 11
+	fcfid 0, 0
+	frsp 0, 0
+	stfs 0, 64(1)
+	lfd 0, 40(1)
+	fcfid 0, 0
+	frsp 0, 0
+	stfs 0, 68(1)
+	lfd 0, 48(1)
+	fcfid 0, 0
+	frsp 0, 0
+	stfs 0, 72(1)
+	lfd 0, 56(1)
+	fcfid 0, 0
+	frsp 0, 0
+	stfs 0, 76(1)
+	lvx 4, 0, 7
+	vmaddfp 4, 4, 2, 3
+	vperm 4, 4, 4, 5
+	stvewx 4, 11, 8
+	stvewx 4, 11, 9
+	stvewx 4, 11, 10
+	stvewx 4, 0, 11
+	addi 11, 11, 16
+	bne	0, .Lra_BB42_5
+	cmplw	5, 6
+	beq	0, .Lra_BB42_9
+.Lra_BB42_7:
+	sub	5, 5, 6
+	slwi 7, 6, 2
+	add 4, 6, 4
+	lis 6, .Lra_CPI42_1@ha
+	lfs 0, .Lra_CPI42_1@l(6)
+	add 3, 7, 3
 	addi 4, 4, -1
 	addi 3, 3, -4
-.Lra_BB42_2:
+.Lra_BB42_8:
 	lbzu 6, 1(4)
 	addi 5, 5, -1
 	cmplwi	5, 0
@@ -2741,8 +4079,13 @@ ra_k_u8_to_f32_r:
 	frsp 1, 1
 	fmuls 1, 1, 0
 	stfsu 1, 4(3)
-	bne	0, .Lra_BB42_2
-	addi 1, 1, 32
+	bne	0, .Lra_BB42_8
+.Lra_BB42_9:
+	ld 30, 104(1)
+	ld 29, 96(1)
+	ld 28, 88(1)
+	ld 27, 80(1)
+	addi 1, 1, 128
 	blr
 .Lra_func_end42:
 	.size	ra_k_u8_to_f32_r, .Lra_func_end42-.Lra_func_begin42
@@ -2776,57 +4119,139 @@ ra_sp_bright_s:
 .Lra_func_begin44:
 	cmpwi	5, 1
 	bltlr	0
-	stwu 1, -32(1)
-	cmplwi	5, 16
+	stwu 1, -128(1)
+	cmplwi	5, 4
 	sub	7, 3, 4
 	li 6, 0
-	bc 12, 0, .Lra_BB44_7
+	std 21, 32(1)
+	std 22, 40(1)
+	std 23, 48(1)
+	std 24, 56(1)
+	std 25, 64(1)
+	std 26, 72(1)
+	std 27, 80(1)
+	std 28, 88(1)
+	std 29, 96(1)
+	std 30, 104(1)
+	bc 12, 0, .Lra_BB44_12
 	cmplwi	7, 16
-	bc 12, 0, .Lra_BB44_7
+	bc 12, 0, .Lra_BB44_12
+	cmplwi	5, 16
 	vspltisb 2, 10
+	blt	0, .Lra_BB44_8
 	rlwinm 6, 5, 0, 1, 27
 	li 7, 0
 	li 8, 15
-	vslb 2, 2, 2
-	addi 9, 1, 16
-.Lra_BB44_4:
-	add 10, 4, 7
-	lvx 3, 4, 7
-	mr	11, 3
-	lvx 4, 10, 8
-	lvsl 5, 4, 7
-	vperm 3, 3, 4, 5
-	vaddubs 3, 3, 2
-	stvx 3, 0, 9
-	ld 10, 16(1)
-	stdux 10, 11, 7
-	ld 10, 24(1)
+	vslb 3, 2, 2
+	li 9, 14
+	li 10, 13
+	li 11, 12
+	li 12, 11
+	li 0, 10
+	li 30, 9
+	li 29, 8
+	li 28, 7
+	li 27, 6
+	li 26, 5
+	li 25, 4
+	li 24, 3
+	li 23, 2
+	li 22, 1
+.Lra_BB44_5:
+	add 21, 4, 7
+	lvx 4, 4, 7
+	lvx 5, 21, 8
+	add 21, 3, 7
+	lvsl 0, 4, 7
+	vperm 4, 4, 5, 0
+	lvsr 5, 3, 7
+	vaddubs 4, 4, 3
+	vperm 4, 4, 4, 5
+	stvebx 4, 3, 7
 	addi 7, 7, 16
 	cmplw	6, 7
-	std 10, 8(11)
-	bne	0, .Lra_BB44_4
+	stvebx 4, 21, 8
+	stvebx 4, 21, 9
+	stvebx 4, 21, 10
+	stvebx 4, 21, 11
+	stvebx 4, 21, 12
+	stvebx 4, 21, 0
+	stvebx 4, 21, 30
+	stvebx 4, 21, 29
+	stvebx 4, 21, 28
+	stvebx 4, 21, 27
+	stvebx 4, 21, 26
+	stvebx 4, 21, 25
+	stvebx 4, 21, 24
+	stvebx 4, 21, 23
+	stvebx 4, 21, 22
+	bne	0, .Lra_BB44_5
 	cmplw	5, 6
-	bne	0, .Lra_BB44_7
-.Lra_BB44_6:
-	addi 1, 1, 32
+	beq	0, .Lra_BB44_11
+	andi. 7, 5, 12
+	beq	0, .Lra_BB44_12
+.Lra_BB44_8:
+	mr	7, 6
+	rlwinm 6, 5, 0, 1, 29
+	addi 8, 1, 16
+	vslb 2, 2, 2
+	li 9, 3
+	li 10, 2
+	li 11, 1
+.Lra_BB44_9:
+	lbzx 12, 4, 7
+	lvsr 4, 3, 7
+	stb 12, 16(1)
+	add 12, 4, 7
+	lbz 0, 1(12)
+	stb 0, 17(1)
+	lbz 0, 2(12)
+	stb 0, 18(1)
+	lbz 12, 3(12)
+	stb 12, 19(1)
+	add 12, 3, 7
+	lvx 3, 0, 8
+	vaddubs 3, 3, 2
+	vperm 3, 3, 3, 4
+	stvebx 3, 3, 7
+	addi 7, 7, 4
+	cmplw	6, 7
+	stvebx 3, 12, 9
+	stvebx 3, 12, 10
+	stvebx 3, 12, 11
+	bne	0, .Lra_BB44_9
+	cmplw	5, 6
+	bne	0, .Lra_BB44_12
+.Lra_BB44_11:
+	ld 30, 104(1)
+	ld 29, 96(1)
+	ld 28, 88(1)
+	ld 27, 80(1)
+	ld 26, 72(1)
+	ld 25, 64(1)
+	ld 24, 56(1)
+	ld 23, 48(1)
+	ld 22, 40(1)
+	ld 21, 32(1)
+	addi 1, 1, 128
 	blr
-.Lra_BB44_7:
+.Lra_BB44_12:
 	addi 7, 6, -1
 	add 4, 4, 7
 	add 3, 3, 7
-	b .Lra_BB44_9
-.Lra_BB44_8:
+	b .Lra_BB44_14
+.Lra_BB44_13:
 	addi 6, 6, 1
 	cmplw	5, 6
 	stbu 7, 1(3)
-	beq	0, .Lra_BB44_6
-.Lra_BB44_9:
+	beq	0, .Lra_BB44_11
+.Lra_BB44_14:
 	lbzu 7, 1(4)
 	addi 7, 7, 40
 	cmplwi	7, 255
-	blt	0, .Lra_BB44_8
+	blt	0, .Lra_BB44_13
 	li 7, 255
-	b .Lra_BB44_8
+	b .Lra_BB44_13
 .Lra_func_end44:
 	.size	ra_sp_bright_s, .Lra_func_end44-.Lra_func_begin44
 
@@ -4004,18 +5429,18 @@ ra_g_ic:
 	.asciz	"examples/vmx128bench/lib.rs"
 	.size	.Lra__MergedGlobals, 44
 
-	.globl	ra_sp_mat4_s
-	.type	ra_sp_mat4_s,@function
-ra_sp_mat4_s = ra_k_mat4_vec4_r
 	.globl	ra_sp_u8f_s
 	.type	ra_sp_u8f_s,@function
 ra_sp_u8f_s = ra_k_u8_to_f32_r
-	.globl	ra_sp_saxpy_s
-	.type	ra_sp_saxpy_s,@function
-ra_sp_saxpy_s = ra_k_saxpy_r
 	.globl	ra_sp_copy_s
 	.type	ra_sp_copy_s,@function
 ra_sp_copy_s = ra_k_copy_u32_r
+	.globl	ra_sp_mat4_s
+	.type	ra_sp_mat4_s,@function
+ra_sp_mat4_s = ra_k_mat4_vec4_r
+	.globl	ra_sp_saxpy_s
+	.type	ra_sp_saxpy_s,@function
+ra_sp_saxpy_s = ra_k_saxpy_r
 .Lra_anon.c4ad4bf0cb04114197cf469a12acc631.1 = .Lra__MergedGlobals
 	.size	.Lra_anon.c4ad4bf0cb04114197cf469a12acc631.1, 16
 .Lra_anon.c4ad4bf0cb04114197cf469a12acc631.0 = .Lra__MergedGlobals+16

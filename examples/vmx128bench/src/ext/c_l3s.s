@@ -1,4 +1,4 @@
-# kernels.c: clang version 22.1.8 (git@github.com:landaire/llvm-project.git 5f59e9fff8d5dc5b1fa65127b3579d4b1a71f950)
+# kernels.c: clang version 22.1.8 (git@github.com:landaire/llvm-project.git 2f714b11080e5a449de3969e3c4477cf5cbe92ab)
 # flags: --target=powerpc64-unknown-xbox360 -ffreestanding -fno-builtin -fms-extensions -ffunction-sections -fdata-sections -fno-ident -fno-addrsig -fno-asynchronous-unwind-tables -g0 -O3 -mno-altivec
 	.section	.text.l3s_k_saxpy,"ax",@progbits
 	.globl	l3s_k_saxpy                     # -- Begin function l3s_k_saxpy
@@ -361,7 +361,6 @@ l3s_k_dot_i16:                          # @l3s_k_dot_i16
 	stwu 1, -48(1)
 	li 6, 0
 	li 7, 0
-	std 29, 16(1)                           # 8-byte Folded Spill
 	std 30, 24(1)                           # 8-byte Folded Spill
 	beq	0, .Ll3s_BB8_5
 # %bb.2:                                # %vector.ph
@@ -372,15 +371,19 @@ l3s_k_dot_i16:                          # @l3s_k_dot_i16
 	li 10, 0
 .Ll3s_BB8_3:                                # %vector.body
                                         # =>This Inner Loop Header: Depth=1
-	lhau 12, 4(9)
+	lhzu 12, 4(8)
 	addi 11, 11, -2
 	cmplwi	11, 0
-	lhau 0, 4(8)
-	mullw 12, 12, 0
+	lhzu 0, 4(9)
+	extsh 12, 12
+	extsh 0, 0
+	lhz 30, 2(8)
+	mullw 12, 0, 12
 	add 6, 12, 6
-	lha 30, 2(8)
-	lha 29, 2(9)
-	mullw 0, 29, 30
+	lhz 0, 2(9)
+	extsh 30, 30
+	extsh 0, 0
+	mullw 0, 0, 30
 	add 10, 0, 10
 	bne	0, .Ll3s_BB8_3
 # %bb.4:                                # %middle.block
@@ -395,16 +398,17 @@ l3s_k_dot_i16:                          # @l3s_k_dot_i16
 	add 4, 4, 7
 .Ll3s_BB8_6:                                # %for.body
                                         # =>This Inner Loop Header: Depth=1
-	lhau 7, 2(4)
+	lhzu 7, 2(3)
 	addi 5, 5, -1
 	cmplwi	5, 0
-	lhau 8, 2(3)
-	mullw 7, 7, 8
+	lhzu 8, 2(4)
+	extsh 7, 7
+	extsh 8, 8
+	mullw 7, 8, 7
 	add 6, 7, 6
 	bne	0, .Ll3s_BB8_6
 .Ll3s_BB8_7:
 	ld 30, 24(1)                            # 8-byte Folded Reload
-	ld 29, 16(1)                            # 8-byte Folded Reload
 	addi 1, 1, 48
 	mr	3, 6
 	blr
@@ -1259,36 +1263,32 @@ l3s_k_clamp_i16_r:                      # @l3s_k_clamp_i16_r
 	beq	0, .Ll3s_BB22_12
 .Ll3s_BB22_4:                               # %vector.body
                                         # =>This Inner Loop Header: Depth=1
-	lhau 10, 4(7)
+	lhzu 10, 4(7)
+	extsh 10, 10
 	cmpwi	10, -1000
-	ble 0, .Ll3s_BB22_8
+	bgt	0, .Ll3s_BB22_6
 # %bb.5:                                # %vector.body
                                         #   in Loop: Header=BB22_4 Depth=1
-	cmpwi	10, 1000
-	bge 0, .Ll3s_BB22_9
+	li 10, -1000
 .Ll3s_BB22_6:                               # %vector.body
                                         #   in Loop: Header=BB22_4 Depth=1
-	lha 11, 2(7)
-	cmpwi	11, -1000
+	cmpwi	10, 1000
+	blt	0, .Ll3s_BB22_8
+# %bb.7:                                # %vector.body
+                                        #   in Loop: Header=BB22_4 Depth=1
+	li 10, 1000
+.Ll3s_BB22_8:                               # %vector.body
+                                        #   in Loop: Header=BB22_4 Depth=1
+	lhz 11, 2(7)
+	extsh 11, 11
 	sthu 10, 4(8)
+	cmpwi	11, -1000
 	ble 0, .Ll3s_BB22_10
-.Ll3s_BB22_7:                               # %vector.body
+# %bb.9:                                # %vector.body
                                         #   in Loop: Header=BB22_4 Depth=1
 	cmpwi	11, 1000
 	blt	0, .Ll3s_BB22_3
 	b .Ll3s_BB22_11
-.Ll3s_BB22_8:                               # %vector.body
-                                        #   in Loop: Header=BB22_4 Depth=1
-	li 10, -1000
-	cmpwi	10, 1000
-	blt	0, .Ll3s_BB22_6
-.Ll3s_BB22_9:                               # %vector.body
-                                        #   in Loop: Header=BB22_4 Depth=1
-	li 10, 1000
-	lha 11, 2(7)
-	cmpwi	11, -1000
-	sthu 10, 4(8)
-	bgt	0, .Ll3s_BB22_7
 .Ll3s_BB22_10:                              # %vector.body
                                         #   in Loop: Header=BB22_4 Depth=1
 	li 11, -1000
@@ -1316,7 +1316,8 @@ l3s_k_clamp_i16_r:                      # @l3s_k_clamp_i16_r
 	beqlr	0
 .Ll3s_BB22_15:                              # %for.body
                                         # =>This Inner Loop Header: Depth=1
-	lhau 6, 2(4)
+	lhzu 6, 2(4)
+	extsh 6, 6
 	cmpwi	6, -1000
 	ble 0, .Ll3s_BB22_17
 # %bb.16:                               # %for.body
@@ -1481,53 +1482,46 @@ l3s_k_f2i_r:                            # @l3s_k_f2i_r
 	cmpwi	5, 1
 	bltlr	0
 # %bb.1:                                # %for.body.preheader
-	stwu 1, -32(1)
 	li 6, 0
 	beq	0, .Ll3s_BB25_5
 # %bb.2:                                # %vector.ph
 	rlwinm 6, 5, 0, 1, 30
 	addi 7, 4, -8
-	addi 8, 3, -8
-	addi 9, 1, 28
-	addi 10, 1, 24
-	mr	11, 6
+	addi 11, 3, -8
+	li 8, 8
+	li 9, 12
+	mr	10, 6
 .Ll3s_BB25_3:                               # %vector.body
                                         # =>This Inner Loop Header: Depth=1
 	lfsu 0, 8(7)
-	addi 11, 11, -2
-	cmplwi	11, 0
+	addi 10, 10, -2
+	addi 12, 11, 8
+	cmplwi	10, 0
 	fctiwz 0, 0
-	stfiwx 0, 0, 9
-	lfs 0, 4(7)
-	lwz 12, 28(1)
-	fctiwz 0, 0
-	stwu 12, 8(8)
-	stfiwx 0, 0, 10
-	lwz 12, 24(1)
-	stw 12, 4(8)
+	lfs 1, 4(7)
+	stfiwx 0, 11, 8
+	fctiwz 0, 1
+	stfiwx 0, 11, 9
+	mr	11, 12
 	bne	0, .Ll3s_BB25_3
 # %bb.4:                                # %middle.block
 	cmplw	5, 6
-	beq	0, .Ll3s_BB25_7
+	beqlr	0
 .Ll3s_BB25_5:                               # %for.body.preheader7
 	slwi 7, 6, 2
 	sub	5, 5, 6
-	addi 7, 7, -4
-	addi 6, 1, 20
-	add 4, 4, 7
-	add 3, 3, 7
+	addi 6, 7, -4
+	add 4, 4, 6
+	add 3, 3, 6
 .Ll3s_BB25_6:                               # %for.body
                                         # =>This Inner Loop Header: Depth=1
 	lfsu 0, 4(4)
 	addi 5, 5, -1
+	addi 3, 3, 4
 	cmplwi	5, 0
 	fctiwz 0, 0
-	stfiwx 0, 0, 6
-	lwz 7, 20(1)
-	stwu 7, 4(3)
+	stfiwx 0, 0, 3
 	bne	0, .Ll3s_BB25_6
-.Ll3s_BB25_7:
-	addi 1, 1, 32
 	blr
 .Ll3s_func_end25:
 	.size	l3s_k_f2i_r, .Ll3s_func_end25-.Ll3s_func_begin25

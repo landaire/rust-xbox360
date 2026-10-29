@@ -261,7 +261,10 @@ pub fn unpack_d3d<const KIND: u32>(value: u32x4) -> f32x4 {
 ///
 /// # Safety
 ///
-/// `p..(p | 15) + 1` must be readable.
+/// `p..(p | 15) + 1` must be readable cached memory. Do not use this
+/// instruction on uncached or write-combined mappings: `lvlx128` faults
+/// with an alignment exception on physical write-combined memory even
+/// when the requested bytes are mapped.
 #[inline(always)]
 pub unsafe fn load_left<T: Vector>(p: *const u8) -> T {
     // SAFETY: the caller guarantees the bytes are readable.
@@ -274,7 +277,9 @@ pub unsafe fn load_left<T: Vector>(p: *const u8) -> T {
 ///
 /// # Safety
 ///
-/// `(p & !15)..p` must be readable.
+/// `(p & !15)..p` must be readable cached memory. Uncached and
+/// write-combined mappings are not supported by these native partial
+/// vector operations.
 #[inline(always)]
 pub unsafe fn load_right<T: Vector>(p: *const u8) -> T {
     // SAFETY: the caller guarantees the bytes are readable.
@@ -308,7 +313,9 @@ pub unsafe fn load_right_lru<T: Vector>(p: *const u8) -> T {
 ///
 /// # Safety
 ///
-/// `p..(p | 15) + 1` must be writable.
+/// `p..(p | 15) + 1` must be writable cached memory. Uncached and
+/// write-combined mappings are not supported by these native partial
+/// vector operations.
 #[inline(always)]
 pub unsafe fn store_left<T: Vector>(value: T, p: *mut u8) {
     // SAFETY: the caller guarantees the bytes are writable.
@@ -320,7 +327,9 @@ pub unsafe fn store_left<T: Vector>(value: T, p: *mut u8) {
 ///
 /// # Safety
 ///
-/// `(p & !15)..p` must be writable.
+/// `(p & !15)..p` must be writable cached memory. Uncached and
+/// write-combined mappings are not supported by these native partial
+/// vector operations.
 #[inline(always)]
 pub unsafe fn store_right<T: Vector>(value: T, p: *mut u8) {
     // SAFETY: the caller guarantees the bytes are writable.
@@ -353,7 +362,9 @@ pub unsafe fn store_right_lru<T: Vector>(value: T, p: *mut u8) {
 ///
 /// # Safety
 ///
-/// `p..p + 16` must be readable.
+/// `p..p + 16` must be readable cached memory. This uses native partial
+/// vector loads, not ordinary LLVM unaligned-load lowering, and must not
+/// be used on uncached or write-combined mappings.
 #[inline(always)]
 pub unsafe fn load_unaligned<T: Vector>(p: *const u8) -> T {
     // SAFETY: the two loads read exactly `p..p + 16`.
@@ -365,7 +376,9 @@ pub unsafe fn load_unaligned<T: Vector>(p: *const u8) -> T {
 ///
 /// # Safety
 ///
-/// `p..p + 16` must be writable.
+/// `p..p + 16` must be writable cached memory. This uses native partial
+/// vector stores, not ordinary LLVM unaligned-store lowering, and must
+/// not be used on uncached or write-combined mappings.
 #[inline(always)]
 pub unsafe fn store_unaligned<T: Vector>(value: T, p: *mut u8) {
     let words = value.to_words();
