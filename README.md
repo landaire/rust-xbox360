@@ -114,6 +114,11 @@ constraint.
 
 [buck2-rustc-bootstrap]: https://github.com/landaire-contrib/buck2-rustc-bootstrap
 
+The PPC64 target enables AltiVec and VMX128: LLVM allocates all 128 vector
+registers and passes 16-byte vectors in v1-v13 as the console compiler does.
+`docs/xenon-instructions.md` describes the convention, and the
+`xbox360-vmx128` crate the VMX128-only operations.
+
 The PPC64 build still produces big-endian `elf32-powerpc` intermediates and
 32-bit addresses. Its ABI bridges use 64-bit `std` and `ld` instructions to
 preserve the full nonvolatile registers. The final targets remain XEX files.
@@ -313,6 +318,7 @@ Sizes are in bytes. The loaded image is every section the loader maps, `.rodata`
 | `crates/xbox360-asm-rewrite` | The register save and restore rewrite, and the reservation check. |
 | `crates/xbox360-sys` | Kernel and XAM imports, exports and console-ABI entry bridges. |
 | `crates/xbox360` | Safe wrappers over `xbox360-sys`. |
+| `crates/xbox360-vmx128` | VMX128 vector operations for the PPC64 toolchain. |
 | `targets/` | The custom rustc target specification. |
 | `toolchain/rust-std-xbox360` | The standard-library overlay. |
 | `sysroot/` | Buck2 rules for the standard library crates. |
@@ -406,8 +412,9 @@ multiple of the page size: 64 KB, or 4 KB with `SMALL_PAGES`.
 | `stdhello` | Yes | Allocation, threads, and files. |
 | `tokweb` | Yes | tokio async runtime with an HTTP request to a host server. |
 | `chello` | No | C title, built with `clang`. |
+| `vmx128test` | Yes | PPC64 only. Checks `xbox360-vmx128`, vector code from `core::simd`, the use of v32-v127, and the vector calling convention against code compiled by the console compiler. |
 
-Every example builds with Buck2. With Cargo, the Rust titles marked "No" other than `library-check` and `resources` build with step 4, and those marked "Yes" with step 5. `hello2`, `threads`, `net` and `chello` declare their own import thunks instead of using `xbox360-sys`.
+Every example builds with Buck2. With Cargo, the Rust titles marked "No" other than `library-check` and `resources` build with step 4, and those marked "Yes" with step 5. `hello2`, `threads`, `net` and `chello` declare their own import thunks instead of using `xbox360-sys`. `vmx128test` builds only with Buck2, with `--target-platforms xbox360//platforms:ppc64`; other platforms skip it.
 
 ## Further reading
 

@@ -1,0 +1,19 @@
+load("//buck:xex.bzl", "xbox360_title")
+
+# VMX128 exists only on the PPC64 toolchain:
+# bin/buck2 build --target-platforms xbox360//platforms:ppc64 //examples/vmx128test:vmx128test
+xbox360_title(
+    name = "vmx128test",
+    srcs = glob(["src/**/*.rs", "src/**/*.s"]),
+    crate_root = "src/main.rs",
+    edition = "2024",
+    link_script = "link.x",
+    manifest = "xex.toml",
+    std = True,
+    rewrite = True,
+    target_compatible_with = ["xbox360//platforms:codegen[ppc64-ilp32]"],
+    deps = [
+        "//crates/xbox360:xbox360",
+        "//crates/xbox360-vmx128:xbox360-vmx128",
+    ],
+)

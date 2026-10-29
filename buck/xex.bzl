@@ -624,6 +624,10 @@ def xbox360_title(
     sysroot = sysroots[std]
 
     crate = kwargs.pop("crate", name.replace("-", "_"))
+
+    # Applies to every rule of the title, so that a title limited to one
+    # code generation (such as VMX128 code on PPC64) is skipped elsewhere.
+    compatible_with = kwargs.pop("target_compatible_with", [])
     if type(resources) == type({}):
         xex_resources(
             name = name + "-resources",
@@ -636,6 +640,7 @@ def xbox360_title(
             crate = crate,
             link_script = link_script,
             rustc_flags = rustc_flags,
+            target_compatible_with = compatible_with,
             **kwargs
         )
         xex_from_assembly(
@@ -643,6 +648,7 @@ def xbox360_title(
             executable = ":{}-executable".format(name),
             manifest = manifest,
             resources = resources,
+            target_compatible_with = compatible_with,
             visibility = visibility,
         )
         return
@@ -661,7 +667,7 @@ def xbox360_title(
             "-Clink-arg=-T$(location :{}-link-script)".format(name),
             "-Clink-arg=--no-rosegment",
         ] + rustc_flags,
-        target_compatible_with = ["xbox360//platforms:target[xbox]"],
+        target_compatible_with = ["xbox360//platforms:target[xbox]"] + compatible_with,
         **kwargs
     )
     _XEX_RULES[sysroot](
@@ -669,5 +675,6 @@ def xbox360_title(
         elf = ":{}-elf".format(name),
         manifest = manifest,
         resources = resources,
+        target_compatible_with = compatible_with,
         visibility = visibility,
     )
