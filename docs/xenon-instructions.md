@@ -35,29 +35,108 @@ codegen. Kernel structures come from the binja-xex2 `ntos` headers.
 
 ## SIMD (VMX / VMX128)
 
-- 128 vector registers (Vr0-Vr127), double stock AltiVec's 32. The console
-  compiler preserves v64-v127 across calls; v0-v63 are volatile.
-- Unaligned SIMD idiom: `lvlx`/`lvrx` (+ `stvlx`/`stvrx`) with `lvsl`/`lvsr`
-  shift-control vectors.
-- VMX128-only ops (graphics): `vmsum3fp128`/`vmsum4fp128` (dot products),
-  `vpermwi128`, `vrlimi128`, `vpkd3d128`/`vupkd3d128` (hardware pack/unpack to
-  D3DCOLOR, FLOAT16, normalized-short). Upstream LLVM does not model VMX128
-  natively; emit via inline `.long` if needed.
+- 128 vector registers (v0-v127), four times stock AltiVec's 32. Xenon has no
+  VSX, no vector integer multiply, and lacks some AltiVec instructions
+  (`vmsum*`, `vmul[eo]*`, `vsum*`, `vmh[r]addshs`, `vmladduhm`, `dst*`);
+  LLVM expands their intrinsics into scalar code.
+- The PPC64 target (`+altivec,+vmx128`) allocates all 128 registers and emits
+  the VMX128 forms for float arithmetic, fused multiply-add, min/max,
+  estimates, rounding, conversions, compares, logical operations, selects,
+  word shifts, permutes, splats and aligned loads and stores. Integer
+  add/subtract/compare/min/max and byte or halfword operations have no
+  VMX128 form and stay in v0-v31. The 128 forms run at the same speed as
+  the classic forms, also in v64-v127. The PPC32 target does not use vector
+  registers above v31.
+- `lvsl128` and `lvsr128` raise an illegal instruction exception on the
+  console; the classic `lvsl`/`lvsr` work. All other VMX128 loads and stores
+  (`lvx128`, `lvxl128`, `lvlx128`, `lvrx128`, `lvlxl128`, `lvrxl128` and the
+  stores) execute.
+- Unaligned access: `lvlx(p) | lvrx(p + 16)` loads the 16 bytes at `p`;
+  `stvlx(v, p); stvrx(v, p + 16)` stores them. With `n = p & 15`, `lvlx`
+  loads `p..(p | 15)` into bytes `0..16 - n` and `lvrx` loads
+  `(p & !15)..p` into bytes `16 - n..16` (nothing when `p` is aligned); the
+  other bytes are zero.
+- VMX128-only operations: `vmsum3fp128`/`vmsum4fp128` (dot products),
+  `vpermwi128` (word permute by immediate), `vrlimi128` (rotate and insert
+  words), `vpkd3d128`/`vupkd3d128` (D3D vertex format pack and unpack).
+  The dot products are not exactly rounded: they are exact for
+  non-negative integer-valued inputs, (1,1,1,1).(1,-1,1,-1) gives -2^-28
+  instead of 0, and over 65536 random inputs the error was at most 3.96
+  units in the last place of the largest product. `vpkd3d128` takes every
+  integer field as `3.0 + x * 2^-22` and saturates (signed fields to
+  `±(2^(w-1) - 1)`); `vupkd3d128` gives unsigned fields as `1.0 + x * 2^-23`
+  and signed ones as `3.0 + x * 2^-22`; half floats have no infinity or NaN
+  and pack by truncation.
+
+### Vector calling convention (PPC64 target)
+
+The same as the console compiler's, for `extern "C"` and `extern "system"`:
+
+- 16-byte vectors of `f32` or of integers up to 32 bits (`core::simd::f32x4`,
+  `i32x4`, `u8x16`, ..., and `#[repr(transparent)]` wrappers, the
+  equivalent of `__vector4`) are passed in v1-v13 and returned in v1. They
+  use no GPR or FPR. Each takes a 16-byte aligned slot of the parameter
+  area; the fourteenth and later vectors are stored there.
+- Other SIMD types (`f64x2`, 8- or 32-byte vectors) and structs containing
+  vectors are passed like structs of the same size. Vectors cannot be
+  passed to variadic functions.
+- v64-v127 are callee-saved, v0-v63 are volatile (v14-v31 included, unlike
+  the AltiVec SVR4 ABI). A function saves the ones it uses below the GPR
+  and FPR save areas, `vN` at `B - 16 * (128 - N)` from the incoming stack
+  pointer with `B = -align16(8 + 8 * GPRs + 8 * FPRs)`, before the frame is
+  allocated. VRSAVE and VSCR are not part of the convention.
+- Structs of 1, 2 or 4 bytes pass right-justified in a GPR, 3 and 5 to 8
+  bytes left-justified, larger ones in memory; only 1, 2, 4 and 8 byte
+  structs return in r3, the others through a hidden pointer. `char` is
+  signed, so `core::ffi::c_char` is `i8` on both targets.
+
+`examples/vmx128test` checks this against functions compiled by the console
+compiler, in both directions, including 70 vectors kept live across calls.
+
+### Rust
+
+The `xbox360-vmx128` crate (PPC64 only, nightly features) wraps the
+operations without a portable form, with immediates as const generics:
+
+```rust
+use core::simd::f32x4;
+use xbox360_vmx128 as vmx;
+
+let d = vmx::dot3(a, b); // every word: a.x*b.x + a.y*b.y + a.z*b.z
+let r = vmx::permute_words::<0xE4, _>(v); // reverse the words
+let packed = vmx::pack_d3d::<{ vmx::d3d::FLOAT16_4 }, 2, 0>(into, v);
+let x: f32x4 = unsafe { vmx::load_unaligned(ptr) };
+```
+
+Everything else is plain `core::simd`. `f32x4::simd_min`/`simd_max` do not
+compile yet (LLVM cannot select `llvm.minimumnum` for AltiVec without VSX).
+
+### Vector registers in inline assembly
+
+The PPC64 assembler accepts every VMX128 mnemonic, with registers written
+as numbers (`vaddfp128 100, 2, 127`; `lvx128 64, 0, 3`). Rust `asm!`
+operands and clobbers name only v0-v31 (`vreg`), and `clobber_abi("C")`
+lists only v0-v19, although the convention lets a callee change v0-v63. An
+asm block may use v32-v127 only if it saves and restores them itself, since
+the compiler can hold values in any of them. Code that uses many registers
+is simpler as a `global_asm!` function that follows the convention: v0-v63
+are free, v64-v127 must be saved (see `examples/vmx128test/src/probes.s`).
+On the PPC32 target the VMX128 instructions need `.long` words.
 
 ## Inline assembly
 
 The assembler accepts the 64-bit and supervisor mnemonics for this target
 (`ld`, `std`, `ldarx`, `stdcx.`, `cmpd`, `rldimi`, `rldicl`, `mtmsrd`), even
 though the CPU model is 32-bit. `dcbz128` has no mnemonic; `dcbzl` assembles to
-the same word. `asm!(".long 0x...")` emits a 32-bit PPC word inline for
-instructions the assembler lacks: `lvlx`/`lvrx`/`stvlx`/`stvrx` and the VMX128
-operations.
+the same word. On the PPC32 target, `asm!(".long 0x...")` emits a 32-bit PPC
+word inline for instructions the assembler lacks: `lvlx`/`lvrx`/`stvlx`/`stvrx`
+and the VMX128 operations. The PPC64 assembler accepts them.
 
 ## Target specifications
 
 The default `powerpc-unknown-xbox360` target uses 32-bit PowerPC code generation and keeps 64-bit integers in register pairs.
 
-The experimental `powerpc64-unknown-xbox360` target enables LLVM's `+xbox360` feature. It retains 32-bit pointers and ELF32 output, but passes and returns each `i64` in one 64-bit GPR. The feature also reserves the 16-byte linkage area and eight 8-byte argument home slots observed in genuine binaries. It uses the console compiler's frame layout (LR at SP-8 before `stwu`, CR at -4, full-width GPR saves from -16 down, FPRs below them), returns the `sret` pointer in `r3`, does not extend `i8`/`i16` arguments or returns, never widens copies past their known alignment, and probes the stack every 4 KiB. It treats every vector register as volatile and rejects vector arguments. Code is static by default; position-independent code follows the 32-bit ELF PIC model. It requires the matching experimental LLVM and Rust compiler builds. The unmodified Rust 1.98 release has neither the LLVM target nor the Xbox aggregate ABI classifier.
+The experimental `powerpc64-unknown-xbox360` target enables LLVM's `+xbox360` feature. It retains 32-bit pointers and ELF32 output, but passes and returns each `i64` in one 64-bit GPR. The feature also reserves the 16-byte linkage area and eight 8-byte argument home slots observed in genuine binaries. It uses the console compiler's frame layout (LR at SP-8 before `stwu`, CR at -4, full-width GPR saves from -16 down, FPRs below them), returns the `sret` pointer in `r3`, does not extend `i8`/`i16` arguments or returns, never widens copies past their known alignment, and probes the stack every 4 KiB. It enables AltiVec and VMX128 and uses the console compiler's vector calling convention (see above). Code is static by default; position-independent code follows the 32-bit ELF PIC model. It requires the matching experimental LLVM and Rust compiler builds. The unmodified Rust 1.98 release has neither the LLVM target nor the Xbox aggregate ABI classifier.
 
 Buck exposes matching `xbox360-ppc64-ilp32-core`, `-std`, `-std-system`, and `-sysroot` platforms. The standard platforms and target remain the default.
 

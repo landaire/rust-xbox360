@@ -9,7 +9,7 @@
   "env": "",
   "vendor": "unknown",
   "cpu": "generic",
-  "features": "+hard-float",
+  "features": "+hard-float,+altivec,+vmx128",
   "linker": "rust-lld",
   "linker-flavor": "gnu-lld",
   "panic-strategy": "abort",
