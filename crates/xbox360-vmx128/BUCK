@@ -1,0 +1,13 @@
+rust_library(
+    name = "xbox360-vmx128",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "xbox360_vmx128",
+    crate_root = "src/lib.rs",
+    edition = "2024",
+    # VMX128 exists only on the PPC64 toolchain.
+    target_compatible_with = [
+        "//platforms:codegen[ppc64-ilp32]",
+        "//platforms:target[xbox]",
+    ],
+    visibility = ["PUBLIC"],
+)

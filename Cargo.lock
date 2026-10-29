@@ -1415,6 +1415,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "xbox360-vmx128"
+version = "0.1.0"
+
+[[package]]
 name = "xbox360-xam"
 version = "0.2.0"
 dependencies = [

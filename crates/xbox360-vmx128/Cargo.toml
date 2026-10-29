@@ -1,0 +1,15 @@
+[package]
+name = "xbox360-vmx128"
+version = "0.1.0"
+edition = "2024"
+description = "Xenon VMX128 vector operations for the Xbox 360 PPC64 toolchain"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/landaire/rust-xbox360"
+keywords = ["xbox360", "xenon", "vmx128", "simd", "no_std"]
+categories = ["no-std", "embedded", "hardware-support"]
+exclude = ["BUCK"]
+# Needs nightly features (LLVM intrinsics, portable SIMD) of the PPC64 toolchain.
+publish = false
+
+[lib]
+path = "src/lib.rs"
