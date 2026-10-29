@@ -52,7 +52,16 @@ and Xenia's XSocket::SendTo network byte order (committed in the xenia checkout)
 - [ ] Build std for the target.
 - [ ] A plain stdlib program using std::thread and std::net runs in Xenia.
 
+## Console SIMD
+
+- [x] VMX128 assembly, disassembly and code generation with 128 vector registers.
+- [x] Console vector calling convention, including v64-v127 preservation.
+- [x] Rust portable SIMD and VMX128-specific operations: 71 console checks pass.
+- [x] SF=0-aware 64-bit integer lowering and explicit inline-assembly clobbers.
+- [x] Console instruction costs, bandwidth and LLVM/SDK compiler comparison,
+      with 2808 independently checked output cases; see `docs/vmx128-measurements.md`.
+
 ## Deferred
 
-- VMX128 codegen, `.pdata` unwind, millicode helpers, LZX compression of the
+- `.pdata` unwind, millicode helpers, LZX compression of the
   XEX, retail encryption, real signing, exception handling/unwinding.

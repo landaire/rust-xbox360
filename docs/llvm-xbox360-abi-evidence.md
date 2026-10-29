@@ -634,10 +634,10 @@ __savevmx_64:  3960fc00  li       r11, -1024
 
 `v0`-`v63` are volatile and `v64`-`v127` are preserved. The helper block for
 `v14`-`v31` exists in the library, but no compiled function was seen to call
-it. LLVM does not model `v32`-`v127`, so it treats every vector register it can
-allocate as volatile and spills vector values that are live across a call.
-Vector arguments and returns (`__vector4` in `v1`, `v2`, ... and returned in
-`v1`) are diagnosed by LLVM.
+it. The VMX128 target models all 128 registers and preserves v64-v127.
+Supported 16-byte vectors use v1-v13 for arguments and v1 for results;
+arguments beyond v13 use 16-byte stack slots. The console ABI and SIMD
+probes are in `examples/vmx128test`.
 
 ## Stack probes
 
@@ -823,8 +823,14 @@ The current experimental patch implements the evidence-backed subset:
 - LR is stored at incoming SP-8 before `stwu` and reloaded from there after
   the frame is released. CR uses the fixed `-4` word, full-width GPR saves use
   `X31` at -16 through `X14` at -152, and FPR saves lie below the GPR area.
-- No vector register is callee-saved; vector values live across a call are
-  spilled. Vector arguments and returns are diagnosed.
+- VMX128 enables 128 vector registers. Registers v0-v63 are volatile and
+  v64-v127 are preserved. Supported 16-byte vectors pass in v1-v13 and
+  return in v1; integer element sizes are 8, 16 and 32 bits, and floating
+  elements are f32.
+- Titles run with MSR[SF]=0. Integer record-form elimination and
+  compare-in-GPR transforms that require SF=1 are disabled. Unsigned
+  64-bit carry tests use explicit comparisons rather than the 32-bit XER
+  carry result. CTR hardware loops are disabled for 64-bit counts.
 - `sret` functions return the hidden result pointer in `r3`.
 - Copies and `memset` use accesses no wider than their known alignment, and
   stores are not merged past it.
@@ -882,10 +888,8 @@ The following items remain separate work and must not be claimed as implemented:
 
 - Exact MSVC helper-thunk prologue selection and `.pdata` emission.
 - Big-endian PowerPC COFF/PE object emission and relocations.
-- VMX128 register and instruction support, including preservation of
-  `v64`-`v127` and vector arguments in `v1` onward.
-- A checked model for vectors, integers wider than 128 bits, variadic
-  aggregates, and direct `f32` variadic IR.
+- A checked model for integers wider than 128 bits, variadic aggregates,
+  and direct `f32` variadic IR.
 - Dedicated hypervisor-call intrinsics or assembly stubs.
 
 Known limitation: `xex-link` writes no default stack size header, so the main

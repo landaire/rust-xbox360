@@ -3,6 +3,31 @@
 Instruction and ABI facts that inform the `powerpc-unknown-xbox360` target and
 codegen. Kernel structures come from the binja-xex2 `ntos` headers.
 
+## Execution mode
+
+Console title probes read MSR[SF]=0. Instruction availability, register
+width, pointer width, ABI width and execution mode are separate properties.
+
+- Integer record forms classify the low 32 bits, including `rldicl.`,
+  `srd.`, `add.`, `and.` and `mulld.`. They cannot replace doubleword
+  comparisons. Explicit `cmpd`, `cmpld`, `cmpdi` and `cmpldi` compare all
+  64 bits.
+- Add/subtract carry and overflow flags use the low word. Doubleword
+  overflowing arithmetic and multiword carry chains require explicit
+  doubleword comparisons. `srad`/`sradi` carry uses the doubleword sign
+  and shifted-out bits; `sradi` followed by `addze` remains valid.
+- CTR retains 64 bits, but `bdnz`/`bdz` test only the low word after
+  decrement. Counts larger than 32 bits cannot use CTR loops.
+- Loads use the low 32 bits of the effective address. Update forms
+  retain the full computed base register value.
+
+`examples/sfmode` probes each instruction in assembly, without relying on
+compiler-generated doubleword comparisons. The SF=0 and SF=1 passes
+produced 140 result lines with no unexpected result. A separate
+compiler-output probe tested 11 boundary cases across eight outputs:
+the previous compiler produced 13 incorrect outputs; the execution-mode
+fix produced none.
+
 ## Atomics / reservations
 
 - Reservations use `lwarx`/`stwcx.` and, for 64-bit, `ldarx`/`stdcx.`.
@@ -108,20 +133,34 @@ let packed = vmx::pack_d3d::<{ vmx::d3d::FLOAT16_4 }, 2, 0>(into, v);
 let x: f32x4 = unsafe { vmx::load_unaligned(ptr) };
 ```
 
-Everything else is plain `core::simd`. `f32x4::simd_min`/`simd_max` do not
-compile yet (LLVM cannot select `llvm.minimumnum` for AltiVec without VSX).
+Everything else is plain `core::simd`, including
+`f32x4::simd_min`/`simd_max` without VSX.
 
 ### Vector registers in inline assembly
 
 The PPC64 assembler accepts every VMX128 mnemonic, with registers written
 as numbers (`vaddfp128 100, 2, 127`; `lvx128 64, 0, 3`). Rust `asm!`
-operands and clobbers name only v0-v31 (`vreg`), and `clobber_abi("C")`
-lists only v0-v19, although the convention lets a callee change v0-v63. An
-asm block may use v32-v127 only if it saves and restores them itself, since
-the compiler can hold values in any of them. Code that uses many registers
-is simpler as a `global_asm!` function that follows the convention: v0-v63
-are free, v64-v127 must be saved (see `examples/vmx128test/src/probes.s`).
+operands can name v0-v127 explicitly when VMX128 is enabled. The `vreg`
+class allocates v0-v31, so it remains usable with classic AltiVec
+instructions. `clobber_abi("C")` and `clobber_abi("system")` on the PPC64
+Xbox target include v0-v63; v64-v127 remain callee-saved. With VMX128
+disabled, high-register clobbers reserve no allocatable vector values.
+An assembly block must declare every register it changes. A
+`global_asm!` function must follow the convention: v0-v63 are free,
+v64-v127 must be saved (see `examples/vmx128test/src/probes.s`).
 On the PPC32 target the VMX128 instructions need `.long` words.
+
+### Console verification
+
+`examples/vmx128test/run.sh /tmp/vmx128test-run` builds and runs the SIMD
+and vector ABI tests, including SDK-compiled functions from our own C
+sources. `examples/sfmode/run.sh /tmp/sfmode-run` probes execution-mode
+semantics. `examples/vmx128bench/run.sh /tmp/vmx128bench-run` measures
+instruction costs, bandwidth and compiler output. Set `XBOX` and
+`XEEDEE` for another development kit or client. Each runner serializes
+console access and saves the debug log and result file.
+The [measurement report](vmx128-measurements.md) records the final timing,
+bandwidth, compiler comparison and raw console data.
 
 ## Inline assembly
 
@@ -145,6 +184,26 @@ Both targets have a maximum atomic width of 64 bits. The standard-library overla
 Xenon predates VSX. Enable AltiVec if used, but do not enable `+vsx`. Xenon has `isel` and the `fsel`, `fres`, and `frsqrte` estimates. LLVM has no `-mcpu=xenon` model.
 
 The reverse-engineered evidence and remaining LLVM gaps are in [`llvm-xbox360-abi-evidence.md`](llvm-xbox360-abi-evidence.md).
+
+### LLVM target predicates
+
+Keep instruction width, pointer width, ABI and execution mode separate.
+The PowerPC backend uses these shared predicates rather than repeating
+Xbox/PPC64 combinations at individual call sites:
+
+| Predicate | Decision |
+| --- | --- |
+| `isPPC64()` | 64-bit instructions and register classes |
+| Data-layout pointer type | 32-bit or 64-bit addresses |
+| `usesPPC64ABI()` | 64-bit ABI rules; false for the Xbox ILP32 ABI |
+| `uses32BitSVR4ABI()` | SVR4 paths shared by PPC32 and Xbox ILP32 |
+| `is32BitELFABI()` | Original PPC32-only rules, including CR spills |
+| `uses64BitExecutionMode()` | MSR[SF]-dependent optimizations |
+
+`PPC::getTargetFeatureString()` supplies the same Xbox defaults to the
+assembler and target machine. VMX128 is enabled by default and accepts an
+explicit `-vmx128`; the Xbox ABI feature cannot be disabled independently
+of the target's data layout.
 
 ## Kernel ABI notes discovered building the std backend
 

@@ -413,8 +413,10 @@ multiple of the page size: 64 KB, or 4 KB with `SMALL_PAGES`.
 | `tokweb` | Yes | tokio async runtime with an HTTP request to a host server. |
 | `chello` | No | C title, built with `clang`. |
 | `vmx128test` | Yes | PPC64 only. Checks `xbox360-vmx128`, vector code from `core::simd`, the use of v32-v127, and the vector calling convention against code compiled by the console compiler. |
+| `vmx128bench` | Yes | PPC64 only. Instruction latency, throughput, memory bandwidth and compiler auto-vectorization measurements. |
+| `sfmode` | Yes | PPC64 only. MSR[SF], integer condition codes, carry and CTR probes. |
 
-Every example builds with Buck2. With Cargo, the Rust titles marked "No" other than `library-check` and `resources` build with step 4, and those marked "Yes" with step 5. `hello2`, `threads`, `net` and `chello` declare their own import thunks instead of using `xbox360-sys`. `vmx128test` builds only with Buck2, with `--target-platforms xbox360//platforms:ppc64`; other platforms skip it.
+Every example builds with Buck2. With Cargo, the Rust titles marked "No" other than `library-check` and `resources` build with step 4, and those marked "Yes" with step 5. `hello2`, `threads`, `net` and `chello` declare their own import thunks instead of using `xbox360-sys`. `vmx128test`, `vmx128bench` and `sfmode` build only with Buck2, with `--target-platforms xbox360//platforms:ppc64`; other platforms skip them.
 
 ## Further reading
 
@@ -426,3 +428,5 @@ Every example builds with Buck2. With Cargo, the Rust titles marked "No" other t
 - `docs/llvm-integration.md`: why the ELF-to-XEX conversion is an external
   post-link step rather than part of LLVM.
 - `docs/xenon-instructions.md`: Xenon instruction and kernel-ABI reference.
+- `docs/vmx128-measurements.md`: console instruction costs, bandwidth and
+  LLVM/SDK compiler comparison, with raw measurements and reproduction commands.
