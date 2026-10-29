@@ -1,0 +1,14 @@
+load("//buck:xex.bzl", "xbox360_title")
+
+# Build with --target-platforms xbox360//platforms:ppc64.
+xbox360_title(
+    name = "sfmode",
+    srcs = glob(["src/**/*.rs"]),
+    crate_root = "src/main.rs",
+    edition = "2024",
+    link_script = "link.x",
+    manifest = "xex.toml",
+    std = True,
+    target_compatible_with = ["xbox360//platforms:codegen[ppc64-ilp32]"],
+    deps = ["//crates/xbox360:xbox360"],
+)
