@@ -1,0 +1,74 @@
+load("//buck:xex.bzl", "xbox360_title")
+
+# The benchmark kernels (assembly, tables, inputs and expected results) are
+# generated at build time by gen/gen_kernels.py, which needs python3 on PATH.
+genrule(
+    name = "kernels",
+    srcs = ["gen/gen_kernels.py"],
+    outs = {
+        "kernels.rs": ["kernels.rs"],
+        "kernels.s": ["kernels.s"],
+    },
+    cmd = "python3 $SRCDIR/gen/gen_kernels.py $OUT",
+)
+
+# Table of the compiler-comparison kernels (src/ext/*.s and the Rust
+# libraries below).
+genrule(
+    name = "ext_table",
+    srcs = ["gen/gen_ext.py"],
+    outs = {
+        "ext_table.rs": ["ext_table.rs"],
+    },
+    cmd = "python3 $SRCDIR/gen/gen_ext.py $OUT/ext_table.rs",
+)
+
+# cmp/kernels.rs three ways: VMX128 (the target default), classic AltiVec
+# only, and scalar. PFX_ in the source becomes the symbol prefix. The title
+# does not link these libraries: cmp/make.sh takes their assembly
+# (`[static][asm]`, built for xbox360//platforms:xbox360-ppc64-ilp32-std)
+# into src/ext/ like the C kernels, so that every compiler's output gets
+# the same post-processing.
+[
+    (
+        genrule(
+            name = "kernels_{}_src".format(prefix),
+            srcs = ["cmp/kernels.rs"],
+            out = "lib.rs",
+            cmd = "sed s/PFX_/{}_/g $SRCS > $OUT".format(prefix),
+        ),
+        native.rust_library(
+            name = "kernels_{}".format(prefix),
+            crate = "vb_kernels_{}".format(prefix),
+            crate_root = "lib.rs",
+            mapped_srcs = {":kernels_{}_src".format(prefix): "lib.rs"},
+            edition = "2024",
+            rustc_flags = ["-Copt-level=3", "-Cdebuginfo=0", "-Cdebug-assertions=off", "-Coverflow-checks=off"] + flags,
+            target_compatible_with = ["//platforms:target[xbox]"],
+        ),
+    )
+    for prefix, flags in [
+        ("rv", []),
+        ("ra", ["-Ctarget-feature=-vmx128"]),
+        ("rs", ["-Ctarget-feature=-altivec,-vmx128"]),
+    ]
+]
+
+# Build with --target-platforms xbox360//platforms:ppc64.
+xbox360_title(
+    name = "vmx128bench",
+    srcs = glob(["src/**/*.rs", "src/**/*.s"]),
+    mapped_srcs = {
+        ":kernels[kernels.rs]": "src/kernels.rs",
+        ":kernels[kernels.s]": "src/kernels.s",
+        ":ext_table[ext_table.rs]": "src/ext_table.rs",
+    },
+    crate_root = "src/main.rs",
+    edition = "2024",
+    link_script = "link.x",
+    manifest = "xex.toml",
+    std = True,
+    target_compatible_with = ["xbox360//platforms:codegen[ppc64-ilp32]"],
+    rustc_flags = ["-Copt-level=2"],
+    deps = ["//crates/xbox360:xbox360"],
+)
