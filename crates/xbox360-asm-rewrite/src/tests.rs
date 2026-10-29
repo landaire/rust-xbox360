@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::collections::HashMap;
 
 use crate::analysis::Function;
@@ -12,6 +13,7 @@ use crate::labels::LabelReferences;
 use crate::line::Line;
 use crate::rewrite::Listings;
 use crate::rewrite::Report;
+use crate::rewrite::SiteCounts;
 use crate::rewrite::rewrite;
 
 /// Wraps `body` in the framing LLVM prints around a compiled function.
@@ -738,6 +740,272 @@ fn refuses_unwind_annotation_between_moved_instructions() {
     );
 }
 
+/// `llc -mtriple=powerpc-unknown-none -mattr=+altivec -O2` output, without
+/// comments, of a function that keeps vectors in v30 and v31 across calls.
+/// The vector saves lie between the allocation and the GPR saves, and the
+/// index register may point at any slot, so the prologue stays. The vector
+/// restores come before the moved loads, so the epilogue is rewritten.
+#[test]
+fn rewrites_epilogue_after_altivec_restores() {
+    let source = compiled(
+        "keep_altivec",
+        "\t.cfi_startproc
+\tmflr 0
+\tstwu 1, -64(1)
+\tstw 0, 68(1)
+\t.cfi_def_cfa_offset 64
+\t.cfi_offset lr, 4
+\t.cfi_offset r29, -12
+\t.cfi_offset r30, -8
+\t.cfi_offset v30, -48
+\t.cfi_offset v31, -32
+\tli 5, 16
+\tstvx 30, 1, 5
+\tli 5, 32
+\tvaddfp 30, 2, 3
+\tstvx 31, 1, 5
+\tvmr\t31, 2
+\tvmr\t2, 30
+\tstw 29, 52(1)
+\tmr\t29, 3
+\tstw 30, 56(1)
+\tmr\t30, 4
+\tbl use
+\tmr\t3, 30
+\tbl make
+\tvspltisw 3, -1
+\tmr\t3, 29
+\tvslw 3, 3, 3
+\tvmaddfp 30, 30, 2, 3
+\tvmr\t2, 30
+\tbl use
+\tvaddfp 31, 30, 31
+\tadd 3, 29, 30
+\tvmr\t2, 31
+\tbl use
+\tli 3, 32
+\tvmr\t2, 31
+\tlvx 31, 1, 3
+\tli 3, 16
+\tlvx 30, 1, 3
+\tlwz 30, 56(1)
+\tlwz 29, 52(1)
+\tlwz 0, 68(1)
+\taddi 1, 1, 64
+\tmtlr 0
+\tblr
+\t.cfi_endproc
+",
+    );
+    let (output, report) = rewritten(&source);
+    insta::assert_snapshot!(output);
+    assert_eq!(report.prologues.rewritten, 0);
+    assert_eq!(
+        report.prologues.refused,
+        BTreeMap::from([("slot-accessed", 1)])
+    );
+    assert_eq!(report.epilogues.rewritten, 1);
+}
+
+/// VMX128 operations between the moved instructions, a vector save after
+/// the last GPR save, and a vector load through r1 between the moved loads
+/// do not stop the rewrite. Vector registers above v31 are not GPRs.
+#[test]
+fn rewrites_around_vector_instructions() {
+    let source = compiled(
+        "vector_window",
+        "\tmflr 0
+\tstwu 1, -64(1)
+\tstw 0, 68(1)
+\tvaddfp128 127, 1, 2
+\tstw 29, 52(1)
+\tvcmpeqfp128. 126, 1, 1
+\tstw 30, 56(1)
+\tli 12, 16
+\tstvx128 127, 1, 12
+\tbl callee
+\tli 3, 16
+\tlwz 30, 56(1)
+\tlvx128 127, 1, 3
+\tlwz 29, 52(1)
+\tvor128 1, 127, 127
+\tlwz 0, 68(1)
+\taddi 1, 1, 64
+\tmtlr 0
+\tblr
+",
+    );
+    let (output, report) = rewritten(&source);
+    insta::assert_snapshot!(output);
+    assert_eq!(report.prologues.rewritten, 1);
+    assert_eq!(report.epilogues.rewritten, 1);
+}
+
+/// Vector saves below the stack pointer before the allocation, as in
+/// LLVM's PPC64 prologues, still run before the GPR saves: the helper call
+/// goes after them, and the save helper touches no register they use.
+#[test]
+fn keeps_vector_saves_before_allocation() {
+    let body = "\tmflr 0
+\tli 12, -64
+\tstvx128 126, 1, 12
+\tli 12, -48
+\tstvx128 127, 1, 12
+\tstwu 1, -80(1)
+\tstw 0, 84(1)
+\tstw 30, 72(1)
+\tvor128 126, 1, 1
+\tbl callee
+\tli 3, 16
+\tlvx128 126, 1, 3
+\tli 3, 32
+\tlvx128 127, 1, 3
+\tlwz 30, 72(1)
+\tlwz 0, 84(1)
+\taddi 1, 1, 80
+\tmtlr 0
+\tblr
+";
+    insta::assert_snapshot!(rewritten(&compiled("vector_saves_below", body)).0);
+    // Their call frame annotations lie between `mflr 0` and the allocation.
+    let annotated = body.replacen(
+        "\tli 12, -48\n",
+        "\t.cfi_offset v126, -64\n\tli 12, -48\n",
+        1,
+    );
+    assert_eq!(
+        prologue_refusal(&annotated),
+        Refusal::UnwindAnnotation {
+            annotation: ".cfi_offset v126, -64".to_owned()
+        }
+    );
+}
+
+#[test]
+fn refuses_vector_accesses_across_moved_instructions() {
+    let save = "\tmflr 0
+\tstwu 1, -64(1)
+\tstw 0, 68(1)
+\tli 5, 16
+\tstvx 30, 1, 5
+\tstw 30, 56(1)
+\tbl callee
+";
+    assert_eq!(prologue_refusal(save), Refusal::SlotAccessed);
+    let store_after_restore = "\tlwz 30, 56(1)
+\tli 3, 16
+\tstvx128 127, 1, 3
+\tlwz 0, 68(1)
+\taddi 1, 1, 64
+\tmtlr 0
+\tblr
+";
+    assert_eq!(epilogue_refusal(store_after_restore), Refusal::SlotAccessed);
+    let load_after_deallocation = "\tlwz 30, 56(1)
+\tlwz 0, 68(1)
+\taddi 1, 1, 64
+\tli 3, -48
+\tlvx128 127, 1, 3
+\tmtlr 0
+\tblr
+";
+    assert_eq!(
+        epilogue_refusal(load_after_deallocation),
+        Refusal::StackPointerAccessed
+    );
+    // A base of 0 counts as a use of r0.
+    let zero_base = "\tlwz 30, 56(1)
+\tlwz 0, 68(1)
+\tlvx128 64, 0, 3
+\taddi 1, 1, 64
+\tmtlr 0
+\tblr
+";
+    assert_eq!(
+        epilogue_refusal(zero_base),
+        Refusal::AccessedAfterRestore { register: Gpr::R0 }
+    );
+    let stream_touch = "\tmflr 0
+\tstwu 1, -16(1)
+\tdst 3, 4, 0
+\tstw 0, 20(1)
+\tstw 30, 8(1)
+\tbl callee
+";
+    assert_eq!(
+        prologue_refusal(stream_touch),
+        Refusal::UnknownInstruction {
+            mnemonic: "dst".to_owned()
+        }
+    );
+}
+
+/// `llc -mtriple=powerpc64-unknown-xbox360 -mattr=+altivec,+vmx128 -O2`
+/// output, without comments, of the function of
+/// `rewrites_epilogue_after_altivec_restores`. v126 and v127 are saved
+/// below the stack pointer before the allocation and restored before the
+/// deallocation; GPRs have 8-byte `std`/`ld` slots and the link register
+/// word is at -8. The rules match neither, so nothing changes.
+#[test]
+fn leaves_ppc64_vector_saves_unchanged() {
+    let source = compiled(
+        "keep_vmx128",
+        "\t.cfi_startproc
+\tmflr 0
+\tli 12, -64
+\tstw 0, -8(1)
+\tstvx128 126, 1, 12
+\t.cfi_offset v126, -64
+\tli 12, -48
+\tstvx128 127, 1, 12
+\t.cfi_offset v127, -48
+\tstwu 1, -160(1)
+\t.cfi_def_cfa_offset 160
+\t.cfi_offset lr, -8
+\t.cfi_offset r29, -32
+\t.cfi_offset r30, -24
+\tvaddfp128 127, 1, 2
+\tvor128 126, 1, 1
+\tstd 29, 128(1)
+\tmr\t29, 3
+\tvor128 1, 127, 127
+\tstd 30, 136(1)
+\tmr\t30, 4
+\tbl use
+\tmr\t3, 30
+\tbl make
+\tvmulfp128 127, 127, 1
+\tmr\t3, 29
+\tvor128 1, 127, 127
+\tbl use
+\tvaddfp128 127, 127, 126
+\tadd 3, 29, 30
+\tvor128 1, 127, 127
+\tbl use
+\tli 3, 112
+\tvor128 1, 127, 127
+\tld 30, 136(1)
+\tlvx128 127, 1, 3
+\tli 3, 96
+\tlvx128 126, 1, 3
+\tld 29, 128(1)
+\taddi 1, 1, 160
+\tlwz 0, -8(1)
+\tmtlr 0
+\tblr
+\t.cfi_endproc
+",
+    );
+    let (output, report) = rewritten(&source);
+    assert_eq!(output, source);
+    assert_eq!(report.prologues, SiteCounts::default());
+    assert_eq!(report.epilogues.rewritten, 0);
+    assert_eq!(
+        report.epilogues.refused,
+        BTreeMap::from([("link-register-not-restored", 1)])
+    );
+}
+
 #[test]
 fn audit_reports_remaining_sequences() {
     let disassembly = "
@@ -789,4 +1057,137 @@ Disassembly of section .text:
             .collect::<Vec<_>>(),
         ["remaining"]
     );
+}
+
+/// `llvm-objdump -d --no-show-raw-insn --mattr=+vmx128` output of the
+/// linked functions of `rewrites_epilogue_after_altivec_restores` (after
+/// the rewrite) and `leaves_ppc64_vector_saves_unchanged`, and of a
+/// function with words that the disassembler cannot decode.
+#[test]
+fn audit_checks_vector_instructions() {
+    let disassembly = "
+/tmp/image:\tfile format elf32-powerpc
+
+Disassembly of section .text:
+
+82010008 <keep_altivec>:
+82010008:      \tmflr 0
+8201000c:      \tstwu 1, -64(1)
+82010010:      \tstw 0, 68(1)
+82010014:      \tli 5, 16
+82010018:      \tstvx 30, 1, 5
+8201001c:      \tli 5, 32
+82010020:      \tvaddfp 30, 2, 3
+82010024:      \tstvx 31, 1, 5
+82010028:      \tvmr\t31, 2
+8201002c:      \tvmr\t2, 30
+82010030:      \tstw 29, 52(1)
+82010034:      \tmr\t29, 3
+82010038:      \tstw 30, 56(1)
+8201003c:      \tmr\t30, 4
+82010040:      \tbl 0x82010000 <use>
+82010044:      \tmr\t3, 30
+82010048:      \tbl 0x82010004 <make>
+8201004c:      \tvspltisw 3, -1
+82010050:      \tmr\t3, 29
+82010054:      \tvslw 3, 3, 3
+82010058:      \tvmaddfp 30, 30, 2, 3
+8201005c:      \tvmr\t2, 30
+82010060:      \tbl 0x82010000 <use>
+82010064:      \tvaddfp 31, 30, 31
+82010068:      \tadd 3, 29, 30
+8201006c:      \tvmr\t2, 31
+82010070:      \tbl 0x82010000 <use>
+82010074:      \tli 3, 32
+82010078:      \tvmr\t2, 31
+8201007c:      \tlvx 31, 1, 3
+82010080:      \tli 3, 16
+82010084:      \tlvx 30, 1, 3
+82010088:      \taddi 1, 1, 64
+8201008c:      \tb 0x82010090 <__xbox360_restgprlr_29_30>
+
+82010090 <__xbox360_restgprlr_29_30>:
+82010090:      \tlwz 29, -12(1)
+
+82010094 <__xbox360_restgprlr_30_30>:
+82010094:      \tlwz 30, -8(1)
+
+82010098 <__xbox360_restlr>:
+82010098:      \tlwz 0, 4(1)
+8201009c:      \tmtlr 0
+820100a0:      \tblr
+
+82020000 <keep_vmx128>:
+82020000:      \tmflr 0
+82020004:      \tli 12, -64
+82020008:      \tstw 0, -8(1)
+8202000c:      \tstvx128 126, 1, 12
+82020010:      \tli 12, -48
+82020014:      \tstvx128 127, 1, 12
+82020018:      \tstwu 1, -160(1)
+8202001c:      \tvaddfp128 127, 1, 2
+82020020:      \tvor128 126, 1, 1
+82020024:      \tstd 29, 128(1)
+82020028:      \tmr\t29, 3
+8202002c:      \tvor128 1, 127, 127
+82020030:      \tstd 30, 136(1)
+82020034:      \tmr\t30, 4
+82020038:      \tbl 0x82020090 <use>
+8202003c:      \tmr\t3, 30
+82020040:      \tbl 0x82020094 <make>
+82020044:      \tvmulfp128 127, 127, 1
+82020048:      \tmr\t3, 29
+8202004c:      \tvor128 1, 127, 127
+82020050:      \tbl 0x82020090 <use>
+82020054:      \tvaddfp128 127, 127, 126
+82020058:      \tadd 3, 29, 30
+8202005c:      \tvor128 1, 127, 127
+82020060:      \tbl 0x82020090 <use>
+82020064:      \tli 3, 112
+82020068:      \tvor128 1, 127, 127
+8202006c:      \tld 30, 136(1)
+82020070:      \tlvx128 127, 1, 3
+82020074:      \tli 3, 96
+82020078:      \tlvx128 126, 1, 3
+8202007c:      \tld 29, 128(1)
+82020080:      \taddi 1, 1, 160
+82020084:      \tlwz 0, -8(1)
+82020088:      \tmtlr 0
+8202008c:      \tblr
+
+82030000 <undecoded>:
+82030000:      \tmflr 0
+82030004:      \tstwu 1, -16(1)
+82030008:      \t<unknown>
+8203000c:      \tstw 0, 20(1)
+82030010:      \tstw 30, 8(1)
+82030014:      \tbl 0x82010000 <use>
+82030018:      \tlwz 30, 8(1)
+8203001c:      \t<unknown>
+82030020:      \tlwz 0, 20(1)
+82030024:      \taddi 1, 1, 16
+82030028:      \tmtlr 0
+8203002c:      \tblr
+";
+    let scope: HashMap<String, ScopeKind> = ["keep_altivec", "keep_vmx128", "undecoded"]
+        .into_iter()
+        .map(|name| (name.to_owned(), ScopeKind::Plain))
+        .collect();
+    let report = audit::audit(disassembly.as_bytes(), &scope).expect("audit");
+    assert_eq!(report.functions_checked, 3);
+    assert_eq!(report.helper_branches, 1);
+    assert_eq!(report.prologues.rewritten, 0);
+    assert_eq!(
+        report.prologues.refused,
+        BTreeMap::from([("slot-accessed", 1), ("unknown-instruction", 1)])
+    );
+    assert_eq!(report.epilogues.rewritten, 0);
+    assert_eq!(
+        report.epilogues.refused,
+        BTreeMap::from([
+            ("link-register-not-restored", 1),
+            ("unknown-instruction", 1)
+        ])
+    );
+    assert!(report.passed());
 }

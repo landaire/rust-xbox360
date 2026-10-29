@@ -1,0 +1,77 @@
+---
+source: crates/xbox360-asm-rewrite/src/tests.rs
+expression: output
+---
+	.section	.text.keep_altivec,"ax",@progbits
+	.p2align	2
+	.type	keep_altivec,@function
+keep_altivec:
+.Lfunc_begin0:
+	.cfi_startproc
+	mflr 0
+	stwu 1, -64(1)
+	stw 0, 68(1)
+	.cfi_def_cfa_offset 64
+	.cfi_offset lr, 4
+	.cfi_offset r29, -12
+	.cfi_offset r30, -8
+	.cfi_offset v30, -48
+	.cfi_offset v31, -32
+	li 5, 16
+	stvx 30, 1, 5
+	li 5, 32
+	vaddfp 30, 2, 3
+	stvx 31, 1, 5
+	vmr	31, 2
+	vmr	2, 30
+	stw 29, 52(1)
+	mr	29, 3
+	stw 30, 56(1)
+	mr	30, 4
+	bl use
+	mr	3, 30
+	bl make
+	vspltisw 3, -1
+	mr	3, 29
+	vslw 3, 3, 3
+	vmaddfp 30, 30, 2, 3
+	vmr	2, 30
+	bl use
+	vaddfp 31, 30, 31
+	add 3, 29, 30
+	vmr	2, 31
+	bl use
+	li 3, 32
+	vmr	2, 31
+	lvx 31, 1, 3
+	li 3, 16
+	lvx 30, 1, 3
+	.cfi_remember_state
+	addi 1, 1, 64
+	.cfi_def_cfa r1, 0
+	b __xbox360_restgprlr_29_30
+	.cfi_restore_state
+	.cfi_endproc
+.Lfunc_end0:
+	.size	keep_altivec, .Lfunc_end0-.Lfunc_begin0
+
+	.section	.text.__xbox360_gprlr,"ax",@progbits
+	.p2align	2
+	.cfi_startproc
+	.cfi_offset lr, 4
+	.cfi_offset r29, -12
+	.cfi_offset r30, -8
+	.type	__xbox360_restgprlr_29_30,@function
+__xbox360_restgprlr_29_30:
+	lwz 29, -12(1)
+	.cfi_same_value r29
+	.type	__xbox360_restgprlr_30_30,@function
+__xbox360_restgprlr_30_30:
+	lwz 30, -8(1)
+	.cfi_same_value r30
+	.type	__xbox360_restlr,@function
+__xbox360_restlr:
+	lwz 0, 4(1)
+	mtlr 0
+	blr
+	.cfi_endproc

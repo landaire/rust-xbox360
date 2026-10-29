@@ -79,10 +79,13 @@ def xbox360_toolchains(
         release = ":llvm-tools",
     )
 
+    # VMX128 encodings overlap later POWER instructions, so the disassembler
+    # decodes them only with the feature that the PPC64 rustc enables.
     release_tool(
         name = "llvm-objdump-ppc64",
         path = "bin/llvm-objdump",
         release = ":llvm-ppc64",
+        args = ["--mattr=+vmx128"],
     )
 
     native.alias(

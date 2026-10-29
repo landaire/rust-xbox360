@@ -100,13 +100,18 @@ def _release_tool_impl(ctx: AnalysisContext) -> list[Provider]:
     path = ctx.attrs.path.format(host_triple = release.host_triple)
     return [
         DefaultInfo(),
-        RunInfo(args = cmd_args(release.sysroot, format = "{}/" + path + release.executable_suffix)),
+        RunInfo(args = cmd_args(
+            cmd_args(release.sysroot, format = "{}/" + path + release.executable_suffix),
+            ctx.attrs.args,
+        )),
     ]
 
 # An executable of a rust_release, to run from rules or with `buck2 run`.
 release_tool = rule(
     impl = _release_tool_impl,
     attrs = {
+        # Arguments before those of the caller.
+        "args": attrs.list(attrs.string(), default = []),
         # Relative to the release directory, without the executable suffix;
         # `{host_triple}` stands for the release's host triple.
         "path": attrs.string(),

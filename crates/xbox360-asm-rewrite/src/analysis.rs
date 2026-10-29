@@ -42,6 +42,18 @@
 //!   turns the relative branches whose target the text fixes into label
 //!   branches ([`crate::relative`]). Inline assembly never holds a
 //!   candidate.
+//! - Vector instructions follow the same conditions through their effect
+//!   model ([`crate::isa`]). A vector load or store through r1 may access
+//!   any slot, as its index register is not tracked: no store moves across
+//!   one in the prologue, no restore moves across such a store in the
+//!   epilogue, and none may follow the deallocation. The save helper reads
+//!   r0, r1, and the registers it saves, and writes only LR; the call goes
+//!   right before the allocation, so the instructions before it, such as
+//!   vector saves below the stack pointer and the `li 12, N` that indexes
+//!   them, keep their order relative to the saves.
+//! - LLVM's PPC64 frames save GPRs with 8-byte `std` and the link register
+//!   at `-8`, which this layout does not match: they have no prologue
+//!   candidate, and their epilogues are refused.
 //!
 //! Debug line and call frame annotations (`.loc`, `.file`, `.cfi_*`) place
 //! nothing in the section and do not end a block, nor do local labels that

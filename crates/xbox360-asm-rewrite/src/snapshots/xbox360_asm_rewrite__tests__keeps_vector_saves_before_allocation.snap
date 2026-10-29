@@ -1,0 +1,42 @@
+---
+source: crates/xbox360-asm-rewrite/src/tests.rs
+expression: "rewritten(&compiled(\"vector_saves_below\", body)).0"
+---
+	.section	.text.vector_saves_below,"ax",@progbits
+	.p2align	2
+	.type	vector_saves_below,@function
+vector_saves_below:
+.Lfunc_begin0:
+	mflr 0
+	li 12, -64
+	stvx128 126, 1, 12
+	li 12, -48
+	stvx128 127, 1, 12
+	bl __xbox360_savegprlr_30_30
+	stwu 1, -80(1)
+	vor128 126, 1, 1
+	bl callee
+	li 3, 16
+	lvx128 126, 1, 3
+	li 3, 32
+	lvx128 127, 1, 3
+	addi 1, 1, 80
+	b __xbox360_restgprlr_30_30
+.Lfunc_end0:
+	.size	vector_saves_below, .Lfunc_end0-.Lfunc_begin0
+
+	.section	.text.__xbox360_gprlr,"ax",@progbits
+	.p2align	2
+	.type	__xbox360_savegprlr_30_30,@function
+__xbox360_savegprlr_30_30:
+	stw 30, -8(1)
+	stw 0, 4(1)
+	blr
+	.type	__xbox360_restgprlr_30_30,@function
+__xbox360_restgprlr_30_30:
+	lwz 30, -8(1)
+	.type	__xbox360_restlr,@function
+__xbox360_restlr:
+	lwz 0, 4(1)
+	mtlr 0
+	blr

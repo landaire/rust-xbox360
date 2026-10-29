@@ -2,6 +2,11 @@
 //! output of the linked image and reports every save or restore sequence
 //! that the rules would still rewrite.
 //!
+//! PPC64 images need `--mattr=+vmx128`: without it, VMX128 words print as
+//! `<unknown>` or as the later POWER instructions that share their
+//! encodings. Neither has an effect model, so a site whose moved
+//! instructions cross such a word is refused.
+//!
 //! Only functions listed in the scope file written by [`crate::rewrite`]
 //! are checked. Functions with inline assembly are skipped: the rewriter
 //! treats inline assembly as opaque, which the disassembly cannot show.

@@ -4,6 +4,20 @@
 //! The GPR effect model covers the instructions that LLVM schedules into
 //! prologues and epilogues. Instructions outside it have no model, which
 //! every rule treats as a reason to refuse.
+//!
+//! The model also covers the AltiVec instructions and those of the Xenon
+//! VMX128 extension. LLVM prints vector registers (v0-v127) as bare
+//! numbers, like GPRs; the mnemonic decides, so a vector register operand
+//! never counts as a GPR. Vector loads and stores (`lvx128 vD, rA, rB`) are
+//! indexed accesses through a GPR base and index, which may touch any
+//! address relative to either register: that covers the aligned 16 bytes
+//! that `lvx`/`stvx` forms access, the part of them that `lvlx`/`lvrx`/
+//! `stvlx`/`stvrx` forms access, and the element of `lvewx`/`stvewx` forms.
+//! `lvsl`/`lvsr` forms read their address registers without accessing
+//! memory. All other vector instructions only read and write vector
+//! registers, VSCR, and, in record form, condition register field 6, none
+//! of which a rule tracks. A base register `0`, which stands for the value
+//! zero, counts as a use of r0, as in the integer indexed forms.
 
 use std::fmt;
 
@@ -123,7 +137,7 @@ pub enum Access {
 pub enum Address {
     /// `offset(base)`; `offset` is `None` for a symbolic displacement.
     Displacement { base: Gpr, offset: Option<i64> },
-    /// `base + index`.
+    /// `base + index`; vector forms align the sum down to 16 bytes.
     Indexed { base: Gpr, index: Gpr },
 }
 
@@ -200,7 +214,7 @@ enum Role {
     Def,
     Use,
     DefUse,
-    /// Immediate, condition register field, or FPR.
+    /// Immediate, condition register field, FPR, or vector register.
     Other,
     /// `displacement(base)` used as an address without a memory access.
     Address,
@@ -308,6 +322,56 @@ fn roles(mnemonic: &str, operand_count: usize) -> Option<Vec<Role>> {
         "stfdu" => vec![Other, update(Store, 8)],
         "stfsx" | "stfiwx" => vec![Other, indexed(Store, 4), Role::IndexedIndex],
         "stfdx" => vec![Other, indexed(Store, 8), Role::IndexedIndex],
+        "lvx" | "lvxl" | "lvlx" | "lvlxl" | "lvrx" | "lvrxl" | "lvx128" | "lvxl128" | "lvlx128"
+        | "lvlxl128" | "lvrx128" | "lvrxl128" => {
+            vec![Other, indexed(Load, 16), Role::IndexedIndex]
+        }
+        "lvebx" => vec![Other, indexed(Load, 1), Role::IndexedIndex],
+        "lvehx" => vec![Other, indexed(Load, 2), Role::IndexedIndex],
+        "lvewx" | "lvewx128" => vec![Other, indexed(Load, 4), Role::IndexedIndex],
+        "stvx" | "stvxl" | "stvlx" | "stvlxl" | "stvrx" | "stvrxl" | "stvx128" | "stvxl128"
+        | "stvlx128" | "stvlxl128" | "stvrx128" | "stvrxl128" => {
+            vec![Other, indexed(Store, 16), Role::IndexedIndex]
+        }
+        "stvebx" => vec![Other, indexed(Store, 1), Role::IndexedIndex],
+        "stvehx" => vec![Other, indexed(Store, 2), Role::IndexedIndex],
+        "stvewx" | "stvewx128" => vec![Other, indexed(Store, 4), Role::IndexedIndex],
+        // Permute control from the address; no memory access.
+        "lvsl" | "lvsr" | "lvsl128" | "lvsr128" => vec![Other, Use, Use],
+        // AltiVec operations on vector registers, immediates, and VSCR.
+        "mfvscr" | "mtvscr" | "vaddcuw" | "vaddfp" | "vaddsbs" | "vaddshs" | "vaddsws"
+        | "vaddubm" | "vaddubs" | "vadduhm" | "vadduhs" | "vadduwm" | "vadduws" | "vand"
+        | "vandc" | "vavgsb" | "vavgsh" | "vavgsw" | "vavgub" | "vavguh" | "vavguw" | "vcfsx"
+        | "vcfux" | "vcmpbfp" | "vcmpeqfp" | "vcmpequb" | "vcmpequh" | "vcmpequw" | "vcmpgefp"
+        | "vcmpgtfp" | "vcmpgtsb" | "vcmpgtsh" | "vcmpgtsw" | "vcmpgtub" | "vcmpgtuh"
+        | "vcmpgtuw" | "vctsxs" | "vctuxs" | "vexptefp" | "vlogefp" | "vmaddfp" | "vmaxfp"
+        | "vmaxsb" | "vmaxsh" | "vmaxsw" | "vmaxub" | "vmaxuh" | "vmaxuw" | "vmhaddshs"
+        | "vmhraddshs" | "vminfp" | "vminsb" | "vminsh" | "vminsw" | "vminub" | "vminuh"
+        | "vminuw" | "vmladduhm" | "vmr" | "vmrghb" | "vmrghh" | "vmrghw" | "vmrglb" | "vmrglh"
+        | "vmrglw" | "vmsummbm" | "vmsumshm" | "vmsumshs" | "vmsumubm" | "vmsumuhm"
+        | "vmsumuhs" | "vmulesb" | "vmulesh" | "vmuleub" | "vmuleuh" | "vmulosb" | "vmulosh"
+        | "vmuloub" | "vmulouh" | "vnmsubfp" | "vnor" | "vnot" | "vor" | "vperm" | "vpkpx"
+        | "vpkshss" | "vpkshus" | "vpkswss" | "vpkswus" | "vpkuhum" | "vpkuhus" | "vpkuwum"
+        | "vpkuwus" | "vrefp" | "vrfim" | "vrfin" | "vrfip" | "vrfiz" | "vrlb" | "vrlh"
+        | "vrlw" | "vrsqrtefp" | "vsel" | "vsl" | "vslb" | "vsldoi" | "vslh" | "vslo" | "vslw"
+        | "vspltb" | "vsplth" | "vspltisb" | "vspltish" | "vspltisw" | "vspltw" | "vsr"
+        | "vsrab" | "vsrah" | "vsraw" | "vsrb" | "vsrh" | "vsro" | "vsrw" | "vsubcuw"
+        | "vsubfp" | "vsubsbs" | "vsubshs" | "vsubsws" | "vsububm" | "vsububs" | "vsubuhm"
+        | "vsubuhs" | "vsubuwm" | "vsubuws" | "vsum2sws" | "vsum4sbs" | "vsum4shs" | "vsum4ubs"
+        | "vsumsws" | "vupkhpx" | "vupkhsb" | "vupkhsh" | "vupklpx" | "vupklsb" | "vupklsh"
+        | "vxor" => vec![Other; operand_count],
+        // VMX128 operations on vector registers and immediates.
+        "vaddfp128" | "vand128" | "vandc128" | "vcfpsxws128" | "vcfpuxws128" | "vcmpbfp128"
+        | "vcmpeqfp128" | "vcmpequw128" | "vcmpgefp128" | "vcmpgtfp128" | "vcsxwfp128"
+        | "vcuxwfp128" | "vexptefp128" | "vlogefp128" | "vmaddcfp128" | "vmaddfp128"
+        | "vmaxfp128" | "vminfp128" | "vmrghw128" | "vmrglw128" | "vmsum3fp128" | "vmsum4fp128"
+        | "vmulfp128" | "vnmsubfp128" | "vnor128" | "vor128" | "vperm128" | "vpermwi128"
+        | "vpkd3d128" | "vpkshss128" | "vpkshus128" | "vpkswss128" | "vpkswus128"
+        | "vpkuhum128" | "vpkuhus128" | "vpkuwum128" | "vpkuwus128" | "vrefp128" | "vrfim128"
+        | "vrfin128" | "vrfip128" | "vrfiz128" | "vrlimi128" | "vrlw128" | "vrsqrtefp128"
+        | "vsel128" | "vsldoi128" | "vslo128" | "vslw128" | "vspltisw128" | "vspltw128"
+        | "vsraw128" | "vsro128" | "vsrw128" | "vsubfp128" | "vupkd3d128" | "vupkhsb128"
+        | "vupkhsh128" | "vupklsb128" | "vupklsh128" | "vxor128" => vec![Other; operand_count],
         _ => return None,
     };
 
@@ -604,5 +668,75 @@ mod tests {
         assert_eq!(effects(&instruction("\tstwcx. 3, 0, 4")), None);
         assert_eq!(effects(&instruction("\tbl foo")), None);
         assert_eq!(effects(&instruction("\tli 3")), None);
+    }
+
+    #[test]
+    fn models_vector_effects() {
+        let effects_of = |text| effects(&instruction(text)).expect(text);
+        let save = effects_of("\tstvx128 127, 1, 12");
+        assert_eq!(save.uses, [Gpr::R1, Gpr(12)].into_iter().collect());
+        assert!(save.defs.is_empty());
+        let save_access = MemoryAccess {
+            access: Access::Store,
+            address: Address::Indexed {
+                base: Gpr::R1,
+                index: Gpr(12),
+            },
+            size: 16,
+        };
+        assert_eq!(save.memory, Some(save_access));
+        // The index register's value is unknown, so any slot may be hit.
+        assert!(save_access.may_overlap(Gpr::R1, -8, 4));
+        // A base of 0 counts as r0; v64 is no GPR.
+        let load = effects_of("\tlvx128 64, 0, 3");
+        assert_eq!(load.uses, [Gpr::R0, Gpr(3)].into_iter().collect());
+        assert!(load.defs.is_empty());
+        assert_eq!(
+            load.memory.map(|m| (m.access, m.address)),
+            Some((
+                Access::Load,
+                Address::Indexed {
+                    base: Gpr::R0,
+                    index: Gpr(3)
+                }
+            ))
+        );
+        assert!(!load.memory.expect("load").may_overlap(Gpr::R1, -8, 4));
+        let partial = effects_of("\tstvrx128 5, 4, 1");
+        assert_eq!(
+            partial.memory.map(|m| (m.access, m.size)),
+            Some((Access::Store, 16))
+        );
+        let element = effects_of("\tlvewx 2, 1, 12");
+        assert_eq!(
+            element.memory.map(|m| (m.access, m.size)),
+            Some((Access::Load, 4))
+        );
+        let shift = effects_of("\tlvsl 2, 0, 3");
+        assert_eq!(shift.uses, [Gpr::R0, Gpr(3)].into_iter().collect());
+        assert_eq!(shift.memory, None);
+
+        for text in [
+            "\tvaddfp128 1, 2, 3",
+            "\tvcmpeqfp128. 100, 2, 127",
+            "\tvcmpequw. 0, 1, 2",
+            "\tvrlimi128 64, 65, 8, 0",
+            "\tvpkd3d128 1, 2, 3, 1, 3",
+            "\tvspltisw128 99, -1",
+            "\tvmr 2, 3",
+            "\tmfvscr 3",
+        ] {
+            let operation = effects_of(text);
+            assert!(operation.defs.is_empty(), "{text}");
+            assert!(operation.uses.is_empty(), "{text}");
+            assert_eq!(operation.memory, None, "{text}");
+            assert_eq!(operation.link, LinkAccess::default(), "{text}");
+        }
+
+        // Data stream touches, and POWER instructions whose encodings
+        // VMX128 reuses, stay outside the model.
+        assert_eq!(effects(&instruction("\tdst 3, 4, 0")), None);
+        assert_eq!(effects(&instruction("\tvinsd 31, 12, 1")), None);
+        assert_eq!(effects(&instruction("\tlxvp 32, 6208(2)")), None);
     }
 }

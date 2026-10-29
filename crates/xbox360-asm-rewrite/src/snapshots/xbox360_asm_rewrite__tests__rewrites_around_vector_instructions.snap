@@ -1,0 +1,46 @@
+---
+source: crates/xbox360-asm-rewrite/src/tests.rs
+expression: output
+---
+	.section	.text.vector_window,"ax",@progbits
+	.p2align	2
+	.type	vector_window,@function
+vector_window:
+.Lfunc_begin0:
+	mflr 0
+	bl __xbox360_savegprlr_29_30
+	stwu 1, -64(1)
+	vaddfp128 127, 1, 2
+	vcmpeqfp128. 126, 1, 1
+	li 12, 16
+	stvx128 127, 1, 12
+	bl callee
+	li 3, 16
+	lvx128 127, 1, 3
+	vor128 1, 127, 127
+	addi 1, 1, 64
+	b __xbox360_restgprlr_29_30
+.Lfunc_end0:
+	.size	vector_window, .Lfunc_end0-.Lfunc_begin0
+
+	.section	.text.__xbox360_gprlr,"ax",@progbits
+	.p2align	2
+	.type	__xbox360_savegprlr_29_30,@function
+__xbox360_savegprlr_29_30:
+	stw 29, -12(1)
+	.type	__xbox360_savegprlr_30_30,@function
+__xbox360_savegprlr_30_30:
+	stw 30, -8(1)
+	stw 0, 4(1)
+	blr
+	.type	__xbox360_restgprlr_29_30,@function
+__xbox360_restgprlr_29_30:
+	lwz 29, -12(1)
+	.type	__xbox360_restgprlr_30_30,@function
+__xbox360_restgprlr_30_30:
+	lwz 30, -8(1)
+	.type	__xbox360_restlr,@function
+__xbox360_restlr:
+	lwz 0, 4(1)
+	mtlr 0
+	blr
