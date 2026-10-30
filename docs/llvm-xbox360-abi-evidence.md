@@ -936,8 +936,8 @@ The following items remain separate work and must not be claimed as implemented:
 - Exact MSVC helper-thunk prologue selection and `.pdata` emission.
 - Big-endian PowerPC COFF/PE object emission and relocations.
 - Mixed-toolchain `cr2`-`cr4` volatility.
-- A checked model for integers wider than 128 bits, variadic aggregates,
-  and direct `f32` variadic IR.
+- ABI support for integers wider than 128 bits, variadic aggregates, and
+  direct `f32` variadic IR.
 - Dedicated hypervisor-call intrinsics or assembly stubs.
 
 Known limitation: `xex-link` writes no default stack size header, so the main
