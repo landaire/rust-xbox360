@@ -18,7 +18,7 @@ concurrency:
   group: nightly-toolchain
   cancel-in-progress: false
 
-# The large archive is published under an immutable source-commit tag. The
+# The large archive is published under an immutable toolchain-input tag. The
 # moving `toolchain-nightly` release contains only its manifest and DotSlash /
 # Buck2 pins. The generated `nightly-toolchain` branch is rebuilt from the
 # default branch plus one pin commit, so that commit consumes the archive it
@@ -28,47 +28,27 @@ jobs:
   check:
     runs-on: ubuntu-22.04
     outputs:
+      bootstrap_commit: ${{ steps.fingerprint.outputs.bootstrap_commit }}
       changed: ${{ steps.compare.outputs.changed }}
-      head: ${{ steps.compare.outputs.head }}
-      release_tag: ${{ steps.compare.outputs.release_tag }}
+      head: ${{ steps.head.outputs.head }}
+      llvm_commit: ${{ steps.fingerprint.outputs.llvm_commit }}
+      release_tag: ${{ steps.fingerprint.outputs.release_tag }}
+      rust_commit: ${{ steps.fingerprint.outputs.rust_commit }}
+      toolchain_key: ${{ steps.fingerprint.outputs.toolchain_key }}
     steps:
-      - name: Compare the default branch with the latest toolchain
-        id: compare
+      - name: Resolve the default branch
+        id: head
         env:
-          FORCE: ${{ inputs.force || false }}
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
           branch=$(gh api "repos/$GH_REPO" --jq .default_branch)
           head=$(gh api "repos/$GH_REPO/commits/$branch" --jq .sha)
-          release_tag="toolchain-nightly-${head:0:12}"
           echo "head=$head" >> "$GITHUB_OUTPUT"
-          echo "release_tag=$release_tag" >> "$GITHUB_OUTPUT"
 
-          published=""
-          scratch=$(mktemp -d)
-          if gh release download toolchain-nightly \
-              --pattern xbox360-toolchain.json --dir "$scratch" >/dev/null 2>&1; then
-            published=$(jq -r .source_commit "$scratch/xbox360-toolchain.json")
-          fi
-          rm -rf "$scratch"
-
-          if [ "$FORCE" != "true" ] && [ "$published" = "$head" ]; then
-            echo "The nightly toolchain already contains $head."
-            echo "changed=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "changed=true" >> "$GITHUB_OUTPUT"
-          fi
-
-  build:
-    needs: check
-    if: needs.check.outputs.changed == 'true'
-    runs-on: ubuntu-22.04
-    timeout-minutes: 360
-    steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ needs.check.outputs.head }}
+          ref: ${{ steps.head.outputs.head }}
 
       - name: Read the bootstrap commit
         id: bootstrap
@@ -88,6 +68,60 @@ jobs:
           ref: ${{ steps.bootstrap.outputs.commit }}
           path: toolchain/buck2-rustc-bootstrap
 
+      - name: Compute the toolchain input fingerprint
+        id: fingerprint
+        run: |
+          python3 tools/toolchain_fingerprint.py \
+            --bootstrap-root toolchain/buck2-rustc-bootstrap \
+            --output "$RUNNER_TEMP/toolchain-inputs.json"
+          for name in bootstrap_commit llvm_commit rust_commit toolchain_key; do
+            value=$(jq -r --arg name "$name" '.[$name]' \
+              "$RUNNER_TEMP/toolchain-inputs.json")
+            echo "$name=$value" >> "$GITHUB_OUTPUT"
+          done
+          key=$(jq -r .toolchain_key "$RUNNER_TEMP/toolchain-inputs.json")
+          echo "release_tag=toolchain-nightly-${key:0:12}" >> "$GITHUB_OUTPUT"
+
+      - name: Compare with the latest toolchain
+        id: compare
+        env:
+          FORCE: ${{ inputs.force || false }}
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TOOLCHAIN_KEY: ${{ steps.fingerprint.outputs.toolchain_key }}
+        run: |
+          published=""
+          scratch=$(mktemp -d)
+          if gh release download toolchain-nightly \
+              --pattern xbox360-toolchain.json --dir "$scratch" >/dev/null 2>&1; then
+            published=$(jq -r '.toolchain_key // ""' \
+              "$scratch/xbox360-toolchain.json")
+          fi
+          rm -rf "$scratch"
+
+          if [ "$FORCE" != "true" ] && [ "$published" = "$TOOLCHAIN_KEY" ]; then
+            echo "The nightly toolchain already contains $TOOLCHAIN_KEY."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  build:
+    needs: check
+    if: needs.check.outputs.changed == 'true'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.check.outputs.head }}
+
+      - uses: actions/checkout@v4
+        with:
+          repository: landaire-contrib/buck2-rustc-bootstrap
+          ref: ${{ needs.check.outputs.bootstrap_commit }}
+          path: toolchain/buck2-rustc-bootstrap
+
       - name: Use the checked-out bootstrap cell
         run: |
           cat > .buckconfig.local <<'EOF'
@@ -104,7 +138,7 @@ jobs:
       - uses: actions/cache@v4
         with:
           path: ~/.cache/buck2-rustc-bootstrap/xbox360-llvm
-          key: xbox360-llvm-${{ runner.os }}-${{ steps.bootstrap.outputs.commit }}
+          key: xbox360-llvm-${{ runner.os }}-${{ needs.check.outputs.bootstrap_commit }}
           restore-keys: |
             xbox360-llvm-${{ runner.os }}-
 
@@ -125,36 +159,23 @@ jobs:
           echo "rust_dist=$(realpath "$rust_dist")" >> "$GITHUB_OUTPUT"
           echo "llvm_dist=$(realpath "$llvm_dist")" >> "$GITHUB_OUTPUT"
 
-      - name: Read source provenance
-        id: sources
+      - name: Record and verify the toolchain inputs
         run: |
-          python3 - <<'PY' >> "$GITHUB_OUTPUT"
-          import re
-          from pathlib import Path
-
-          root = Path("toolchain/buck2-rustc-bootstrap")
-          files = {
-              "llvm_commit": root / "stage0/custom_llvm.bzl",
-              "rust_commit": root / "sources/BUCK",
-          }
-          patterns = {
-              "llvm_commit": r'_LLVM_COMMIT = "([0-9a-f]{40})"',
-              "rust_commit": r'_RUST_COMMIT = "([0-9a-f]{40})"',
-          }
-          for name, path in files.items():
-              match = re.search(patterns[name], path.read_text())
-              if not match:
-                  raise SystemExit(f"could not read {name} from {path}")
-              print(f"{name}={match.group(1)}")
-          PY
+          mkdir -p dist
+          python3 tools/toolchain_fingerprint.py \
+            --bootstrap-root toolchain/buck2-rustc-bootstrap \
+            --output dist/toolchain-inputs.json
+          actual=$(jq -r .toolchain_key dist/toolchain-inputs.json)
+          expected=${{ needs.check.outputs.toolchain_key }}
+          if [ "$actual" != "$expected" ]; then
+            echo "Toolchain inputs changed between check and build." >&2
+            exit 1
+          fi
 
       - name: Package the toolchain
         env:
-          BOOTSTRAP_COMMIT: ${{ steps.bootstrap.outputs.commit }}
-          LLVM_COMMIT: ${{ steps.sources.outputs.llvm_commit }}
           LLVM_DIST: ${{ steps.build.outputs.llvm_dist }}
           RELEASE_TAG: ${{ needs.check.outputs.release_tag }}
-          RUST_COMMIT: ${{ steps.sources.outputs.rust_commit }}
           RUST_DIST: ${{ steps.build.outputs.rust_dist }}
           SOURCE_COMMIT: ${{ needs.check.outputs.head }}
         run: |
@@ -169,14 +190,11 @@ jobs:
             --repository "$GITHUB_REPOSITORY" \
             --release-tag "$RELEASE_TAG" \
             --source-commit "$SOURCE_COMMIT" \
-            --bootstrap-commit "$BOOTSTRAP_COMMIT" \
-            --rust-commit "$RUST_COMMIT" \
-            --llvm-commit "$LLVM_COMMIT" \
+            --toolchain-inputs dist/toolchain-inputs.json \
             --source-date-epoch "$epoch" \
             --dotslash .tools/bin/dotslash \
             --runtime-library "$libstdcxx" \
-            --runtime-library "$libgcc" \
-            --compression-level 6
+            --runtime-library "$libgcc"
 
       - name: Smoke-test the packaged tools
         run: |

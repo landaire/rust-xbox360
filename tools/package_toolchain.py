@@ -126,9 +126,7 @@ def main() -> int:
     parser.add_argument("--repository", required=True, help="GitHub owner/repository")
     parser.add_argument("--release-tag", required=True)
     parser.add_argument("--source-commit", required=True)
-    parser.add_argument("--bootstrap-commit", required=True)
-    parser.add_argument("--rust-commit", required=True)
-    parser.add_argument("--llvm-commit", required=True)
+    parser.add_argument("--toolchain-inputs", type=Path, required=True)
     parser.add_argument("--source-date-epoch", type=int, required=True)
     parser.add_argument("--dotslash", type=Path, required=True)
     parser.add_argument("--runtime-library", type=Path, action="append", default=[])
@@ -144,6 +142,14 @@ def main() -> int:
         parser.error(f"target specification does not exist: {args.target_spec}")
     if not args.dotslash.is_file():
         parser.error(f"DotSlash does not exist: {args.dotslash}")
+    if not args.toolchain_inputs.is_file():
+        parser.error(f"toolchain inputs do not exist: {args.toolchain_inputs}")
+
+    toolchain_inputs = json.loads(args.toolchain_inputs.read_text(encoding="utf-8"))
+    required_inputs = ("bootstrap_commit", "llvm_commit", "rust_commit", "toolchain_key")
+    missing_inputs = [name for name in required_inputs if name not in toolchain_inputs]
+    if missing_inputs:
+        parser.error(f"toolchain inputs are missing: {', '.join(missing_inputs)}")
 
     args.out_dir.mkdir(parents=True, exist_ok=True)
     archive_path = args.out_dir / ARCHIVE
@@ -189,13 +195,14 @@ def main() -> int:
         shutil.copy2(args.target_spec, target_dir / args.target_spec.name)
 
         package_metadata = {
-            "bootstrap_commit": args.bootstrap_commit,
+            "bootstrap_commit": toolchain_inputs["bootstrap_commit"],
             "host": HOST,
-            "llvm_commit": args.llvm_commit,
+            "llvm_commit": toolchain_inputs["llvm_commit"],
             "llvm_tools": sorted(llvm_tools),
-            "rust_commit": args.rust_commit,
+            "rust_commit": toolchain_inputs["rust_commit"],
             "rust_tools": sorted(rust_tools),
             "source_commit": args.source_commit,
+            "toolchain_key": toolchain_inputs["toolchain_key"],
             "target_spec": f"share/xbox360/targets/{args.target_spec.name}",
         }
         metadata_dir = root / "share" / "xbox360"
@@ -235,6 +242,7 @@ def main() -> int:
             "url": download_url,
         },
         **package_metadata,
+        "toolchain_inputs": toolchain_inputs,
         "schema": 1,
     }
     write_json(args.out_dir / "xbox360-toolchain.json", manifest)

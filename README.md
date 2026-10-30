@@ -104,21 +104,26 @@ configuration keep the Rust release and host C++ toolchain.
 
 #### Nightly prebuilt toolchain
 
-`.github/workflows/nightly-toolchain.yml` builds the source toolchain on
-x86_64 Linux when the default branch has moved. It publishes the large
-`.tar.xz` archive
-under an immutable `toolchain-nightly-<source-commit>` release. The moving
-`toolchain-nightly` pre-release contains only its manifest, Buck2 pin, config
-snippet, and DotSlash descriptors; those files point at the immutable archive.
-The manifest records the integration, bootstrap, Rust, and LLVM commits plus
-SHA-256 and BLAKE3 digests.
+`.github/workflows/nightly-toolchain.yml` fingerprints the inputs to the
+source toolchain on x86_64 Linux. The fingerprint covers the bootstrap commit
+and its pinned Rust and LLVM commits, the Xbox target specification, and
+relevant Buck2 and packaging code. Scheduled runs skip the expensive build
+when that fingerprint is already published, so unrelated changes to the default
+branch do not rebuild the toolchain.
+
+Each build publishes its large `.tar.xz` archive under an immutable
+`toolchain-nightly-<input-hash>` release. The moving `toolchain-nightly`
+pre-release contains only its manifest, Buck2 pin, config snippet, and
+DotSlash descriptors; those files point at the immutable archive. The manifest
+records the complete fingerprint, integration, bootstrap, Rust, and LLVM
+commits plus SHA-256 and BLAKE3 digests.
 
 The workflow also force-updates the generated `nightly-toolchain` branch to the
 source commit plus one `Update nightly toolchain` commit. That commit pins the
 new archive and defaults `xbox360.ppc64_toolchain` to `prebuilt`. The default
 branch remains source-built. Because the workflow is scheduled/manual and
-compares the default branch with the manifest's source commit, publishing the
-generated branch cannot trigger an infinite nightly-build loop.
+compares the current toolchain-input fingerprint with the published manifest,
+publishing the generated branch cannot trigger an infinite nightly-build loop.
 
 An external project can pin its `xbox360` cell to the commit at the tip of
 `nightly-toolchain`. In this checkout:
