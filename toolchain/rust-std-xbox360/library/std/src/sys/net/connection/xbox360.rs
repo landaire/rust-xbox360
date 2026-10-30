@@ -117,6 +117,23 @@ impl Socket {
         if r == SOCKET_ERROR { Err(last_error()) } else { Ok(()) }
     }
 
+    fn set_flag(&self, option: xam::SocketOption, on: bool) -> io::Result<()> {
+        let value: u32 = on as u32;
+        // SAFETY: `self.0` is an open socket and `value` is a live local of the
+        // length passed.
+        let r = unsafe {
+            xam::NetDll_setsockopt(
+                CALLER,
+                self.0,
+                xam::SocketLevel::Socket,
+                option,
+                (&raw const value).cast(),
+                size_of::<u32>() as i32,
+            )
+        };
+        if r == SOCKET_ERROR { Err(last_error()) } else { Ok(()) }
+    }
+
     fn set_nonblocking(&self, nb: bool) -> io::Result<()> {
         let mut v: u32 = nb as u32;
         // SAFETY: `self.0` is an open socket and `v` is a live local.
@@ -478,8 +495,10 @@ impl UdpSocket {
     pub fn write_timeout(&self) -> io::Result<Option<Duration>> {
         Ok(None)
     }
-    pub fn set_broadcast(&self, _v: bool) -> io::Result<()> {
-        Ok(())
+    pub fn set_broadcast(&self, v: bool) -> io::Result<()> {
+        // SO_BROADCAST. Without it a socket of the system process receives no
+        // datagram sent to a broadcast address.
+        self.0.set_flag(xam::SocketOption(0x0020), v)
     }
     pub fn broadcast(&self) -> io::Result<bool> {
         Ok(false)
