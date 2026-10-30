@@ -8,9 +8,10 @@ load("@prelude//toolchains:cxx.bzl", "cxx_tools_info_toolchain")
 load("@prelude//toolchains:genrule.bzl", "system_genrule_toolchain")
 load("@prelude//toolchains:python.bzl", "remote_python_toolchain")
 load("@prelude//toolchains:remote_test_execution.bzl", "remote_test_execution_toolchain")
-load(":custom_toolchain.bzl", "bootstrap_dist", "path_clang", "xbox360_clang")
+load(":custom_toolchain.bzl", "bootstrap_dist", "path_clang", "prebuilt_toolchain_archive", "xbox360_clang")
 load(":cxx.bzl", "host_cxx_tools", "linker_override_toolchain", "rust_lld")
 load(":flags.bzl", "XBOX360_RUSTC_FLAGS")
+load(":nightly_toolchain.bzl", "DEFAULT_PPC64_TOOLCHAIN", "NIGHTLY_TOOLCHAIN")
 load(":python.bzl", "exec_python_bootstrap_toolchain")
 load(":rust.bzl", "release_tool", "rust_release", "rust_release_toolchain")
 
@@ -30,6 +31,35 @@ def _by_codegen(ppc32, ppc64):
         _PPC64: ppc64,
         "DEFAULT": ppc32,
     })
+
+def _config_or_default(name: str, default: str) -> str:
+    value = read_root_config("xbox360", name, "")
+    return value if value else default
+
+def _ppc64_distributions() -> tuple[str, ...]:
+    mode = read_root_config(
+        "xbox360",
+        "ppc64_toolchain",
+        DEFAULT_PPC64_TOOLCHAIN,
+    )
+    if mode == "source":
+        return (
+            "rustc_bootstrap//stage1:dist",
+            "rustc_bootstrap//stage0:ci_llvm",
+        )
+    if mode != "prebuilt":
+        fail("xbox360.ppc64_toolchain must be `source` or `prebuilt`, not `{}`".format(mode))
+
+    prebuilt_toolchain_archive(
+        name = "ppc64-prebuilt",
+        url = _config_or_default("ppc64_toolchain_url", NIGHTLY_TOOLCHAIN["url"]),
+        sha256 = _config_or_default("ppc64_toolchain_sha256", NIGHTLY_TOOLCHAIN["sha256"]),
+        strip_prefix = _config_or_default(
+            "ppc64_toolchain_strip_prefix",
+            NIGHTLY_TOOLCHAIN["strip_prefix"],
+        ),
+    )
+    return (":ppc64-prebuilt", ":ppc64-prebuilt")
 
 def xbox360_toolchains(
         rustc_flags = [],
@@ -62,15 +92,18 @@ def xbox360_toolchains(
         components = ["llvm-tools-preview"],
     )
 
-    # PPC64: the compiler and LLVM installation built from source.
+    # PPC64: either build the compiler and LLVM from source or download the
+    # archive pinned by nightly_toolchain.bzl. Both paths expose the same
+    # Rust-release directory layout to the toolchain rules below.
+    ppc64_rust_dist, ppc64_llvm_dist = _ppc64_distributions()
     bootstrap_dist(
         name = "rust-ppc64",
-        dist = "rustc_bootstrap//stage1:dist",
+        dist = ppc64_rust_dist,
     )
 
     bootstrap_dist(
         name = "llvm-ppc64",
-        dist = "rustc_bootstrap//stage0:ci_llvm",
+        dist = ppc64_llvm_dist,
     )
 
     release_tool(

@@ -1,0 +1,285 @@
+name: Nightly toolchain
+
+on:
+  schedule:
+    - cron: "0 7 * * *"
+  workflow_dispatch:
+    inputs:
+      force:
+        description: Rebuild an already-published source commit
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: nightly-toolchain
+  cancel-in-progress: false
+
+# The large archive is published under an immutable source-commit tag. The
+# moving `toolchain-nightly` release contains only its manifest and DotSlash /
+# Buck2 pins. The generated `nightly-toolchain` branch is rebuilt from the
+# default branch plus one pin commit, so that commit consumes the archive it
+# names without changing the default branch or retriggering this workflow.
+
+jobs:
+  check:
+    runs-on: ubuntu-22.04
+    outputs:
+      changed: ${{ steps.compare.outputs.changed }}
+      head: ${{ steps.compare.outputs.head }}
+      release_tag: ${{ steps.compare.outputs.release_tag }}
+    steps:
+      - name: Compare the default branch with the latest toolchain
+        id: compare
+        env:
+          FORCE: ${{ inputs.force || false }}
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          branch=$(gh api "repos/$GH_REPO" --jq .default_branch)
+          head=$(gh api "repos/$GH_REPO/commits/$branch" --jq .sha)
+          release_tag="toolchain-nightly-${head:0:12}"
+          echo "head=$head" >> "$GITHUB_OUTPUT"
+          echo "release_tag=$release_tag" >> "$GITHUB_OUTPUT"
+
+          published=""
+          scratch=$(mktemp -d)
+          if gh release download toolchain-nightly \
+              --pattern xbox360-toolchain.json --dir "$scratch" >/dev/null 2>&1; then
+            published=$(jq -r .source_commit "$scratch/xbox360-toolchain.json")
+          fi
+          rm -rf "$scratch"
+
+          if [ "$FORCE" != "true" ] && [ "$published" = "$head" ]; then
+            echo "The nightly toolchain already contains $head."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  build:
+    needs: check
+    if: needs.check.outputs.changed == 'true'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.check.outputs.head }}
+
+      - name: Read the bootstrap commit
+        id: bootstrap
+        run: |
+          commit=$(python3 - <<'PY'
+          import configparser
+          config = configparser.ConfigParser()
+          config.read(".buckconfig")
+          print(config["external_cell_rustc_bootstrap"]["commit_hash"])
+          PY
+          )
+          echo "commit=$commit" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v4
+        with:
+          repository: landaire-contrib/buck2-rustc-bootstrap
+          ref: ${{ steps.bootstrap.outputs.commit }}
+          path: toolchain/buck2-rustc-bootstrap
+
+      - name: Use the checked-out bootstrap cell
+        run: |
+          cat > .buckconfig.local <<'EOF'
+          [external_cells]
+            rustc_bootstrap = disabled
+          EOF
+
+      - name: Free runner disk space
+        run: |
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y xz-utils
+
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/buck2-rustc-bootstrap/xbox360-llvm
+          key: xbox360-llvm-${{ runner.os }}-${{ steps.bootstrap.outputs.commit }}
+          restore-keys: |
+            xbox360-llvm-${{ runner.os }}-
+
+      - name: Install DotSlash and Buck2
+        run: ./bootstrap.sh
+
+      - name: Build Rust and LLVM distributions
+        id: build
+        run: |
+          rust_dist=$(bin/buck2 build -j 2 \
+            -c xbox360.toolchain_jobs=2 \
+            --target-platforms xbox360//platforms:ppc64 \
+            toolchains//:rust-ppc64 --show-simple-output)
+          llvm_dist=$(bin/buck2 build -j 2 \
+            -c xbox360.toolchain_jobs=2 \
+            --target-platforms xbox360//platforms:ppc64 \
+            toolchains//:llvm-ppc64 --show-simple-output)
+          echo "rust_dist=$(realpath "$rust_dist")" >> "$GITHUB_OUTPUT"
+          echo "llvm_dist=$(realpath "$llvm_dist")" >> "$GITHUB_OUTPUT"
+
+      - name: Read source provenance
+        id: sources
+        run: |
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import re
+          from pathlib import Path
+
+          root = Path("toolchain/buck2-rustc-bootstrap")
+          files = {
+              "llvm_commit": root / "stage0/custom_llvm.bzl",
+              "rust_commit": root / "sources/BUCK",
+          }
+          patterns = {
+              "llvm_commit": r'_LLVM_COMMIT = "([0-9a-f]{40})"',
+              "rust_commit": r'_RUST_COMMIT = "([0-9a-f]{40})"',
+          }
+          for name, path in files.items():
+              match = re.search(patterns[name], path.read_text())
+              if not match:
+                  raise SystemExit(f"could not read {name} from {path}")
+              print(f"{name}={match.group(1)}")
+          PY
+
+      - name: Package the toolchain
+        env:
+          BOOTSTRAP_COMMIT: ${{ steps.bootstrap.outputs.commit }}
+          LLVM_COMMIT: ${{ steps.sources.outputs.llvm_commit }}
+          LLVM_DIST: ${{ steps.build.outputs.llvm_dist }}
+          RELEASE_TAG: ${{ needs.check.outputs.release_tag }}
+          RUST_COMMIT: ${{ steps.sources.outputs.rust_commit }}
+          RUST_DIST: ${{ steps.build.outputs.rust_dist }}
+          SOURCE_COMMIT: ${{ needs.check.outputs.head }}
+        run: |
+          libstdcxx=$(c++ -print-file-name=libstdc++.so.6)
+          libgcc=$(c++ -print-file-name=libgcc_s.so.1)
+          epoch=$(git show -s --format=%ct "$SOURCE_COMMIT")
+          python3 tools/package_toolchain.py \
+            --rust-dist "$RUST_DIST" \
+            --llvm-dist "$LLVM_DIST" \
+            --target-spec targets/powerpc64-unknown-xbox360.json \
+            --out-dir dist \
+            --repository "$GITHUB_REPOSITORY" \
+            --release-tag "$RELEASE_TAG" \
+            --source-commit "$SOURCE_COMMIT" \
+            --bootstrap-commit "$BOOTSTRAP_COMMIT" \
+            --rust-commit "$RUST_COMMIT" \
+            --llvm-commit "$LLVM_COMMIT" \
+            --source-date-epoch "$epoch" \
+            --dotslash .tools/bin/dotslash \
+            --runtime-library "$libstdcxx" \
+            --runtime-library "$libgcc" \
+            --compression-level 6
+
+      - name: Smoke-test the packaged tools
+        run: |
+          mkdir extracted
+          tar -xJf dist/xbox360-toolchain-x86_64-unknown-linux-gnu.tar.xz \
+            -C extracted
+          root=$PWD/extracted/xbox360-toolchain-x86_64-unknown-linux-gnu
+          "$root/bin/rustc" --version --verbose
+          "$root/bin/rustdoc" --version
+          "$root/bin/clippy-driver" --version
+          "$root/bin/clang" --version
+          "$root/bin/clang++" --version
+          "$root/bin/ld.lld" --version
+
+          printf 'pub fn answer() -> u32 { 42 }\n' > "$RUNNER_TEMP/smoke.rs"
+          "$root/bin/rustc" --crate-type=lib --emit=obj \
+            "$RUNNER_TEMP/smoke.rs" -o "$RUNNER_TEMP/smoke-rust.o"
+          printf 'unsigned answer(void) { return 42; }\n' > "$RUNNER_TEMP/smoke.c"
+          "$root/bin/clang" --target=powerpc64-unknown-xbox360 \
+            -c "$RUNNER_TEMP/smoke.c" -o "$RUNNER_TEMP/smoke-c.o"
+          "$root/bin/llvm-objdump" -h "$RUNNER_TEMP/smoke-c.o"
+
+          for descriptor in dist/xbox360-rustc dist/xbox360-clang dist/xbox360-clang++; do
+            .tools/bin/dotslash -- parse "$descriptor"
+          done
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: xbox360-toolchain-${{ needs.check.outputs.head }}
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    needs: [check, build]
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.check.outputs.head }}
+          fetch-depth: 0
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: xbox360-toolchain-${{ needs.check.outputs.head }}
+          path: dist
+
+      - name: Publish the immutable toolchain release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ needs.check.outputs.release_tag }}
+          SOURCE_COMMIT: ${{ needs.check.outputs.head }}
+        run: |
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" dist/* --clobber
+          else
+            gh release create "$RELEASE_TAG" dist/* \
+              --prerelease \
+              --target "$SOURCE_COMMIT" \
+              --title "Xbox 360 toolchain ${SOURCE_COMMIT:0:12}" \
+              --notes "Nightly Xbox 360 Rust and LLVM toolchain built from $SOURCE_COMMIT."
+          fi
+
+      - name: Publish the generated consumer commit
+        id: consumer
+        env:
+          SOURCE_COMMIT: ${{ needs.check.outputs.head }}
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git fetch origin refs/heads/nightly-toolchain:refs/remotes/origin/nightly-toolchain || true
+          git switch -C nightly-toolchain "$SOURCE_COMMIT"
+          cp dist/nightly_toolchain.bzl buck/nightly_toolchain.bzl
+          cp dist/xbox360-rustc toolchains/xbox360-rustc
+          cp dist/xbox360-clang toolchains/xbox360-clang
+          cp 'dist/xbox360-clang++' 'toolchains/xbox360-clang++'
+          cp dist/xbox360-toolchain.json toolchains/xbox360-toolchain.json
+          git add buck/nightly_toolchain.bzl toolchains/xbox360-*
+          git commit -m "Update nightly toolchain"
+          git push --force-with-lease origin HEAD:refs/heads/nightly-toolchain
+          echo "commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Replace the moving nightly release
+        env:
+          CONSUMER_COMMIT: ${{ steps.consumer.outputs.commit }}
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          if gh release view toolchain-nightly >/dev/null 2>&1; then
+            gh release delete toolchain-nightly --yes
+          fi
+          if gh api "repos/$GH_REPO/git/ref/tags/toolchain-nightly" >/dev/null 2>&1; then
+            gh api -X DELETE "repos/$GH_REPO/git/refs/tags/toolchain-nightly"
+          fi
+          gh release create toolchain-nightly \
+            dist/nightly_toolchain.bzl \
+            dist/xbox360-clang \
+            'dist/xbox360-clang++' \
+            dist/xbox360-rustc \
+            dist/xbox360-toolchain.buckconfig \
+            dist/xbox360-toolchain.json \
+            --prerelease \
+            --target "$CONSUMER_COMMIT" \
+            --title "Latest Xbox 360 nightly toolchain" \
+            --notes "The nightly-toolchain branch at $CONSUMER_COMMIT consumes this build."

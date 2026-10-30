@@ -1,4 +1,4 @@
-"""The source-built PPC64 compiler and the C compilers for the console."""
+"""The optional PPC64 compiler distributions and console C compilers."""
 
 load("@prelude//decls:toolchains_common.bzl", "toolchains_common")
 load("@prelude//python_bootstrap:python_bootstrap.bzl", "PythonBootstrapToolchainInfo")
@@ -23,8 +23,8 @@ def _bootstrap_dist_impl(ctx: AnalysisContext) -> list[Provider]:
         ),
     ]
 
-# A distribution that rustc_bootstrap builds from source, laid out like a Rust
-# release: the compiler or the LLVM installation.
+# A distribution laid out like a Rust release: either a source-built compiler
+# or LLVM installation, or the combined archive published by nightly CI.
 bootstrap_dist = rule(
     impl = _bootstrap_dist_impl,
     attrs = {
@@ -38,6 +38,21 @@ bootstrap_dist = rule(
         }))),
     },
 )
+
+def prebuilt_toolchain_archive(name: str, url: str, sha256: str, strip_prefix: str):
+    """Downloads a combined Rust and LLVM distribution published by nightly CI."""
+    if not url or not sha256 or not strip_prefix:
+        fail(
+            "the prebuilt PPC64 toolchain is not pinned; use the generated " +
+            "nightly-toolchain branch or set xbox360.ppc64_toolchain_url, " +
+            "xbox360.ppc64_toolchain_sha256 and xbox360.ppc64_toolchain_strip_prefix",
+        )
+    native.http_archive(
+        name = name,
+        sha256 = sha256,
+        strip_prefix = strip_prefix,
+        urls = [url],
+    )
 
 def _path_clang_impl(ctx: AnalysisContext) -> list[Provider]:
     return [

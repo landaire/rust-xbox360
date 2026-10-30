@@ -36,9 +36,10 @@ the `xbox360` target. A title may therefore use `std::thread`, `std::net`,
 - For C and C++ titles with the release toolchain: `clang` with the PowerPC target,
   on the `PATH` of the Buck2 daemon. Run `buck2 kill` after changing `PATH`.
   The PPC64 toolchain supplies its own clang.
-- For the PPC64 toolchain: an x86_64 Linux host with a C and C++ compiler
-  (`cc` and `c++`, with the C++ standard library), binutils, `unzip`, and
-  Python 3. Buck2 downloads CMake and Ninja.
+- For the PPC64 toolchain: an x86_64 Linux host. The prebuilt nightly is built
+  on Ubuntu 22.04 and bundles `libstdc++` and `libgcc_s`; it still requires a
+  compatible glibc. Building the toolchain from source additionally requires
+  `cc`, `c++`, binutils, `unzip`, and Python 3. Buck2 downloads CMake and Ninja.
 
 `xex-link` builds the XEX with the `xex2` and `xenon_types` crates of the [acceleration](https://github.com/landaire/acceleration) project, pinned to a Git commit.
 
@@ -63,42 +64,84 @@ To move to another Buck2 release, replace `toolchains/buck2` with the `buck2` Do
 
 The `xbox360//platforms:codegen` constraint selects the compiler. Its default,
 `ppc32`, uses the Rust release and the `powerpc-unknown-xbox360` target.
-`ppc64-ilp32` targets `powerpc64-unknown-xbox360` with a Rust 1.98 compiler
-and LLVM that Buck2 builds from source in the same build, through the
-`rustc_bootstrap` cell ([buck2-rustc-bootstrap], branch `xbox360-rust-1.98`,
-pinned in `.buckconfig`). That cell downloads the Rust fork, its
-`library/backtrace` submodule, LLVM, CMake, and Ninja as SHA-256-pinned
-archives; `stage0/custom_llvm.bzl` there pins the LLVM commit.
+`ppc64-ilp32` targets `powerpc64-unknown-xbox360`. PPC32 and PPC64 builds have
+different configurations, so their outputs never share paths, and both can be
+built by one command:
 
 ```
 bin/buck2 build -j 8 --target-platforms xbox360//platforms:ppc64 \
   //examples/hello:hello //examples/stdhello:stdhello //examples/chello:chello
 ```
 
-A project with the prelude's configuration modifiers selects it with a
+A project with the prelude's configuration modifiers selects PPC64 with a
 `PACKAGE` alias for `xbox360//platforms:codegen[ppc64-ilp32]`, as in
 `//path:target?ppc64`. The `xbox360-ppc64-ilp32-*` platforms configure the
-standard library crates directly. PPC32 and PPC64 builds have different
-configurations, so their outputs never share paths, and both can be built by
-one command.
+standard library crates directly.
 
-The first PPC64 build compiles LLVM, clang, and LLD (about 25 minutes with 8
-jobs) and then rustc. LLVM uses its CMake/Ninja build, run locally and never
-uploaded to a cache; `xbox360.toolchain_jobs` in the root `.buckconfig` sets
-its job count (default 8). Its build tree persists in
-`$XDG_CACHE_HOME/buck2-rustc-bootstrap/xbox360-llvm` (or under `~/.cache`),
-keyed by the build configuration, so a new LLVM pin rebuilds only the files
-that changed; every build installs into a fresh Buck2 output. Building rustc
-needs several GB of memory per job; pass `-j` to Buck2 on a memory-constrained
-host. Only x86_64 Linux hosts can build the PPC64 toolchain; elsewhere the
-build stops during analysis. PPC32 builds work on every host and do not build
-the compiler.
+`xbox360.ppc64_toolchain` selects where the PPC64 compiler comes from:
+
+- `source` is the default on the default branch. The `rustc_bootstrap` cell
+  builds Rust 1.98 and the pinned LLVM, clang, and LLD. The cell downloads the
+  Rust fork, its `library/backtrace` submodule, LLVM, CMake, and Ninja as
+  SHA-256-pinned archives; `stage0/custom_llvm.bzl` pins LLVM.
+- `prebuilt` downloads one SHA-256-pinned archive containing `rustc`,
+  `rustdoc`, `clippy-driver`, clang, clang++, LLD, the LLVM object tools, the
+  host Rust sysroot, clang resource headers, and the PPC64 target
+  specification. Rust and LLVM toolchain targets consume the same extracted
+  directory.
+
+The first source build compiles LLVM (about 25 minutes with 8 jobs) and then
+rustc. LLVM uses a local CMake/Ninja action that is never uploaded to a cache;
+`xbox360.toolchain_jobs` sets its job count (default 8). Its build tree persists
+in `$XDG_CACHE_HOME/buck2-rustc-bootstrap/xbox360-llvm` (or under `~/.cache`),
+keyed by the build configuration. Building rustc needs several GB of memory per
+job; pass `-j` to Buck2 on a memory-constrained host.
 
 In PPC64 configurations, host crates (proc macros, build scripts, and tools)
-are built with the same source-built compiler, on the
-`xbox360//platforms:host-ppc64` execution platform, so that the compiler can
-load them. Host targets in the default configuration keep the Rust release
-and the host C++ toolchain.
+use the same source-built or prebuilt compiler on the
+`xbox360//platforms:host-ppc64` execution platform. Host targets in the default
+configuration keep the Rust release and host C++ toolchain.
+
+#### Nightly prebuilt toolchain
+
+`.github/workflows/nightly-toolchain.yml` builds the source toolchain on
+x86_64 Linux when the default branch has moved. It publishes the large
+`.tar.xz` archive
+under an immutable `toolchain-nightly-<source-commit>` release. The moving
+`toolchain-nightly` pre-release contains only its manifest, Buck2 pin, config
+snippet, and DotSlash descriptors; those files point at the immutable archive.
+The manifest records the integration, bootstrap, Rust, and LLVM commits plus
+SHA-256 and BLAKE3 digests.
+
+The workflow also force-updates the generated `nightly-toolchain` branch to the
+source commit plus one `Update nightly toolchain` commit. That commit pins the
+new archive and defaults `xbox360.ppc64_toolchain` to `prebuilt`. The default
+branch remains source-built. Because the workflow is scheduled/manual and
+compares the default branch with the manifest's source commit, publishing the
+generated branch cannot trigger an infinite nightly-build loop.
+
+An external project can pin its `xbox360` cell to the commit at the tip of
+`nightly-toolchain`. In this checkout:
+
+```
+git fetch origin nightly-toolchain
+git switch --detach origin/nightly-toolchain
+bin/buck2 build --target-platforms xbox360//platforms:ppc64 \
+  //examples/hello:hello
+```
+
+The generated branch also runs the same archive directly through DotSlash:
+
+```
+.tools/bin/dotslash toolchains/xbox360-rustc --version
+.tools/bin/dotslash toolchains/xbox360-clang --version
+.tools/bin/dotslash 'toolchains/xbox360-clang++' --version
+```
+
+To use a particular archive without switching branches, merge the
+`xbox360-toolchain.buckconfig` snippet from its release into
+`.buckconfig.local`. The URL, SHA-256, and archive root in that snippet override
+the checked-in pin.
 
 To work on the bootstrap, check it out at `toolchain/buck2-rustc-bootstrap`
 and add this to `.buckconfig.local`:
