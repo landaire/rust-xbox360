@@ -38,6 +38,48 @@ target-specific macros and does not invent aliases. Compiler-identity macros
 such as `_MSC_VER` are separate from target identification and remain governed
 by Clang's Microsoft compatibility settings.
 
+## Fundamental C and C++ types
+
+A header-free C++ probe returned `sizeof` and `__alignof` for fundamental
+types. Xbox 360 `cl.exe` 16.00.11886.00 produced:
+
+| Type | Size | Alignment | Additional result |
+| --- | ---: | ---: | --- |
+| `bool` | 1 | 1 | |
+| `wchar_t` | 2 | 2 | unsigned |
+| `long` | 4 | 4 | |
+| `long long` | 8 | 8 | |
+| `long double` | 8 | 8 | same operations and calling convention as `double` |
+| data pointer | 4 | 4 | |
+| function pointer | 4 | 4 | |
+
+Each size and alignment was emitted as an immediate return value. For example:
+
+```asm
+size_long_double:
+    li      r3, 8
+    blr
+size_wchar:
+    li      r3, 2
+    blr
+wchar_is_signed:
+    li      r3, 0
+    blr
+```
+
+Separate `long double add(long double, long double)` and
+`double add(double, double)` probes compiled to the same body and register
+interface:
+
+```asm
+fadd    fr1, fr1, fr2
+blr
+```
+
+Clang therefore uses 64-bit IEEE `long double` and 16-bit unsigned `wchar_t`
+for the Xbox target. These are source type and FFI requirements. They are not
+PowerPC64 ILP32 properties and must not be applied to LV2.
+
 ## Pointers are 32-bit values
 
 `KeInitializeDpc` stores its routine and context pointer arguments into a DPC object with word stores:
@@ -551,9 +593,9 @@ The kernel image also contains a `.pdata` section at `0x8006be00..0x80072db0`. L
 ## Frame layout
 
 Probes `p02_gpr.c`, `p03_fpr.c`, `p04_cr.c`, and `p12_vmxnoarg.c` were
-compiled with `/O2` and `/Od` and disassembled with `dumpbin`. The save
-helpers were disassembled from the static runtime library members that define
-`__savegprlr_N`, `__savefpr_N`, and `__savevmx_N`.
+compiled with `/O2` and `/Od` and disassembled with `dumpbin`. The evidence
+below uses only compiler-generated probe objects and the genuine system
+binaries listed above. Runtime-library object code is excluded.
 
 The return address is stored 8 bytes below the incoming stack pointer before
 the frame is claimed, and is reloaded from there after the frame is released:
@@ -573,16 +615,12 @@ ebe1fff0  ld      r31, -0x10(r1)
 
 The kernel contains 1415 instances of `stw r12, -8(r1)`.
 
-Nonvolatile GPRs are saved at full width directly below the LR word: `X31` at
--16 down to `X14` at -152 (`-8 - 8 * (32 - N)`). The helper confirms the
-slots:
-
-```asm
-__savegprlr_14:  f9c1ff68  std  r14, -0x98(r1)
-...
-__savegprlr_31:  fbe1fff0  std  r31, -0x10(r1)
-                 9181fff8  stw  r12, -8(r1)
-```
+Nonvolatile GPRs are saved at full width directly below the LR word. Generated
+functions place `X31` at -16, and lower-numbered saved registers continue in
+8-byte slots. The genuine kernel save sequence at `0x8014d060` independently
+shows this full-width layout for `X26` and the higher nonvolatile GPRs. The
+resulting sequence runs from `X31` at -16 down to `X14` at -152
+(`-8 - 8 * (32 - N)`).
 
 Nonvolatile FPRs `f14` through `f31` are saved directly below the GPR save
 area. With `r31` saved, `f31` is at -24:
@@ -595,26 +633,34 @@ dbe1ffe8  stfd    fr31, -0x18(r1)
           stwu    r1, -0x70(r1)
 ```
 
-With all GPRs saved, the FPR helper base is the bottom of the GPR area
-(`fkeep_all: addi r12, r1, -152; bl __savefpr_14`), and `__savefpr_N` stores
-`fN` at `r12 - 8 * (32 - N)`.
+With all GPRs kept live, the generated call site computes the FPR save base at
+the bottom of the GPR area (`fkeep_all: addi r12, r1, -152`) before calling
+`__savefpr_14`. Together with the direct `fr31` save above, this establishes
+that FPR saves lie below the GPR area. The runtime helper body is not used as
+evidence.
 
 CR is not kept live across calls in compiled code: `cr_live3` recomputes its
 comparisons into GPRs and retests them with `cmpwi cr6` after the call, and
 all five `mfcr` instructions in the kernel are in hand-written code at
-`0x800A0000..0x800A6FFF`. LLVM keeps `cr2`-`cr4` live across calls and saves
-them in the word at -4, which no compiled MSVC code uses.
+`0x800A0000..0x800A6FFF`.
 
-LLVM uses the same layout: LR at -8 before `stwu`, the CR word at -4, `X31` at
--16 through `X14` at -152, and FPRs below the GPRs. It uses `r0` instead of
-`r12` as the LR scratch register, always saves inline instead of calling the
-helpers, and emits no `.pdata`.
+This caller-side evidence does not prove that `cr2`-`cr4` are volatile.
+LLVM conservatively preserves them and saves them in the word at -4, which no
+observed MSVC-compiled function uses. Preserving extra state is safe for an LLVM
+callee, but an LLVM caller could rely on that state across a foreign callee.
+Mixed-toolchain CR behavior remains unproven until a compiled callee is
+observed clobbering or preserving these fields.
+
+LLVM uses the observed LR, GPR, and FPR layout: LR at -8 before `stwu`, `X31`
+at -16 through `X14` at -152, and FPRs below the GPRs. It additionally uses
+the CR word at -4. It uses `r0` instead of `r12` as the LR scratch register,
+always saves inline instead of calling the helpers, and emits no `.pdata`.
 
 ## Vector register volatility
 
-Probe `p13_vmx100.c` keeps 100 vector values live across a call. MSVC saves
-only `v64`-`v127`, through the VMX128 helper, and spills values held in
-`v0`-`v63` to stack temporaries around the call:
+Probe `p13_vmx100.c` keeps 100 vector values live across a call. MSVC emits a
+call to `__savevmx_64` for values allocated to `v64` and above, while values
+held in `v0`-`v63` are spilled to stack temporaries around the external call:
 
 ```asm
 vkeep100:
@@ -627,14 +673,9 @@ vkeep100:
           stvx128 vr20, r0, r8          ; r8 = stack temporary, before bl ext_v
 ```
 
-```asm
-__savevmx_64:  3960fc00  li       r11, -1024
-               100b61cb  stvx128  vr64, r11, r12
-```
-
-`v0`-`v63` are volatile and `v64`-`v127` are preserved. The helper block for
-`v14`-`v31` exists in the library, but no compiled function was seen to call
-it. The VMX128 target models all 128 registers and preserves v64-v127.
+This generated caller behavior establishes that `v0`-`v63` are volatile and
+`v64`-`v127` are preserved without depending on the runtime helper body. The
+VMX128 target models all 128 registers and preserves v64-v127.
 Supported 16-byte vectors use v1-v13 for arguments and v1 for results;
 arguments beyond v13 use 16-byte stack slots. The console ABI and SIMD
 probes are in `examples/vmx128test`.
@@ -660,25 +701,11 @@ dyn_alloca:             neg     r11, r3
                         stwux   r10, r1, r12
 ```
 
-The helper was extracted from the static C runtime library
-(`link /lib /extract:obj\xbox\chkstk.obj`) and disassembled:
+The generated objects establish the inline sequence, thresholds, helper call
+interface, and post-call stack update. The helper body is excluded from this
+report; the hardware probe below independently establishes the required 4 KiB
+stride.
 
-```asm
-_RtlCheckStack12:
-7d6c00d0  neg     r11, r12
-380b0fff  addi    r0, r11, 4095
-7c006671  srawi.  r0, r0, 12
-4c810020  blelr
-7c2b0b78  mr      r11, r1
-7c0903a6  mtctr   r0
-840bf000  lwzu    r0, -0x1000(r11)
-4200fffc  bdnz    -4
-4e800020  blr
-```
-
-It reads one word per 4 KiB page below the old stack pointer and does nothing
-else: it does not read a stack limit, does not use `r13`, and makes no kernel
-call. It clobbers `r0`, `r11`, CTR, CR0, and XER[CA].
 
 A self-authored title tested this on a development kit. `threadinfo` and
 `walkmem` showed that the main thread of a XEX without a stack-size header, and
@@ -803,12 +830,31 @@ caller had placed it in the low word of the 8-byte home slot at `sp+0x50`.
 Loading that incoming slot before constructing the import frame made the same
 title reach `0x55` on hardware.
 
+## Compatibility boundary
+
+Matching a compiler's instruction choices is not a goal. The implementation
+uses each observation according to the behavior it constrains:
+
+| Category | Behavior that must match |
+| --- | --- |
+| Native-code interoperability | Source type widths, pointer representation, argument and result locations, home slots, frame layout, and register volatility |
+| Hardware correctness | MSR[SF]=0 effects, supported instructions, vector memory bounds, VSCR side effects, stack guards, and processor-local state |
+| Toolchain functionality | ELF32 objects, direct code pointers, static relocation by default, optional ELF PIC, and frontend feature controls |
+| Optional optimization | Sibling calls, `LHZ` plus `EXTSH`, `STFIWX`, and Xenon cost models |
+
+LLVM does not need to copy helper-thunk selection, scratch-register choices,
+instruction scheduling, or exact prologue spelling when the externally visible
+result is equivalent. Those details should not add target-specific complexity.
+PE `.pdata` is different: it is externally consumed unwind metadata and must
+match when PE/COFF output is implemented.
+
 ## LLVM consequences
 
 The current experimental patch implements the evidence-backed subset:
 
 - The `powerpc64-unknown-xbox360` triple selects the PPC64 ISA with an ILP32
   data layout and 32-bit address register classes.
+- Clang uses 64-bit IEEE `long double` and 16-bit unsigned `wchar_t`.
 - A legal `i64` argument consumes one of `X3` through `X10`.
 - A scalar `i64` result uses `X3`.
 - Calls reserve a 16-byte linkage area and eight 8-byte argument home slots.
@@ -821,8 +867,9 @@ The current experimental patch implements the evidence-backed subset:
 - The standard nonvolatile GPR set is saved and restored at full width,
   including when a register holds a pointer.
 - LR is stored at incoming SP-8 before `stwu` and reloaded from there after
-  the frame is released. CR uses the fixed `-4` word, full-width GPR saves use
-  `X31` at -16 through `X14` at -152, and FPR saves lie below the GPR area.
+  the frame is released. Full-width GPR saves use `X31` at -16 through `X14`
+  at -152, and FPR saves lie below the GPR area. LLVM's conservative
+  `cr2`-`cr4` preservation uses the fixed -4 word.
 - VMX128 enables 128 vector registers. Registers v0-v63 are volatile and
   v64-v127 are preserved. Supported 16-byte vectors pass in v1-v13 and
   return in v1; integer element sizes are 8, 16 and 32 bits, and floating
@@ -888,6 +935,7 @@ The following items remain separate work and must not be claimed as implemented:
 
 - Exact MSVC helper-thunk prologue selection and `.pdata` emission.
 - Big-endian PowerPC COFF/PE object emission and relocations.
+- Mixed-toolchain `cr2`-`cr4` volatility.
 - A checked model for integers wider than 128 bits, variadic aggregates,
   and direct `f32` variadic IR.
 - Dedicated hypervisor-call intrinsics or assembly stubs.
