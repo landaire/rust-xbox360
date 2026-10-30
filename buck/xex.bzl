@@ -1,4 +1,4 @@
-"""Xbox 360 titles: a Rust or C executable converted to a XEX by xex-link.
+"""Xbox 360 titles: a Rust, C or C++ executable converted to a XEX by xex-link.
 
 `xex_core`, `xex_std` and `xex_std_system` convert the image of any
 executable rule.
@@ -18,7 +18,8 @@ LTO leaves out (compiler_builtins). The link mirrors the one rustc runs;
 the build fails if the mirror, applied to the object rustc linked, does
 not give rustc's image.
 
-`xbox360_c_title` compiles C sources with clang and converts the image.
+`xbox360_c_title` compiles C and C++ sources with clang and converts the
+image.
 
 Every rule fails the build if the image holds a reservation that the
 kernel loader reports as unprotected.
@@ -175,9 +176,15 @@ xex_std = rule(impl = _xex_impl, attrs = _XEX_ATTRS | _SYSROOT_LIBRARY_ATTRS | {
 
 xex_std_system = rule(impl = _xex_impl, attrs = _XEX_ATTRS | _SYSROOT_LIBRARY_ATTRS | {"elf": attrs.dep()}, cfg = xbox360_std_system_transition)
 
+# No C++ runtime exists for the console, so C++ sources compile without
+# exceptions, RTTI and the guards of function-local statics.
+_CXX_EXTENSIONS = (".cc", ".cpp", ".cxx")
+_CXX_FLAGS = ["-fno-exceptions", "-fno-rtti", "-fno-threadsafe-statics"]
+
 def _xbox360_c_title_impl(ctx: AnalysisContext) -> list[Provider]:
     objects = []
     for src in ctx.attrs.srcs:
+        is_cxx = any([src.short_path.endswith(ext) for ext in _CXX_EXTENSIONS])
         obj = ctx.actions.declare_output("objects", src.short_path + ".o")
         ctx.actions.run(
             cmd_args(
@@ -188,7 +195,9 @@ def _xbox360_c_title_impl(ctx: AnalysisContext) -> list[Provider]:
                 "-fno-builtin",
                 # Debug information stays in the ELF that a debugger loads.
                 "-g",
+                _CXX_FLAGS if is_cxx else [],
                 ctx.attrs.compiler_flags,
+                ctx.attrs.cxx_compiler_flags if is_cxx else [],
                 "-c",
                 src,
                 "-o",
@@ -221,13 +230,15 @@ def _xbox360_c_title_impl(ctx: AnalysisContext) -> list[Provider]:
         "reservations": [DefaultInfo(default_output = reservations)],
     } | _debugger_files(ctx, image, None))]
 
-# A XEX from C sources. The configured clang compiles them for big-endian
-# PowerPC without a C library, and its linker links the objects with the GNU
-# ld script `link_script`.
+# A XEX from C and C++ sources. The configured clang compiles them for
+# big-endian PowerPC without a C or C++ library, and its linker links the
+# objects with the GNU ld script `link_script`. `compiler_flags` apply to every
+# source, `cxx_compiler_flags` only to C++ sources (.cc, .cpp, .cxx).
 xbox360_c_title = rule(
     impl = _xbox360_c_title_impl,
     attrs = _XEX_ATTRS | {
         "compiler_flags": attrs.list(attrs.string(), default = []),
+        "cxx_compiler_flags": attrs.list(attrs.string(), default = []),
         "link_script": attrs.source(),
         "srcs": attrs.list(attrs.source()),
         "_clang": attrs.toolchain_dep(

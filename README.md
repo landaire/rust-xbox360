@@ -33,7 +33,7 @@ the `xbox360` target. A title may therefore use `std::thread`, `std::net`,
   standard-library source; other versions are not supported.
 - Xenia, built separately, for verification. The helper script
   `tools/run-xenia.sh` invokes it.
-- For C titles with the release toolchain: `clang` with the PowerPC target,
+- For C and C++ titles with the release toolchain: `clang` with the PowerPC target,
   on the `PATH` of the Buck2 daemon. Run `buck2 kill` after changing `PATH`.
   The PPC64 toolchain supplies its own clang.
 - For the PPC64 toolchain: an x86_64 Linux host with a C and C++ compiler
@@ -339,24 +339,30 @@ output. Xenia does not exit when the title's main thread returns, so runs end at
 the timeout; inspect the log rather than the exit code. Set the Xenia path and
 timeout at the top of the script if required.
 
-## Compiling C
+## Compiling C and C++
 
 `xex-link` is language-agnostic: any LLVM front end that emits a big-endian
-PowerPC ELF is supported. `xbox360_c_title` in `buck/xex.bzl` compiles C
-sources with the `toolchains//:clang` toolchain (`-ffreestanding
+PowerPC ELF is supported. `xbox360_c_title` in `buck/xex.bzl` compiles C and
+C++ sources with the `toolchains//:clang` toolchain (`-ffreestanding
 -fno-builtin`, for `powerpc-unknown-none-eabi`, or `powerpc64-unknown-xbox360`
 with the PPC64 toolchain), links them with its LLD, and converts the result
-with `xex-link`. The C example demonstrates the full path:
+with `xex-link`. C++ sources (`.cc`, `.cpp`, `.cxx`) also compile with
+`-fno-exceptions -fno-rtti -fno-threadsafe-statics`, as no C++ runtime exists
+for the console; `cxx_compiler_flags` adds flags for them only. The examples
+demonstrate the full path:
 
 ```
-buck2 build //examples/chello:chello --show-output
+buck2 build //examples/chello:chello //examples/cxxhello:cxxhello --show-output
 ```
 
-The PPC32 toolchain runs `clang` from the Buck2 daemon's `PATH`; that clang
-must include the PowerPC target (`clang -print-targets`). The PPC64 toolchain
-uses the clang that it builds. No C library exists for the console. The title
-declares its imports as thunks in the `.xthunks` section, as
-`examples/chello/hello.c` does.
+C and C++ titles do not build the Rust compiler. The PPC32 toolchain runs
+`clang` from the Buck2 daemon's `PATH`; that clang must include the PowerPC
+target (`clang -print-targets`). The PPC64 toolchain builds only LLVM, clang
+and LLD from source, not the Rust compiler. Both use the Rust release that
+Buck2 downloads for the host tool `xex-link`, and the PPC32 toolchain also for
+its LLD. No C library exists for the console, and `_start` runs no static
+constructors. The title declares its imports as thunks in the `.xthunks`
+section, as `examples/chello/hello.c` does.
 
 ## Linker options
 
@@ -412,11 +418,12 @@ multiple of the page size: 64 KB, or 4 KB with `SMALL_PAGES`.
 | `stdhello` | Yes | Allocation, threads, and files. |
 | `tokweb` | Yes | tokio async runtime with an HTTP request to a host server. |
 | `chello` | No | C title, built with `clang`. |
+| `cxxhello` | No | C++ title, built with `clang`. |
 | `vmx128test` | Yes | PPC64 only. Checks `xbox360-vmx128`, vector code from `core::simd`, the use of v32-v127, and the vector calling convention against code compiled by the console compiler. |
 | `vmx128bench` | Yes | PPC64 only. Instruction latency, throughput, memory bandwidth and compiler auto-vectorization measurements. |
 | `sfmode` | Yes | PPC64 only. MSR[SF], integer condition codes, carry and CTR probes. |
 
-Every example builds with Buck2. With Cargo, the Rust titles marked "No" other than `library-check` and `resources` build with step 4, and those marked "Yes" with step 5. `hello2`, `threads`, `net` and `chello` declare their own import thunks instead of using `xbox360-sys`. `vmx128test`, `vmx128bench` and `sfmode` build only with Buck2, with `--target-platforms xbox360//platforms:ppc64`; other platforms skip them.
+Every example builds with Buck2. With Cargo, the Rust titles marked "No" other than `library-check` and `resources` build with step 4, and those marked "Yes" with step 5. `hello2`, `threads`, `net`, `chello` and `cxxhello` declare their own import thunks instead of using `xbox360-sys`. `vmx128test`, `vmx128bench` and `sfmode` build only with Buck2, with `--target-platforms xbox360//platforms:ppc64`; other platforms skip them.
 
 ## Further reading
 

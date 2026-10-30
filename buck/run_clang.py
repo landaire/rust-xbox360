@@ -14,9 +14,9 @@ def main():
     clang = shutil.which("clang")
     if clang is None:
         raise SystemExit(
-            "run_clang.py: no clang on the PATH of the buck2 daemon. C titles require "
+            "run_clang.py: no clang on the PATH of the buck2 daemon. C and C++ titles require "
             "clang with the PowerPC target; run `buck2 kill` after changing PATH "
-            "(see 'Compiling C' in the rust-xbox360 README)."
+            "(see 'Compiling C and C++' in the rust-xbox360 README)."
         )
     return subprocess.run([clang, *sys.argv[1:]]).returncode
 
